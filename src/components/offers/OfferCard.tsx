@@ -45,7 +45,7 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
             <span className="text-xs text-zinc-400">{offer.offerNumber}</span>
             {offer.isDemo && (
               <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
-                demo
+                Demo
               </span>
             )}
           </div>
@@ -64,7 +64,7 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
           href={`/offers/${offer.id}`}
           className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
         >
-          Preview
+          Προεπισκόπηση
         </Link>
 
         <select

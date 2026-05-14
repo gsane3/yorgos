@@ -101,7 +101,7 @@ export default function OfferPreview({ offerId }: Props) {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-base font-semibold text-zinc-700">Preview προσφοράς</h1>
         {offer.isDemo && (
-          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">demo</span>
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">Demo</span>
         )}
       </div>
 

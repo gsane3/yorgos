@@ -40,7 +40,7 @@ export default function CustomerCard({ customer }: Props) {
             <span className="text-sm font-semibold text-zinc-900">{customer.name}</span>
             {customer.isDemo && (
               <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
-                demo
+                Demo
               </span>
             )}
           </div>

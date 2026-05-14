@@ -2,13 +2,8 @@ import { demoMissedCalls } from '@/lib/demo-data';
 
 function DisabledBtn({ label }: { label: string }) {
   return (
-    <button
-      disabled
-      className="inline-flex cursor-not-allowed items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-xs font-medium text-zinc-400 ring-1 ring-zinc-200"
-    >
+    <button disabled className="cursor-not-allowed text-xs text-zinc-400 hover:text-zinc-400">
       {label}
-      <span className="text-zinc-300">·</span>
-      <span>Σύντομα</span>
     </button>
   );
 }
@@ -74,14 +69,16 @@ export default function MissedCallsSection() {
                 </div>
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                <DisabledBtn label="Call back" />
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <DisabledBtn label="Κλήση πίσω" />
+                <span className="text-zinc-200">·</span>
                 {call.isUnknown ? (
                   <DisabledBtn label="Προσθήκη στο CRM" />
                 ) : (
                   <DisabledBtn label="Άνοιγμα πελάτη" />
                 )}
-                <DisabledBtn label="Το χειρίστηκα" />
+                <span className="text-zinc-200">·</span>
+                <DisabledBtn label="Χειρίστηκα" />
               </div>
             </li>
           ))}

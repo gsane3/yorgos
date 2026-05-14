@@ -1,18 +1,5 @@
 import { demoLeads } from '@/lib/demo-data';
 
-function DisabledBtn({ label }: { label: string }) {
-  return (
-    <button
-      disabled
-      className="inline-flex cursor-not-allowed items-center gap-1 rounded-lg bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-400 ring-1 ring-zinc-200"
-    >
-      {label}
-      <span className="text-zinc-300">·</span>
-      <span>Σύντομα</span>
-    </button>
-  );
-}
-
 export default function LeadsSection() {
   const count = demoLeads.length;
 
@@ -63,9 +50,6 @@ export default function LeadsSection() {
                     </span>
                   </div>
                 </div>
-              </div>
-              <div className="mt-3">
-                <DisabledBtn label="Κλήση" />
               </div>
             </li>
           ))}

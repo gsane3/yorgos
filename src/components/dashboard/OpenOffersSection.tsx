@@ -1,29 +1,21 @@
 import { demoOpenOffers, type DemoOfferStatus } from '@/lib/demo-data';
 
-function DisabledBtn({ label }: { label: string }) {
-  return (
-    <button
-      disabled
-      className="inline-flex cursor-not-allowed items-center gap-1 rounded-lg bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-400 ring-1 ring-zinc-200"
-    >
-      {label}
-      <span className="text-zinc-300">·</span>
-      <span>Σύντομα</span>
-    </button>
-  );
-}
+const STATUS_LABELS: Record<DemoOfferStatus, string> = {
+  draft: 'Πρόχειρη',
+  ready_to_send: 'Έτοιμη για αποστολή',
+};
 
-function OfferStatusBadge({ status, label }: { status: DemoOfferStatus; label: string }) {
+function OfferStatusBadge({ status }: { status: DemoOfferStatus }) {
   if (status === 'ready_to_send') {
     return (
       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-        {label}
+        {STATUS_LABELS[status]}
       </span>
     );
   }
   return (
     <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">
-      {label}
+      {STATUS_LABELS[status]}
     </span>
   );
 }
@@ -65,16 +57,12 @@ export default function OpenOffersSection() {
                     <span className="font-semibold text-zinc-700">
                       €{offer.total.toLocaleString('el-GR')}
                     </span>
-                    <OfferStatusBadge status={offer.status} label={offer.statusLabel} />
+                    <OfferStatusBadge status={offer.status} />
                     <span className="text-zinc-400">
                       Ισχύει έως {offer.validUntilLabel}
                     </span>
                   </div>
                 </div>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <DisabledBtn label="Preview" />
-                <DisabledBtn label="Αντιγραφή Viber" />
               </div>
             </li>
           ))}

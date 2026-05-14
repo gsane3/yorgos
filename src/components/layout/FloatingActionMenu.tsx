@@ -3,10 +3,10 @@
 import { useState } from 'react';
 
 const actions = [
-  { label: 'Νέα κλήση', note: 'Step 6' },
-  { label: 'Υπαγόρευση', note: 'Step 9' },
-  { label: 'Νέος πελάτης', note: 'Step 3' },
-  { label: 'Νέα προσφορά', note: 'Step 5' },
+  { label: 'Νέα κλήση' },
+  { label: 'Υπαγόρευση' },
+  { label: 'Νέος πελάτης' },
+  { label: 'Νέα προσφορά' },
 ];
 
 export default function FloatingActionMenu() {
@@ -40,7 +40,7 @@ export default function FloatingActionMenu() {
             >
               <span>{action.label}</span>
               <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-400">
-                {action.note}
+                Σύντομα
               </span>
             </button>
           ))}

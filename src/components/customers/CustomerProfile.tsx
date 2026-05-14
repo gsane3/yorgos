@@ -122,12 +122,12 @@ export default function CustomerProfile({ customerId }: Props) {
       {/* Header */}
       <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-bold text-zinc-900">{customer.name}</h1>
+              <h1 className="min-w-0 truncate text-lg font-bold text-zinc-900">{customer.name}</h1>
               {customer.isDemo && (
                 <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
-                  demo
+                  Demo
                 </span>
               )}
             </div>
@@ -158,9 +158,9 @@ export default function CustomerProfile({ customerId }: Props) {
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
           Γρήγορες ενέργειες
         </p>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
           {/* Call — stub */}
-          <DisabledAction label="Κλήση" note="Step 6" />
+          <DisabledAction label="Κλήση" />
 
           {/* Maps — real */}
           {mapsUrl ? (
@@ -389,7 +389,7 @@ export default function CustomerProfile({ customerId }: Props) {
           Περιλήψεις συνομιλιών
         </h2>
         <p className="mt-1 text-xs text-zinc-400">
-          Step 6–8 — Εμφανίζονται μετά από κλήση ή υπαγόρευση.
+          Εμφανίζονται μετά από κλήση ή υπαγόρευση.
         </p>
       </section>
 
