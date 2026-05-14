@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 const actions = [
   { label: 'Νέα κλήση' },
@@ -10,11 +11,16 @@ const actions = [
 ];
 
 export default function FloatingActionMenu() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   function handleAction(label: string) {
     setOpen(false);
+    if (label === 'Υπαγόρευση') {
+      router.push('/ai-review');
+      return;
+    }
     setToast(`${label} — Σύντομα`);
     setTimeout(() => setToast(null), 2200);
   }

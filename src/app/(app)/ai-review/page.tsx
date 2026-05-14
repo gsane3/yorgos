@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { loadState, addCustomer, updateCustomer, addTask, addOffer } from '@/lib/storage';
@@ -21,6 +21,8 @@ import { STATUS_LABELS } from '@/components/customers/CustomerStatusBadge';
 import { SOURCE_LABELS } from '@/components/customers/CustomerCard';
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/components/tasks/TaskStatusBadge';
 import AiWarningBadge from '@/components/ai/AiWarningBadge';
+import { isSpeechSupported, createRecognition } from '@/lib/speech';
+import type { AppSpeechRecognition, AppSpeechRecognitionEvent } from '@/lib/speech';
 
 type EditableTask = {
   _id: string;
@@ -105,6 +107,12 @@ export default function AiReviewPage() {
   const [aiError, setAiError] = useState('');
   const [resultSource, setResultSource] = useState<'demo' | 'ai'>('demo');
 
+  // Speech state
+  const [speechSupported] = useState(() => isSpeechSupported());
+  const [isListening, setIsListening] = useState(false);
+  const [interimText, setInterimText] = useState('');
+  const recognitionRef = useRef<AppSpeechRecognition | null>(null);
+
   // Phase
   const [phase, setPhase] = useState<'review' | 'saved'>('review');
   const [savedCustomerId, setSavedCustomerId] = useState('');
@@ -134,6 +142,59 @@ export default function AiReviewPage() {
 
   function updateItem(_id: string, updates: Partial<Omit<EditableItem, '_id'>>) {
     setOfferItems((prev) => prev.map((i) => (i._id === _id ? { ...i, ...updates } : i)));
+  }
+
+  // Stop recognition on unmount — no setState in effect body
+  useEffect(() => {
+    return () => { recognitionRef.current?.stop(); };
+  }, []);
+
+  function startListening() {
+    const r = createRecognition();
+    if (!r) return;
+    recognitionRef.current = r;
+
+    r.onresult = (event: AppSpeechRecognitionEvent) => {
+      let finalTranscript = '';
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalTranscript += result[0].transcript;
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+      // Show interim text separately (constraint: don't spam-update the textarea)
+      setInterimText(interim);
+      // Commit final transcript to textarea — append unless empty
+      if (finalTranscript.trim()) {
+        setAiInputText((prev) => {
+          const t = prev.trim();
+          return t ? t + ' ' + finalTranscript.trim() : finalTranscript.trim();
+        });
+        setInterimText('');
+      }
+    };
+
+    r.onend = () => {
+      setIsListening(false);
+      setInterimText('');
+    };
+
+    r.onerror = () => {
+      setIsListening(false);
+      setInterimText('');
+    };
+
+    r.start();
+    setIsListening(true);
+  }
+
+  function stopListening() {
+    recognitionRef.current?.stop();
+    setIsListening(false);
+    setInterimText('');
   }
 
   function applyResult(result: AiReviewResult) {
@@ -428,17 +489,55 @@ export default function AiReviewPage() {
           onChange={(e) => setAiInputText(e.target.value)}
           placeholder='π.χ. "Ο Παπαδόπουλος θέλει HVAC 120τμ, ζήτησε προσφορά εργασίας και υλικών"'
           rows={2}
-          className={`${inputCls} resize-none`}
+          disabled={isListening}
+          className={`${inputCls} resize-none disabled:bg-zinc-50`}
         />
+
+        {/* Interim speech preview — shown while listening, not stored */}
+        {isListening && (
+          <p className="mt-1 min-h-[1.25rem] text-xs italic text-zinc-400">
+            {interimText ? interimText + '...' : 'Ακούω... μίλησε τώρα'}
+          </p>
+        )}
+
         <div className="mt-2 flex flex-wrap gap-2">
+          {/* Mic button — only shown if speech is supported */}
+          {speechSupported && (
+            <button
+              type="button"
+              onClick={isListening ? stopListening : startListening}
+              disabled={isLoadingAi}
+              className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                isListening
+                  ? 'bg-red-50 text-red-700 ring-1 ring-red-200 hover:bg-red-100'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+              }`}
+            >
+              {isListening ? (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                  Διακοπή
+                </>
+              ) : (
+                <>
+                  <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                  </svg>
+                  Υπαγόρευση
+                </>
+              )}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => { void handleAiSubmit(); }}
-            disabled={isLoadingAi || !aiInputText.trim()}
+            disabled={isLoadingAi || isListening || !aiInputText.trim()}
             className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isLoadingAi ? 'Επεξεργασία...' : 'Δημιούργησε με AI'}
           </button>
+
           {resultSource === 'ai' && (
             <button
               type="button"
@@ -449,11 +548,17 @@ export default function AiReviewPage() {
             </button>
           )}
         </div>
-        {aiError && (
-          <p className="mt-2 text-xs text-red-600">{aiError}</p>
-        )}
+
+        {aiError && <p className="mt-2 text-xs text-red-600">{aiError}</p>}
+
+        {/* Privacy / support note */}
+        <p className="mt-2 text-xs text-zinc-400">
+          {speechSupported
+            ? 'Η υπαγόρευση ξεκινά μόνο όταν πατήσεις το μικρόφωνο. Δεν αποθηκεύουμε ήχο.'
+            : 'Η υπαγόρευση δεν υποστηρίζεται σε αυτόν τον browser. Μπορείς να γράψεις το κείμενο.'}
+        </p>
         {resultSource === 'demo' && !aiError && (
-          <p className="mt-2 text-xs text-zinc-400">
+          <p className="text-xs text-zinc-400">
             Χωρίς API key τρέχει σε demo λειτουργία.
           </p>
         )}
