@@ -3,10 +3,12 @@
 import { useState, useMemo } from 'react';
 import { loadState, saveState, addTask, updateTask, deleteTask } from '@/lib/storage';
 import { generateDemoTasks } from '@/lib/demo-data';
-import type { Task, Customer, TaskBaseStatus } from '@/lib/types';
+import type { Task, Customer, TaskBaseStatus, TaskType, TaskPriority } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
+import { norm } from '@/lib/search';
 import TaskCard from '@/components/tasks/TaskCard';
 import TaskForm from '@/components/tasks/TaskForm';
+import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/components/tasks/TaskStatusBadge';
 
 type TabId = 'due_today' | 'upcoming' | 'overdue' | 'completed';
 
@@ -42,6 +44,9 @@ function initCustomers(): Customer[] {
   return loadState().customers ?? [];
 }
 
+const selCls =
+  'rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm text-zinc-700 outline-none focus:border-indigo-400';
+
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>(initTasks);
   const [customers] = useState<Customer[]>(initCustomers);
@@ -49,11 +54,19 @@ export default function TasksPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
+  // Search + filter state (does not affect tab counts)
+  const [taskSearch, setTaskSearch] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriority | ''>('');
+  const [typeFilter, setTypeFilter] = useState<TaskType | ''>('');
+
+  const hasTaskFilter = taskSearch.trim() !== '' || priorityFilter !== '' || typeFilter !== '';
+
   const customerMap = useMemo(
     () => Object.fromEntries(customers.map((c) => [c.id, c.name])),
     [customers]
   );
 
+  // Tab counts — based on ALL tasks, unaffected by search/filter (constraint)
   const tabCounts = useMemo(() => {
     const counts: Record<TabId, number> = { due_today: 0, upcoming: 0, overdue: 0, completed: 0 };
     for (const t of tasks) {
@@ -66,13 +79,38 @@ export default function TasksPage() {
     return counts;
   }, [tasks]);
 
+  // Filtered list — tab first, then search+filter within tab
   const filteredTasks = useMemo(() => {
+    const q = norm(taskSearch.trim());
     return tasks.filter((t) => {
       const eff = getEffectiveStatus(t);
-      if (activeTab === 'completed') return eff === 'completed' || eff === 'cancelled';
-      return eff === activeTab;
+      const inTab =
+        activeTab === 'completed'
+          ? eff === 'completed' || eff === 'cancelled'
+          : eff === activeTab;
+      if (!inTab) return false;
+
+      if (q) {
+        const customerName = t.customerId ? norm(customerMap[t.customerId] ?? '') : '';
+        const hit =
+          norm(t.title).includes(q) ||
+          norm(t.note).includes(q) ||
+          customerName.includes(q);
+        if (!hit) return false;
+      }
+
+      if (priorityFilter && t.priority !== priorityFilter) return false;
+      if (typeFilter && t.type !== typeFilter) return false;
+
+      return true;
     });
-  }, [tasks, activeTab]);
+  }, [tasks, activeTab, taskSearch, priorityFilter, typeFilter, customerMap]);
+
+  function clearTaskFilters() {
+    setTaskSearch('');
+    setPriorityFilter('');
+    setTypeFilter('');
+  }
 
   function handleComplete(id: string) {
     const now = new Date().toISOString();
@@ -145,8 +183,8 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Tabs — scroll horizontally inside their own row */}
-      <div className="mb-4 -mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
+      {/* Tabs — counts are total per tab, unaffected by search/filter */}
+      <div className="mb-3 -mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
         {TAB_ORDER.map((tab) => {
           const count = tabCounts[tab];
           const active = tab === activeTab;
@@ -180,9 +218,53 @@ export default function TasksPage() {
         })}
       </div>
 
+      {/* Search + filters within active tab */}
+      <div className="mb-4 space-y-2">
+        <input
+          type="search"
+          value={taskSearch}
+          onChange={(e) => setTaskSearch(e.target.value)}
+          placeholder="Αναζήτηση τίτλου, σημείωσης, πελάτη..."
+          className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+        />
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value as TaskPriority | '')}
+            className={selCls}
+          >
+            <option value="">Όλες οι προτεραιότητες</option>
+            {(Object.entries(TASK_PRIORITY_LABELS) as [TaskPriority, string][]).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as TaskType | '')}
+            className={selCls}
+          >
+            <option value="">Όλοι οι τύποι</option>
+            {(Object.entries(TASK_TYPE_LABELS) as [TaskType, string][]).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+          {hasTaskFilter && (
+            <button
+              type="button"
+              onClick={clearTaskFilters}
+              className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+            >
+              Καθαρισμός
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Task list */}
       {filteredTasks.length === 0 ? (
-        <p className="py-10 text-center text-sm text-zinc-400">{EMPTY_STATES[activeTab]}</p>
+        <p className="py-10 text-center text-sm text-zinc-400">
+          {hasTaskFilter ? 'Δεν βρέθηκαν αποτελέσματα για αυτά τα φίλτρα.' : EMPTY_STATES[activeTab]}
+        </p>
       ) : (
         <ul className="space-y-2">
           {filteredTasks.map((task) => (

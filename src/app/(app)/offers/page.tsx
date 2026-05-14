@@ -4,8 +4,10 @@ import { useState, useMemo } from 'react';
 import { loadState, saveState, addOffer, updateOffer, deleteOffer } from '@/lib/storage';
 import { generateDemoOffers } from '@/lib/demo-data';
 import type { Offer, OfferStatus, Customer } from '@/lib/types';
+import { norm } from '@/lib/search';
 import OfferCard from '@/components/offers/OfferCard';
 import OfferForm from '@/components/offers/OfferForm';
+import { OFFER_STATUS_LABELS } from '@/components/offers/OfferStatusBadge';
 
 function initOffers(): Offer[] {
   if (typeof window === 'undefined') return [];
@@ -23,11 +25,29 @@ function initCustomers(): Customer[] {
   return loadState().customers ?? [];
 }
 
+type SortBy = 'newest' | 'amount_desc' | 'amount_asc';
+
+const SORT_LABELS: Record<SortBy, string> = {
+  newest: 'Νεότερες πρώτα',
+  amount_desc: 'Υψηλότερο ποσό',
+  amount_asc: 'Χαμηλότερο ποσό',
+};
+
+const selCls =
+  'rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm text-zinc-700 outline-none focus:border-indigo-400';
+
 export default function OffersPage() {
   const [offers, setOffers] = useState<Offer[]>(initOffers);
   const [customers] = useState<Customer[]>(initCustomers);
   const [showForm, setShowForm] = useState(false);
   const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
+
+  // Search + filter state
+  const [offerSearch, setOfferSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<OfferStatus | ''>('');
+  const [sortBy, setSortBy] = useState<SortBy>('newest');
+
+  const hasFilter = offerSearch.trim() !== '' || statusFilter !== '';
 
   const customerMap = useMemo(
     () => Object.fromEntries(customers.map((c) => [c.id, c.name])),
@@ -44,6 +64,39 @@ export default function OffersPage() {
     );
     return `#${String(maxNum + 1).padStart(3, '0')}`;
   }, [offers]);
+
+  const filteredOffers = useMemo(() => {
+    const q = norm(offerSearch.trim());
+    let result = offers.filter((o) => {
+      if (q) {
+        const customerName = o.customerId ? norm(customerMap[o.customerId] ?? '') : '';
+        const hit =
+          norm(o.offerNumber).includes(q) ||
+          customerName.includes(q) ||
+          norm(o.notes).includes(q) ||
+          norm(o.terms).includes(q);
+        if (!hit) return false;
+      }
+      if (statusFilter && o.status !== statusFilter) return false;
+      return true;
+    });
+
+    if (sortBy === 'amount_desc') {
+      result = [...result].sort((a, b) => b.total - a.total);
+    } else if (sortBy === 'amount_asc') {
+      result = [...result].sort((a, b) => a.total - b.total);
+    } else {
+      // newest: reverse insertion order
+      result = [...result].reverse();
+    }
+
+    return result;
+  }, [offers, offerSearch, statusFilter, sortBy, customerMap]);
+
+  function clearFilters() {
+    setOfferSearch('');
+    setStatusFilter('');
+  }
 
   function handleSave(offer: Offer) {
     if (editingOffer) {
@@ -111,6 +164,47 @@ export default function OffersPage() {
         </div>
       )}
 
+      {/* Search + filter + sort */}
+      <div className="mb-4 space-y-2">
+        <input
+          type="search"
+          value={offerSearch}
+          onChange={(e) => setOfferSearch(e.target.value)}
+          placeholder="Αναζήτηση αριθμού, πελάτη, σημειώσεων, όρων..."
+          className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+        />
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as OfferStatus | '')}
+            className={selCls}
+          >
+            <option value="">Όλα τα status</option>
+            {(Object.entries(OFFER_STATUS_LABELS) as [OfferStatus, string][]).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            className={selCls}
+          >
+            {(Object.entries(SORT_LABELS) as [SortBy, string][]).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+          {hasFilter && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+            >
+              Καθαρισμός
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* List */}
       {offers.length === 0 ? (
         <div className="py-12 text-center">
@@ -119,9 +213,14 @@ export default function OffersPage() {
             Μπορείς να δημιουργήσεις προσφορά με υπαγόρευση ή με το κουμπί παραπάνω.
           </p>
         </div>
+      ) : filteredOffers.length === 0 ? (
+        <div className="py-12 text-center">
+          <p className="text-sm font-medium text-zinc-500">Δεν βρέθηκαν αποτελέσματα.</p>
+          <p className="mt-1 text-sm text-zinc-400">Δοκίμασε διαφορετικούς όρους ή κάνε καθαρισμό.</p>
+        </div>
       ) : (
         <ul className="space-y-2">
-          {offers.map((offer) => (
+          {filteredOffers.map((offer) => (
             <li key={offer.id}>
               <OfferCard
                 offer={offer}
