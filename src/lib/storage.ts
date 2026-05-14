@@ -1,4 +1,4 @@
-import type { YorgosMvpState } from './types';
+import type { YorgosMvpState, Customer } from './types';
 
 const STORAGE_KEY = 'yorgos_ai_mvp_state';
 
@@ -25,4 +25,24 @@ export function saveState(partial: Partial<YorgosMvpState>): void {
 export function clearState(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(STORAGE_KEY);
+}
+
+export function getCustomers(): Customer[] {
+  return loadState().customers ?? [];
+}
+
+export function saveCustomers(customers: Customer[]): void {
+  saveState({ customers });
+}
+
+export function addCustomer(customer: Customer): void {
+  saveCustomers([...getCustomers(), customer]);
+}
+
+export function updateCustomer(updated: Customer): void {
+  saveCustomers(getCustomers().map((c) => (c.id === updated.id ? updated : c)));
+}
+
+export function deleteCustomer(id: string): void {
+  saveCustomers(getCustomers().filter((c) => c.id !== id));
 }

@@ -1,5 +1,7 @@
 // Demo/mock data — local only, not connected to any real data source or backend.
 
+import type { Customer } from './types';
+
 export interface DemoMissedCall {
   id: string;
   phoneDisplay: string;
@@ -175,5 +177,79 @@ export const demoRecentCalls: DemoCall[] = [
     durationLabel: '3 λεπτά',
     timeLabel: 'σήμερα 09:00',
     isMock: true,
+  },
+];
+
+// Seeded once when state.customers === undefined (first launch only).
+// If the user deletes all customers, this array is NOT re-seeded.
+export const demoCustomers: Customer[] = [
+  {
+    id: 'demo-karagiannis',
+    name: 'Γιώργης Καραγιάννης',
+    companyName: '',
+    phone: '+30 694 555 7890',
+    email: 'karagiannis@example.gr',
+    address: 'Λεωφ. Αλεξάνδρας 45, Αθήνα',
+    source: 'inbound_call',
+    opportunityValue: 1200,
+    status: 'follow_up_needed',
+    preferredContactMethod: 'viber',
+    needsSummary: '',
+    notes: 'Ζήτησε προσφορά για αντικατάσταση HVAC. Να τον καλέσουμε σύντομα.',
+    createdAt: '2026-05-10T09:00:00.000Z',
+    updatedAt: '2026-05-10T09:00:00.000Z',
+    lastContactAt: '2026-05-10T09:00:00.000Z',
+    isDemo: true,
+  },
+  {
+    id: 'demo-dimitriou',
+    name: 'Αντώνης Δημητρίου',
+    companyName: '',
+    phone: '+30 694 111 2222',
+    email: 'dimitriou@example.gr',
+    address: 'Ακτή Μιαούλη 12, Πειραιάς',
+    source: 'facebook_ads',
+    opportunityValue: 1200,
+    status: 'new_lead',
+    preferredContactMethod: 'phone',
+    needsSummary: '',
+    notes: '',
+    createdAt: '2026-05-11T10:00:00.000Z',
+    updatedAt: '2026-05-11T10:00:00.000Z',
+    isDemo: true,
+  },
+  {
+    id: 'demo-papanikolaou',
+    name: 'Ελένη Παπανικολάου',
+    companyName: '',
+    phone: '+30 697 333 4444',
+    email: 'papanikolaou@example.gr',
+    address: 'Λεωφ. Ποσειδώνος 8, Γλυφάδα',
+    source: 'referral',
+    opportunityValue: 800,
+    status: 'new_lead',
+    preferredContactMethod: 'email',
+    needsSummary: '',
+    notes: '',
+    createdAt: '2026-05-12T11:00:00.000Z',
+    updatedAt: '2026-05-12T11:00:00.000Z',
+    isDemo: true,
+  },
+  {
+    id: 'demo-alexandrou',
+    name: 'Κώστας Αλεξάνδρου',
+    companyName: 'Αλεξάνδρου Constructions',
+    phone: '+30 693 777 8888',
+    email: 'alexandrou@example.gr',
+    address: 'Κηφισίας 100, Μαρούσι',
+    source: 'google_ads',
+    opportunityValue: 2500,
+    status: 'new_lead',
+    preferredContactMethod: 'phone',
+    needsSummary: '',
+    notes: 'Ενδιαφέρεται για πλήρη ανακαίνιση. Χρειάζεται αποτύπωση χώρου.',
+    createdAt: '2026-05-09T08:00:00.000Z',
+    updatedAt: '2026-05-09T08:00:00.000Z',
+    isDemo: true,
   },
 ];

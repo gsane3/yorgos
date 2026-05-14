@@ -36,8 +36,51 @@ export interface Workspace {
   mode: 'mock_local';
 }
 
+export type CustomerStatus =
+  | 'new_lead'
+  | 'contacted'
+  | 'follow_up_needed'
+  | 'offer_drafted'
+  | 'offer_sent'
+  | 'won'
+  | 'lost';
+
+export type CustomerSource =
+  | 'facebook_ads'
+  | 'google_ads'
+  | 'website_form'
+  | 'referral'
+  | 'inbound_call'
+  | 'missed_call'
+  | 'manual_entry'
+  | 'other';
+
+export type PreferredContactMethod = 'viber' | 'email' | 'phone';
+
+export interface Customer {
+  id: string;
+  name: string;
+  companyName: string;
+  phone: string;
+  email: string;
+  address: string;
+  source: CustomerSource;
+  opportunityValue?: number;
+  status: CustomerStatus;
+  preferredContactMethod: PreferredContactMethod;
+  needsSummary: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+  lastContactAt?: string;
+  nextTaskId?: string;
+  isDemo?: boolean;
+}
+
 export interface YorgosMvpState {
   userProfile?: UserProfile;
   businessProfile?: BusinessProfile;
   workspace?: Workspace;
+  // undefined = never initialized (seed demo); [] = user cleared all customers intentionally
+  customers?: Customer[];
 }

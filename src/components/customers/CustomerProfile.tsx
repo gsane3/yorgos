@@ -1,0 +1,326 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { loadState, updateCustomer, deleteCustomer } from '@/lib/storage';
+import { buildMapsUrl } from '@/lib/maps';
+import type { Customer } from '@/lib/types';
+import CustomerStatusBadge, { STATUS_LABELS } from './CustomerStatusBadge';
+import { SOURCE_LABELS } from './CustomerCard';
+import CustomerForm from './CustomerForm';
+
+const CONTACT_LABELS: Record<string, string> = {
+  viber: 'Viber',
+  email: 'Email',
+  phone: 'Τηλέφωνο',
+};
+
+function DisabledAction({ label, note }: { label: string; note?: string }) {
+  return (
+    <button
+      disabled
+      className="flex flex-col items-center gap-1 rounded-2xl bg-zinc-50 px-3 py-3 text-xs font-medium text-zinc-400 ring-1 ring-zinc-200 cursor-not-allowed min-w-[76px]"
+      title={note ? `Σύντομα — ${note}` : 'Σύντομα'}
+    >
+      <span>{label}</span>
+      <span className="text-zinc-300 text-[10px]">Σύντομα</span>
+    </button>
+  );
+}
+
+interface Props {
+  customerId: string;
+}
+
+export default function CustomerProfile({ customerId }: Props) {
+  const router = useRouter();
+  const [customer, setCustomer] = useState<Customer | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const state = loadState();
+    return (state.customers ?? []).find((c) => c.id === customerId) ?? null;
+  });
+  const [isEditing, setIsEditing] = useState(false);
+
+  function handleSave(updated: Customer) {
+    updateCustomer(updated);
+    setCustomer(updated);
+    setIsEditing(false);
+  }
+
+  function handleDelete() {
+    if (!window.confirm(`Διαγραφή πελάτη "${customer?.name}"; Αυτή η ενέργεια δεν αναιρείται.`)) {
+      return;
+    }
+    deleteCustomer(customerId);
+    router.push('/customers');
+  }
+
+  if (customer === null) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-10 text-center">
+        <p className="text-sm font-medium text-zinc-700">Ο πελάτης δεν βρέθηκε.</p>
+        <button
+          type="button"
+          onClick={() => router.push('/customers')}
+          className="mt-4 text-sm text-indigo-600 hover:text-indigo-700"
+        >
+          ← Πίσω στους πελάτες
+        </button>
+      </div>
+    );
+  }
+
+  if (isEditing) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-5">
+        <button
+          type="button"
+          onClick={() => setIsEditing(false)}
+          className="mb-4 flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700"
+        >
+          ← Ακύρωση επεξεργασίας
+        </button>
+        <CustomerForm
+          initial={customer}
+          onSave={handleSave}
+          onCancel={() => setIsEditing(false)}
+        />
+      </div>
+    );
+  }
+
+  const mapsUrl = customer.address ? buildMapsUrl(customer.address) : null;
+
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-5 space-y-5">
+      {/* Back */}
+      <button
+        type="button"
+        onClick={() => router.push('/customers')}
+        className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700"
+      >
+        ← Πελάτες
+      </button>
+
+      {/* Header */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-bold text-zinc-900">{customer.name}</h1>
+              {customer.isDemo && (
+                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
+                  demo
+                </span>
+              )}
+            </div>
+            {customer.companyName && (
+              <p className="mt-0.5 text-sm text-zinc-500">{customer.companyName}</p>
+            )}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <CustomerStatusBadge status={customer.status} />
+              {customer.opportunityValue && (
+                <span className="text-sm font-semibold text-zinc-700">
+                  €{customer.opportunityValue.toLocaleString('el-GR')}
+                </span>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="shrink-0 rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+          >
+            Επεξεργασία
+          </button>
+        </div>
+      </div>
+
+      {/* Quick actions */}
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          Γρήγορες ενέργειες
+        </p>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {/* Call — stub */}
+          <DisabledAction label="Κλήση" note="Step 6" />
+
+          {/* Maps — real */}
+          {mapsUrl ? (
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-3 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 min-w-[76px]"
+            >
+              <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+              </svg>
+              <span>Maps</span>
+            </a>
+          ) : (
+            <button
+              disabled
+              className="flex flex-col items-center gap-1 rounded-2xl bg-zinc-50 px-3 py-3 text-xs font-medium text-zinc-400 ring-1 ring-zinc-200 cursor-not-allowed min-w-[76px]"
+              title="Δεν υπάρχει διεύθυνση"
+            >
+              <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+              </svg>
+              <span>Maps</span>
+            </button>
+          )}
+
+          <DisabledAction label="Task" note="Step 4" />
+          <DisabledAction label="Προσφορά" note="Step 5" />
+          <DisabledAction label="Viber" />
+          <DisabledAction label="Email draft" />
+        </div>
+      </div>
+
+      {/* Contact info */}
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          Στοιχεία επικοινωνίας
+        </h2>
+        {customer.phone ? (
+          <div className="flex items-center gap-3">
+            <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 6Z" />
+            </svg>
+            <span className="text-sm text-zinc-800">{customer.phone}</span>
+          </div>
+        ) : null}
+        {customer.email ? (
+          <div className="flex items-center gap-3">
+            <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+            </svg>
+            <span className="text-sm text-zinc-800">{customer.email}</span>
+          </div>
+        ) : null}
+        {customer.address ? (
+          <div className="flex items-center gap-3">
+            <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+            </svg>
+            <div className="flex flex-1 items-center gap-2">
+              <span className="text-sm text-zinc-800">{customer.address}</span>
+              {mapsUrl && (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-indigo-600 hover:text-indigo-700"
+                >
+                  ↗ Maps
+                </a>
+              )}
+            </div>
+          </div>
+        ) : null}
+        {!customer.phone && !customer.email && !customer.address && (
+          <p className="text-sm text-zinc-400">Δεν έχουν καταχωρηθεί στοιχεία επικοινωνίας.</p>
+        )}
+      </section>
+
+      {/* Source + preferred contact */}
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          Πηγή και επικοινωνία
+        </h2>
+        <div className="flex flex-wrap gap-4 text-sm text-zinc-700">
+          <div>
+            <span className="text-xs text-zinc-400">Πηγή</span>
+            <p className="font-medium">{SOURCE_LABELS[customer.source] ?? customer.source}</p>
+          </div>
+          <div>
+            <span className="text-xs text-zinc-400">Προτιμώμενη επικοινωνία</span>
+            <p className="font-medium">
+              {CONTACT_LABELS[customer.preferredContactMethod] ?? customer.preferredContactMethod}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs text-zinc-400">Status</span>
+            <p className="font-medium">{STATUS_LABELS[customer.status]}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Next best action placeholder */}
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          Επόμενη ενέργεια
+        </h2>
+        <p className="text-sm text-zinc-400 italic">
+          Η επόμενη ενέργεια δημιουργείται αυτόματα από το AI μετά από κλήση ή υπαγόρευση.
+        </p>
+      </section>
+
+      {/* Tasks placeholder */}
+      <section className="rounded-2xl border-2 border-dashed border-zinc-200 p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          Ανοιχτά tasks
+        </h2>
+        <p className="mt-1 text-xs text-zinc-400">Step 4 — Tasks</p>
+      </section>
+
+      {/* Offers placeholder */}
+      <section className="rounded-2xl border-2 border-dashed border-zinc-200 p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          Προσφορές
+        </h2>
+        <p className="mt-1 text-xs text-zinc-400">Step 5 — Προσφορές</p>
+      </section>
+
+      {/* Summaries placeholder */}
+      <section className="rounded-2xl border-2 border-dashed border-zinc-200 p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          Περιλήψεις συνομιλιών
+        </h2>
+        <p className="mt-1 text-xs text-zinc-400">
+          Step 6–8 — Εμφανίζονται μετά από κλήση ή υπαγόρευση.
+        </p>
+      </section>
+
+      {/* Notes */}
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          Σημειώσεις
+        </h2>
+        {customer.notes ? (
+          <p className="whitespace-pre-wrap text-sm text-zinc-700">{customer.notes}</p>
+        ) : (
+          <p className="text-sm text-zinc-400">Δεν υπάρχουν σημειώσεις.</p>
+        )}
+        <button
+          type="button"
+          onClick={() => setIsEditing(true)}
+          className="mt-3 text-xs text-indigo-600 hover:text-indigo-700"
+        >
+          Επεξεργασία σημειώσεων
+        </button>
+      </section>
+
+      {/* Delete */}
+      <section className="rounded-2xl border border-red-100 bg-red-50 p-4">
+        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-red-400">
+          Ζώνη κινδύνου
+        </h2>
+        <p className="mb-3 text-xs text-zinc-500">
+          Η διαγραφή πελάτη αφαιρεί μόνο τα τοπικά δεδομένα.
+        </p>
+        <button
+          type="button"
+          onClick={handleDelete}
+          className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+        >
+          Διαγραφή πελάτη
+        </button>
+      </section>
+    </div>
+  );
+}
