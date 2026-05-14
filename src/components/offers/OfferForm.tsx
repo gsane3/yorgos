@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import type { Offer, OfferItem, Customer } from '@/lib/types';
 import { loadState } from '@/lib/storage';
 import { calculateTotals, lineTotal, fmtEur } from '@/lib/offer-calculations';
+import { norm } from '@/lib/search';
 
 function todayStr(): string {
   return new Date().toISOString().split('T')[0];
@@ -33,6 +34,12 @@ export default function OfferForm({ initial, customers, nextOfferNumber, onSave,
 
   const [offerNumber, setOfferNumber] = useState(initial?.offerNumber ?? nextOfferNumber);
   const [customerId, setCustomerId] = useState(initial?.customerId ?? '');
+  const [customerQuery, setCustomerQuery] = useState(() =>
+    initial?.customerId ? (customers.find((c) => c.id === initial.customerId)?.name ?? '') : ''
+  );
+  const [showDropdown, setShowDropdown] = useState(false);
+  const customerInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [offerDate, setOfferDate] = useState(initial?.offerDate ?? todayStr());
   const [validUntil, setValidUntil] = useState(initial?.validUntil ?? in30daysStr());
   const [vatRate, setVatRate] = useState(initial?.vatRate ?? bp?.defaultVatRate ?? 24);
@@ -47,6 +54,33 @@ export default function OfferForm({ initial, customers, nextOfferNumber, onSave,
   const [error, setError] = useState('');
 
   const totals = calculateTotals(items, vatRate);
+
+  const filteredCustomers = useMemo(() => {
+    const q = norm(customerQuery.trim());
+    if (!q) return customers.slice(0, 8);
+    return customers
+      .filter(
+        (c) =>
+          norm(c.name).includes(q) ||
+          norm(c.companyName ?? '').includes(q) ||
+          norm(c.phone).includes(q) ||
+          norm(c.email).includes(q)
+      )
+      .slice(0, 8);
+  }, [customers, customerQuery]);
+
+  function selectCustomer(c: Customer) {
+    setCustomerId(c.id);
+    setCustomerQuery(c.name);
+    setShowDropdown(false);
+  }
+
+  function clearCustomer() {
+    setCustomerId('');
+    setCustomerQuery('');
+    setShowDropdown(false);
+    customerInputRef.current?.focus();
+  }
 
   function updateItem(id: string, field: keyof Omit<OfferItem, 'id'>, value: string | number) {
     setItems((prev) =>
@@ -90,8 +124,7 @@ export default function OfferForm({ initial, customers, nextOfferNumber, onSave,
 
   const inputCls =
     'w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
-  const selectCls =
-    'w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white';
+
   const labelCls = 'mb-1 block text-sm font-medium text-zinc-700';
 
   return (
@@ -112,21 +145,78 @@ export default function OfferForm({ initial, customers, nextOfferNumber, onSave,
               className={inputCls}
             />
           </div>
-          <div className="flex-1">
+          <div className="relative flex-1">
             <label className={labelCls}>
               Πελάτης{' '}
               <span className="text-xs font-normal text-zinc-400">(προαιρετικό)</span>
             </label>
-            <select
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              className={selectCls}
-            >
-              <option value="">— Χωρίς πελάτη —</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                ref={customerInputRef}
+                type="text"
+                value={customerQuery}
+                onChange={(e) => {
+                  setCustomerQuery(e.target.value);
+                  setCustomerId('');
+                  setShowDropdown(true);
+                }}
+                onFocus={() => setShowDropdown(true)}
+                onBlur={(e) => {
+                  if (!dropdownRef.current?.contains(e.relatedTarget as Node)) {
+                    setShowDropdown(false);
+                    if (!customerId) setCustomerQuery('');
+                  }
+                }}
+                placeholder="Αναζήτηση πελάτη..."
+                className={inputCls + ' pr-8'}
+                autoComplete="off"
+              />
+              {customerQuery && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); clearCustomer(); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                  tabIndex={-1}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            {showDropdown && customers.length > 0 && (
+              <div
+                ref={dropdownRef}
+                className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-md"
+              >
+                {!customerId && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); clearCustomer(); }}
+                    className="w-full px-3 py-2 text-left text-sm text-zinc-400 hover:bg-zinc-50"
+                  >
+                    — Χωρίς πελάτη —
+                  </button>
+                )}
+                {filteredCustomers.length === 0 ? (
+                  <p className="px-3 py-2 text-sm text-zinc-400">Δεν βρέθηκαν αποτελέσματα.</p>
+                ) : (
+                  filteredCustomers.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); selectCustomer(c); }}
+                      className={`w-full px-3 py-2 text-left text-sm transition hover:bg-indigo-50 ${
+                        c.id === customerId ? 'bg-indigo-50 font-medium text-indigo-700' : 'text-zinc-800'
+                      }`}
+                    >
+                      <span className="block truncate">{c.name}</span>
+                      {c.companyName && (
+                        <span className="block truncate text-xs text-zinc-400">{c.companyName}</span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
 

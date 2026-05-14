@@ -88,17 +88,29 @@ export default function OfferPreview({ offerId }: Props) {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-5 space-y-5">
-      {/* Back */}
-      <button
-        type="button"
-        onClick={() => router.push('/offers')}
-        className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700"
-      >
-        ← Προσφορές
-      </button>
+      {/* Back + actions */}
+      <div className="flex items-center justify-between gap-3 print:hidden">
+        <button
+          type="button"
+          onClick={() => router.push('/offers')}
+          className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700"
+        >
+          ← Προσφορές
+        </button>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+        >
+          <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" />
+          </svg>
+          Αποθήκευση ως PDF
+        </button>
+      </div>
 
       {/* Page title */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 print:hidden">
         <h1 className="text-base font-semibold text-zinc-700">Προεπισκόπηση προσφοράς</h1>
         {offer.isDemo && (
           <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">Demo</span>
@@ -106,7 +118,7 @@ export default function OfferPreview({ offerId }: Props) {
       </div>
 
       {/* ── PDF-style document ─────────────────────────── */}
-      <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-100 space-y-5">
+      <div className="offer-print-document rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-100 space-y-5">
 
         {/* Header row: business + offer meta */}
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
@@ -221,7 +233,7 @@ export default function OfferPreview({ offerId }: Props) {
       {/* ── End PDF-style document ──────────────────────── */}
 
       {/* Status management */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
           Αλλαγή status
         </p>
@@ -242,7 +254,7 @@ export default function OfferPreview({ offerId }: Props) {
       </section>
 
       {/* Copy drafts */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
           Drafts επικοινωνίας
         </p>
@@ -254,7 +266,7 @@ export default function OfferPreview({ offerId }: Props) {
       </section>
 
       {/* Delete */}
-      <section className="rounded-2xl border border-red-100 bg-red-50 p-4">
+      <section className="rounded-2xl border border-red-100 bg-red-50 p-4 print:hidden">
         <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-red-400">
           Ζώνη κινδύνου
         </h2>

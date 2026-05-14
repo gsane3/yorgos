@@ -1,4 +1,5 @@
-import type { Task } from '@/lib/types';
+import Link from 'next/link';
+import type { Task, TaskType } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
 import TaskStatusBadge, { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from './TaskStatusBadge';
 
@@ -29,6 +30,23 @@ const PRIORITY_DOT: Record<string, string> = {
   normal: 'bg-zinc-400',
   low: 'bg-zinc-300',
 };
+
+function primaryAction(type: TaskType, customerId?: string): { label: string; href: string } | null {
+  if (type === 'call_back') return { label: 'Άνοιγμα κλήσης', href: '/call/mock' };
+  if (type === 'send_offer' || type === 'follow_up_offer') return { label: 'Άνοιγμα προσφορών', href: '/offers' };
+  if (
+    type === 'visit_customer' ||
+    type === 'ask_for_photos_documents' ||
+    type === 'book_appointment' ||
+    type === 'wait_for_reply'
+  ) {
+    return customerId ? { label: 'Άνοιγμα πελάτη', href: `/customers/${customerId}` } : null;
+  }
+  if (type === 'other') {
+    return customerId ? { label: 'Άνοιγμα πελάτη', href: `/customers/${customerId}` } : null;
+  }
+  return null;
+}
 
 interface Props {
   task: Task;
@@ -98,6 +116,17 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
             </svg>
             Ολοκλήρωση
           </button>
+          {(() => {
+            const action = primaryAction(task.type, task.customerId);
+            return action ? (
+              <Link
+                href={action.href}
+                className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+              >
+                {action.label} →
+              </Link>
+            ) : null;
+          })()}
           <button
             type="button"
             onClick={() => onEdit(task)}

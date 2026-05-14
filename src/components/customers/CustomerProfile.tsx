@@ -349,11 +349,11 @@ export default function CustomerProfile({ customerId }: Props) {
         )}
       </section>
 
-      {/* Offers */}
+      {/* Offers & files */}
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-            Προσφορές
+            Προσφορές &amp; αρχεία πελάτη
           </h2>
           <Link href="/offers" className="text-xs text-indigo-600 hover:text-indigo-700">
             Διαχείριση →
@@ -367,16 +367,18 @@ export default function CustomerProfile({ customerId }: Props) {
               <li key={offer.id}>
                 <Link
                   href={`/offers/${offer.id}`}
-                  className="flex items-center justify-between gap-3 rounded-xl bg-zinc-50 px-3 py-2.5 text-sm transition hover:bg-zinc-100 ring-1 ring-zinc-100"
+                  className="flex items-start justify-between gap-3 rounded-xl bg-zinc-50 px-3 py-2.5 text-sm transition hover:bg-zinc-100 ring-1 ring-zinc-100"
                 >
                   <div className="min-w-0 flex-1">
-                    <span className="font-medium text-zinc-800">{offer.offerNumber}</span>
-                    <span className="mx-2 text-zinc-300">·</span>
-                    <span className="font-semibold text-zinc-700">{fmtEur(offer.total)}</span>
-                    <span className="mx-2 text-zinc-300">·</span>
-                    <span className="text-xs text-zinc-500">μέχρι {offer.validUntil}</span>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span className="font-semibold text-zinc-800">{offer.offerNumber}</span>
+                      <span className="font-semibold text-zinc-700">{fmtEur(offer.total)}</span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-zinc-400">
+                      Ισχύει μέχρι {offer.validUntil}
+                    </p>
                   </div>
-                  <div className="shrink-0">
+                  <div className="shrink-0 pt-0.5">
                     <OfferStatusBadge status={offer.status} />
                   </div>
                 </Link>
@@ -384,6 +386,11 @@ export default function CustomerProfile({ customerId }: Props) {
             ))}
           </ul>
         )}
+        <div className="mt-3 rounded-xl border border-dashed border-zinc-200 px-3 py-2.5">
+          <p className="text-xs text-zinc-400">
+            Αρχεία PDF και συνημμένα θα ενεργοποιηθούν σε επόμενο βήμα.
+          </p>
+        </div>
       </section>
 
       {/* Summaries placeholder */}

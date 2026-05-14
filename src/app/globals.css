@@ -3,3 +3,46 @@
 @theme inline {
   --font-sans: var(--font-geist-sans);
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .offer-print-document,
+  .offer-print-document * {
+    visibility: visible !important;
+  }
+
+  .offer-print-document {
+    position: fixed !important;
+    inset: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+
+  .offer-print-document > * {
+    max-width: none !important;
+  }
+}
