@@ -1,6 +1,6 @@
 // Demo/mock data — local only, not connected to any real data source or backend.
 
-import type { Customer } from './types';
+import type { Customer, Task } from './types';
 
 export interface DemoMissedCall {
   id: string;
@@ -253,3 +253,79 @@ export const demoCustomers: Customer[] = [
     isDemo: true,
   },
 ];
+
+// Called once when state.tasks === undefined (first launch only).
+// Uses dates relative to today so tasks are always relevant when first seeded.
+export function generateDemoTasks(): Task[] {
+  const toStr = (d: Date): string => d.toISOString().split('T')[0];
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const in3days = new Date(today);
+  in3days.setDate(today.getDate() + 3);
+  const now = new Date().toISOString();
+
+  return [
+    {
+      id: 'demo-task-1',
+      customerId: 'demo-karagiannis',
+      title: 'Κλήση πίσω στον Καραγιάννη',
+      type: 'call_back',
+      status: 'open',
+      priority: 'high',
+      dueDate: toStr(yesterday),
+      dueTime: '14:00',
+      note: 'Ζήτησε να τον καλέσουμε για προσφορά HVAC.',
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+      isDemo: true,
+    },
+    {
+      id: 'demo-task-2',
+      customerId: 'demo-dimitriou',
+      title: 'Αποστολή προσφοράς Δημητρίου',
+      type: 'send_offer',
+      status: 'open',
+      priority: 'normal',
+      dueDate: toStr(today),
+      dueTime: '17:00',
+      note: '',
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+      isDemo: true,
+    },
+    {
+      id: 'demo-task-3',
+      customerId: 'demo-alexandrou',
+      title: 'Επίσκεψη για αποτύπωση χώρου',
+      type: 'visit_customer',
+      status: 'open',
+      priority: 'normal',
+      dueDate: toStr(tomorrow),
+      dueTime: '10:00',
+      note: 'Να φέρω μαζί τον εξοπλισμό μέτρησης.',
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+      isDemo: true,
+    },
+    {
+      id: 'demo-task-4',
+      customerId: 'demo-papanikolaou',
+      title: 'Follow-up email Παπανικολάου',
+      type: 'follow_up_offer',
+      status: 'open',
+      priority: 'low',
+      dueDate: toStr(in3days),
+      note: '',
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+      isDemo: true,
+    },
+  ];
+}

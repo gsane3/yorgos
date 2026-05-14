@@ -1,13 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { loadState, updateCustomer, deleteCustomer } from '@/lib/storage';
 import { buildMapsUrl } from '@/lib/maps';
-import type { Customer } from '@/lib/types';
+import type { Customer, Task } from '@/lib/types';
+import { getEffectiveStatus } from '@/lib/types';
 import CustomerStatusBadge, { STATUS_LABELS } from './CustomerStatusBadge';
 import { SOURCE_LABELS } from './CustomerCard';
 import CustomerForm from './CustomerForm';
+import { TASK_TYPE_LABELS } from '@/components/tasks/TaskStatusBadge';
 
 const CONTACT_LABELS: Record<string, string> = {
   viber: 'Viber',
@@ -38,6 +41,13 @@ export default function CustomerProfile({ customerId }: Props) {
     if (typeof window === 'undefined') return null;
     const state = loadState();
     return (state.customers ?? []).find((c) => c.id === customerId) ?? null;
+  });
+  const [openTasks] = useState<Task[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const state = loadState();
+    return (state.tasks ?? []).filter(
+      (t) => t.customerId === customerId && t.status === 'open'
+    );
   });
   const [isEditing, setIsEditing] = useState(false);
 
@@ -173,7 +183,15 @@ export default function CustomerProfile({ customerId }: Props) {
             </button>
           )}
 
-          <DisabledAction label="Task" note="Step 4" />
+          <Link
+            href="/tasks"
+            className="flex flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-3 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 min-w-[76px]"
+          >
+            <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <span>Tasks</span>
+          </Link>
           <DisabledAction label="Προσφορά" note="Step 5" />
           <DisabledAction label="Viber" />
           <DisabledAction label="Email draft" />
@@ -260,12 +278,59 @@ export default function CustomerProfile({ customerId }: Props) {
         </p>
       </section>
 
-      {/* Tasks placeholder */}
-      <section className="rounded-2xl border-2 border-dashed border-zinc-200 p-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-          Ανοιχτά tasks
-        </h2>
-        <p className="mt-1 text-xs text-zinc-400">Step 4 — Tasks</p>
+      {/* Open tasks */}
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            Ανοιχτά tasks
+          </h2>
+          <Link href="/tasks" className="text-xs text-indigo-600 hover:text-indigo-700">
+            Διαχείριση →
+          </Link>
+        </div>
+        {openTasks.length === 0 ? (
+          <p className="text-sm text-zinc-400">Δεν υπάρχουν ανοιχτά tasks.</p>
+        ) : (
+          <ul className="space-y-2">
+            {openTasks.map((task) => {
+              const eff = getEffectiveStatus(task);
+              const isOverdue = eff === 'overdue';
+              const isToday = eff === 'due_today';
+              return (
+                <li
+                  key={task.id}
+                  className={`flex items-start gap-2 rounded-xl p-3 text-sm ${
+                    isOverdue
+                      ? 'bg-red-50 ring-1 ring-red-200'
+                      : isToday
+                      ? 'bg-amber-50 ring-1 ring-amber-200'
+                      : 'bg-zinc-50 ring-1 ring-zinc-100'
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-medium ${isOverdue ? 'text-red-900' : 'text-zinc-800'}`}>
+                      {task.title}
+                    </p>
+                    <p className="mt-0.5 text-xs text-zinc-500">
+                      {TASK_TYPE_LABELS[task.type]} · {task.dueDate}
+                      {task.dueTime ? ` ${task.dueTime}` : ''}
+                    </p>
+                  </div>
+                  {isOverdue && (
+                    <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                      Εκπρόθεσμο
+                    </span>
+                  )}
+                  {isToday && (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      Σήμερα
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
 
       {/* Offers placeholder */}

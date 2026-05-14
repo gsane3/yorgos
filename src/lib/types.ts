@@ -77,10 +77,54 @@ export interface Customer {
   isDemo?: boolean;
 }
 
+export type TaskType =
+  | 'call_back'
+  | 'send_offer'
+  | 'follow_up_offer'
+  | 'ask_for_photos_documents'
+  | 'book_appointment'
+  | 'visit_customer'
+  | 'wait_for_reply'
+  | 'other';
+
+export type TaskPriority = 'low' | 'normal' | 'high';
+
+export type TaskBaseStatus = 'open' | 'completed' | 'cancelled';
+
+export type TaskEffectiveStatus = 'overdue' | 'due_today' | 'upcoming' | 'completed' | 'cancelled';
+
+export interface Task {
+  id: string;
+  customerId?: string;
+  title: string;
+  type: TaskType;
+  status: TaskBaseStatus;
+  priority: TaskPriority;
+  dueDate: string; // YYYY-MM-DD
+  dueTime?: string; // HH:mm
+  note: string;
+  createdFromAi: boolean;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  isDemo?: boolean;
+}
+
+export function getEffectiveStatus(task: Task): TaskEffectiveStatus {
+  if (task.status === 'completed') return 'completed';
+  if (task.status === 'cancelled') return 'cancelled';
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (task.dueDate < todayStr) return 'overdue';
+  if (task.dueDate === todayStr) return 'due_today';
+  return 'upcoming';
+}
+
 export interface YorgosMvpState {
   userProfile?: UserProfile;
   businessProfile?: BusinessProfile;
   workspace?: Workspace;
   // undefined = never initialized (seed demo); [] = user cleared all customers intentionally
   customers?: Customer[];
+  // undefined = never initialized (seed demo); [] = user cleared all tasks intentionally
+  tasks?: Task[];
 }
