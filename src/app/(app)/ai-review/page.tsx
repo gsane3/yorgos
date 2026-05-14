@@ -22,7 +22,11 @@ import { SOURCE_LABELS } from '@/components/customers/CustomerCard';
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/components/tasks/TaskStatusBadge';
 import AiWarningBadge from '@/components/ai/AiWarningBadge';
 import { isSpeechSupported, createRecognition } from '@/lib/speech';
-import type { AppSpeechRecognition, AppSpeechRecognitionEvent } from '@/lib/speech';
+import type {
+  AppSpeechRecognition,
+  AppSpeechRecognitionEvent,
+  AppSpeechRecognitionErrorEvent,
+} from '@/lib/speech';
 
 type EditableTask = {
   _id: string;
@@ -112,6 +116,8 @@ export default function AiReviewPage() {
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');
   const recognitionRef = useRef<AppSpeechRecognition | null>(null);
+  const shouldKeepListeningRef = useRef(false);
+  const stoppingManuallyRef = useRef(false);
 
   // Phase
   const [phase, setPhase] = useState<'review' | 'saved'>('review');
@@ -144,54 +150,93 @@ export default function AiReviewPage() {
     setOfferItems((prev) => prev.map((i) => (i._id === _id ? { ...i, ...updates } : i)));
   }
 
-  // Stop recognition on unmount — no setState in effect body
+  // Ensure recognition stops on unmount — refs prevent restart in onend
   useEffect(() => {
-    return () => { recognitionRef.current?.stop(); };
+    return () => {
+      shouldKeepListeningRef.current = false;
+      stoppingManuallyRef.current = true;
+      recognitionRef.current?.stop();
+    };
   }, []);
 
   function startListening() {
+    setAiError('');
     const r = createRecognition();
     if (!r) return;
+
+    shouldKeepListeningRef.current = true;
+    stoppingManuallyRef.current = false;
     recognitionRef.current = r;
 
-    r.onresult = (event: AppSpeechRecognitionEvent) => {
-      let finalTranscript = '';
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          finalTranscript += result[0].transcript;
-        } else {
-          interim += result[0].transcript;
+    function attachHandlers(instance: AppSpeechRecognition) {
+      instance.onresult = (event: AppSpeechRecognitionEvent) => {
+        let finalTranscript = '';
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          if (result.isFinal) {
+            finalTranscript += result[0].transcript;
+          } else {
+            interim += result[0].transcript;
+          }
         }
-      }
-      // Show interim text separately (constraint: don't spam-update the textarea)
-      setInterimText(interim);
-      // Commit final transcript to textarea — append unless empty
-      if (finalTranscript.trim()) {
-        setAiInputText((prev) => {
-          const t = prev.trim();
-          return t ? t + ' ' + finalTranscript.trim() : finalTranscript.trim();
-        });
+        setInterimText(interim);
+        if (finalTranscript.trim()) {
+          setAiInputText((prev) => {
+            const t = prev.trim();
+            return t ? t + ' ' + finalTranscript.trim() : finalTranscript.trim();
+          });
+          setInterimText('');
+        }
+      };
+
+      instance.onerror = (event: AppSpeechRecognitionErrorEvent) => {
+        const err = event.error;
+        shouldKeepListeningRef.current = false;
+        stoppingManuallyRef.current = true;
+        setIsListening(false);
         setInterimText('');
-      }
-    };
+        if (err === 'not-allowed' || err === 'service-not-allowed') {
+          setAiError('Δεν δόθηκε πρόσβαση στο μικρόφωνο. Μπορείς να γράψεις το κείμενο.');
+        } else if (err === 'no-speech' || err === 'audio-capture') {
+          setAiError('Δεν άκουσα καθαρά. Μίλησε ξανά ή γράψε το κείμενο.');
+        }
+      };
 
-    r.onend = () => {
-      setIsListening(false);
-      setInterimText('');
-    };
+      instance.onend = () => {
+        if (shouldKeepListeningRef.current && !stoppingManuallyRef.current) {
+          // Restart to keep session alive after browser auto-stops
+          try {
+            const newR = createRecognition();
+            if (newR) {
+              recognitionRef.current = newR;
+              attachHandlers(newR);
+              newR.start();
+            } else {
+              setIsListening(false);
+              setInterimText('');
+            }
+          } catch {
+            shouldKeepListeningRef.current = false;
+            setIsListening(false);
+            setInterimText('');
+            setAiError('Η υπαγόρευση σταμάτησε. Δοκίμασε ξανά.');
+          }
+        } else {
+          setIsListening(false);
+          setInterimText('');
+        }
+      };
+    }
 
-    r.onerror = () => {
-      setIsListening(false);
-      setInterimText('');
-    };
-
+    attachHandlers(r);
     r.start();
     setIsListening(true);
   }
 
   function stopListening() {
+    shouldKeepListeningRef.current = false;
+    stoppingManuallyRef.current = true;
     recognitionRef.current?.stop();
     setIsListening(false);
     setInterimText('');

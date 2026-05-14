@@ -14,13 +14,17 @@ export interface AppSpeechRecognitionEvent extends Event {
   readonly results: SpeechRecognitionResultList;
 }
 
+export interface AppSpeechRecognitionErrorEvent extends Event {
+  readonly error: string;
+}
+
 export interface AppSpeechRecognition extends EventTarget {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
   onresult: ((event: AppSpeechRecognitionEvent) => void) | null;
   onend: (() => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: AppSpeechRecognitionErrorEvent) => void) | null;
   start(): void;
   stop(): void;
 }
@@ -38,7 +42,7 @@ export function createRecognition(): AppSpeechRecognition | null {
   if (!SR) return null;
   const r = new SR() as AppSpeechRecognition;
   r.lang = 'el-GR';
-  r.continuous = false;
+  r.continuous = true; // session continues until user presses stop
   r.interimResults = true;
   return r;
 }
