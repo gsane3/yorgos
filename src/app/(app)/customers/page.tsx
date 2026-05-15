@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { loadState, saveState, addCustomer } from '@/lib/storage';
+import { loadState, saveState, addCustomer, ensureCustomerCrmNumbers, getNextCrmNumber } from '@/lib/storage';
 import { demoCustomers } from '@/lib/demo-data';
 import type { Customer, CustomerStatus, CustomerSource } from '@/lib/types';
 import { norm } from '@/lib/search';
@@ -29,13 +29,20 @@ export default function CustomersPage() {
     const state = loadState();
     let nextCustomers: Customer[];
     if (state.customers === undefined) {
-      saveState({ customers: demoCustomers });
       nextCustomers = demoCustomers;
     } else {
       nextCustomers = state.customers;
     }
+    // Assign CRM numbers to any customer that is missing one (migration + demo seed).
+    const numbered = ensureCustomerCrmNumbers(nextCustomers);
+    const needsSave =
+      state.customers === undefined ||
+      numbered.some((c, i) => c.crmNumber !== nextCustomers[i].crmNumber);
+    if (needsSave) {
+      saveState({ customers: numbered });
+    }
     const timer = window.setTimeout(() => {
-      setCustomers(nextCustomers);
+      setCustomers(numbered);
       setHydrated(true);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -53,7 +60,8 @@ export default function CustomersPage() {
           norm(c.phone).includes(q) ||
           norm(c.email).includes(q) ||
           norm(c.notes).includes(q) ||
-          norm(c.needsSummary).includes(q);
+          norm(c.needsSummary).includes(q) ||
+          norm(c.crmNumber ?? '').includes(q);
         if (!hit) return false;
       }
       if (statusFilter && c.status !== statusFilter) return false;
@@ -69,8 +77,10 @@ export default function CustomersPage() {
   }
 
   function handleCreate(customer: Customer) {
-    addCustomer(customer);
-    setCustomers((prev) => [...prev, customer]);
+    const crmNumber = customer.crmNumber ?? getNextCrmNumber(customers);
+    const withCrm = { ...customer, crmNumber };
+    addCustomer(withCrm);
+    setCustomers((prev) => [...prev, withCrm]);
     setShowForm(false);
   }
 

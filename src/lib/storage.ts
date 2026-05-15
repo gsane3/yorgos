@@ -35,8 +35,40 @@ export function saveCustomers(customers: Customer[]): void {
   saveState({ customers });
 }
 
+export function getNextCrmNumber(customers: Customer[]): string {
+  const nums = customers
+    .map((c) => c.crmNumber)
+    .filter(Boolean)
+    .map((n) => {
+      const match = n!.match(/(\d+)$/);
+      return match ? parseInt(match[1]) : 0;
+    });
+  const max = nums.length > 0 ? Math.max(...nums) : 0;
+  return `#${max + 1}`;
+}
+
+export function ensureCustomerCrmNumbers(customers: Customer[]): Customer[] {
+  if (customers.length === 0) return customers;
+  const existingNums = customers
+    .filter((c) => c.crmNumber)
+    .map((c) => {
+      const match = c.crmNumber!.match(/(\d+)$/);
+      return match ? parseInt(match[1]) : 0;
+    });
+  let counter = existingNums.length > 0 ? Math.max(...existingNums) : 0;
+  return customers.map((c) => {
+    if (c.crmNumber) return c;
+    counter++;
+    return { ...c, crmNumber: `#${counter}` };
+  });
+}
+
 export function addCustomer(customer: Customer): void {
-  saveCustomers([...getCustomers(), customer]);
+  const existing = getCustomers();
+  const toSave = customer.crmNumber
+    ? customer
+    : { ...customer, crmNumber: getNextCrmNumber(existing) };
+  saveCustomers([...existing, toSave]);
 }
 
 export function updateCustomer(updated: Customer): void {

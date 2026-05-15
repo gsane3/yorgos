@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { DemoCallScenario } from '@/lib/demo-data';
 import type { Customer, CallRecord, Task } from '@/lib/types';
-import { updateCustomer, addCustomer, loadState, updateCallRecord, addCallRecord, addTask } from '@/lib/storage';
+import { updateCustomer, addCustomer, loadState, updateCallRecord, addCallRecord, addTask, getNextCrmNumber } from '@/lib/storage';
 import { parseSmsReply } from '@/lib/sms-intake';
 
 interface BusinessInfo {
@@ -27,17 +27,6 @@ function buildCrmSmsMessage(bp?: BusinessInfo): string {
   return `${body}\n\n${signature}`;
 }
 
-function getNextCrmNumber(customers: Customer[]): string {
-  const nums = customers
-    .map((c) => c.crmNumber)
-    .filter(Boolean)
-    .map((n) => {
-      const match = n!.match(/(\d+)$/);
-      return match ? parseInt(match[1]) : 0;
-    });
-  const max = nums.length > 0 ? Math.max(...nums) : 0;
-  return `#${max + 1}`;
-}
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -140,7 +129,7 @@ export default function PostCallScreen({
     const newCustomer: Customer = {
       id: crypto.randomUUID(),
       crmNumber,
-      name: `Καταχώρηση CRM ${crmNumber}`,
+      name: `Πελάτης ${crmNumber}`,
       companyName: '',
       phone: customerPhone,
       email: '',

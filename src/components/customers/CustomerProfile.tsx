@@ -367,7 +367,7 @@ export default function CustomerProfile({ customerId }: Props) {
               <h1 className="min-w-0 truncate text-lg font-bold text-zinc-900">{customer.name}</h1>
               {customer.crmNumber && (
                 <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-500">
-                  CRM {customer.crmNumber}
+                  Πελάτης {customer.crmNumber}
                 </span>
               )}
               {customer.isDemo && (
