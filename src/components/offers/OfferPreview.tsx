@@ -8,6 +8,7 @@ import { fmtEur, lineTotal } from '@/lib/offer-calculations';
 import OfferStatusBadge, { OFFER_STATUS_LABELS } from './OfferStatusBadge';
 import CopyDraftButtons from './CopyDraftButtons';
 import SendEmailSection from './SendEmailSection';
+import OfferAcceptanceDemoSection from './OfferAcceptanceDemoSection';
 
 const ALL_STATUSES: OfferStatus[] = [
   'draft',
@@ -60,6 +61,11 @@ export default function OfferPreview({ offerId }: Props) {
   function handleStatusChange(status: OfferStatus) {
     if (!offer) return;
     const updated = { ...offer, status, updatedAt: new Date().toISOString() };
+    updateOffer(updated);
+    setOffer(updated);
+  }
+
+  function handleUpdateOffer(updated: Offer) {
     updateOffer(updated);
     setOffer(updated);
   }
@@ -305,6 +311,9 @@ export default function OfferPreview({ offerId }: Props) {
         onMarkSent={handleMarkSent}
         onCreateFollowUpTask={handleCreateFollowUpTask}
       />
+
+      {/* Acceptance demo */}
+      <OfferAcceptanceDemoSection offer={offer} onUpdateOffer={handleUpdateOffer} />
 
       {/* Copy drafts */}
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
