@@ -13,6 +13,7 @@ import CustomerStatusBadge, { STATUS_LABELS } from './CustomerStatusBadge';
 import { SOURCE_LABELS } from './CustomerCard';
 import CustomerForm from './CustomerForm';
 import { TASK_TYPE_LABELS } from '@/components/tasks/TaskStatusBadge';
+import CustomerFilesSection from './CustomerFilesSection';
 
 const CONTACT_LABELS: Record<string, string> = {
   viber: 'Viber',
@@ -442,18 +443,8 @@ export default function CustomerProfile({ customerId }: Props) {
             </ul>
           )}
 
-          {/* Disabled upload placeholder */}
-          <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium text-zinc-400">Ανέβασμα αρχείου</p>
-              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">
-                Σύντομα
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-zinc-400">
-              Στο MVP τα αρχεία δεν ανεβαίνουν σε server. Μπορείς να αποθηκεύσεις την προσφορά ως PDF και να τη στείλεις χειροκίνητα.
-            </p>
-          </div>
+          {/* Local media files (IndexedDB) */}
+          <CustomerFilesSection customerId={customerId} />
         </div>
       </section>
 
