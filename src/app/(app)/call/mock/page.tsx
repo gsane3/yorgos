@@ -141,6 +141,7 @@ export default function MockCallPage() {
         ownerName={businessProfile?.ownerName || undefined}
         businessPhone={businessProfile?.phone || undefined}
         businessEmail={businessProfile?.email || undefined}
+        endedRecord={endedRecord ?? undefined}
         onNewCall={handleNewCall}
       />
     );

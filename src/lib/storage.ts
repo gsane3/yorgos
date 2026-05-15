@@ -92,6 +92,11 @@ export function addCallRecord(record: CallRecord): void {
   saveState({ calls: [...(state.calls ?? []), record] });
 }
 
+export function updateCallRecord(updated: CallRecord): void {
+  const state = loadState();
+  saveState({ calls: (state.calls ?? []).map((c) => (c.id === updated.id ? updated : c)) });
+}
+
 export function getBusinessProfile(): BusinessProfile | null {
   return loadState().businessProfile ?? null;
 }

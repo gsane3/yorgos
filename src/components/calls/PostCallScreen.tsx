@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { DemoCallScenario } from '@/lib/demo-data';
-import type { Customer } from '@/lib/types';
-import { updateCustomer, addCustomer, loadState } from '@/lib/storage';
+import type { Customer, CallRecord, Task } from '@/lib/types';
+import { updateCustomer, addCustomer, loadState, updateCallRecord, addCallRecord, addTask } from '@/lib/storage';
 import { parseSmsReply, formatParsedData, type ParsedSmsData } from '@/lib/sms-intake';
 
 interface BusinessInfo {
@@ -51,6 +51,7 @@ interface Props {
   ownerName?: string;
   businessPhone?: string;
   businessEmail?: string;
+  endedRecord?: CallRecord;
   onNewCall: () => void;
 }
 
@@ -64,10 +65,78 @@ export default function PostCallScreen({
   ownerName,
   businessPhone,
   businessEmail,
+  endedRecord,
   onNewCall,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const smsMessage = buildSmsMessage({ businessName, ownerName, businessPhone, businessEmail });
+
+  // CRM brief state — pre-filled with rule-based draft from scenario + customer.
+  const [briefSummary, setBriefSummary] = useState(() => {
+    const nameStr = customerName ? `πελάτης ${customerName}` : 'πελάτης';
+    if (scenario?.summaryText) {
+      const first = scenario.summaryText.split(/[.!?]/).find((s) => s.trim().length > 10)?.trim();
+      return first
+        ? `${first}. Ο ${nameStr} χρειάζεται συνέχεια από την επιχείρηση.`
+        : `Ο ${nameStr} επικοινώνησε. Απαιτείται συνέχεια.`;
+    }
+    return `Ο ${nameStr} επικοινώνησε. Απαιτείται συνέχεια από την επιχείρηση.`;
+  });
+  const [briefNextStep, setBriefNextStep] = useState('Follow-up με πελάτη ή αποστολή προσφοράς.');
+  const [briefCreateFollowUp, setBriefCreateFollowUp] = useState(false);
+  const [briefSaved, setBriefSaved] = useState(false);
+
+  function handleSaveBrief() {
+    const now = new Date().toISOString();
+    const trimmedSummary = briefSummary.trim();
+    const trimmedNextStep = briefNextStep.trim();
+
+    if (endedRecord) {
+      updateCallRecord({
+        ...endedRecord,
+        summary: trimmedSummary,
+        nextStep: trimmedNextStep || undefined,
+      });
+    } else {
+      const record: CallRecord = {
+        id: crypto.randomUUID(),
+        customerId: customerId || undefined,
+        callType: 'outbound_existing_customer',
+        direction: 'outbound',
+        status: 'completed',
+        startedAt: now,
+        durationSeconds: 0,
+        isMock: true,
+        summary: trimmedSummary,
+        nextStep: trimmedNextStep || undefined,
+        createdAt: now,
+      };
+      addCallRecord(record);
+    }
+
+    if (briefCreateFollowUp && customerId) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const noteLines = [`Brief: ${trimmedSummary}`];
+      if (trimmedNextStep) noteLines.push(`Επόμενο βήμα: ${trimmedNextStep}`);
+      const task: Task = {
+        id: crypto.randomUUID(),
+        customerId,
+        title: 'Follow-up μετά από κλήση',
+        type: 'other',
+        status: 'open',
+        priority: 'normal',
+        dueDate: tomorrow.toISOString().split('T')[0],
+        note: noteLines.join('\n'),
+        createdFromAi: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      addTask(task);
+    }
+
+    setBriefSaved(true);
+  }
 
   // SMS intake state
   const [smsRaw, setSmsRaw] = useState('');
@@ -195,6 +264,84 @@ export default function PostCallScreen({
           {scenario?.summaryText ??
             'Η κλήση ολοκληρώθηκε. Σε πραγματική χρήση, το yorgos.ai θα δημιουργούσε αυτόματα περίληψη, tasks και draft προσφοράς από τη συνομιλία.'}
         </p>
+      </div>
+
+      {/* CRM brief */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-4">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            Brief κλήσης για CRM
+          </h2>
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">Demo</span>
+        </div>
+
+        <div>
+          <label className={labelCls}>Σύνοψη</label>
+          <textarea
+            rows={3}
+            value={briefSummary}
+            onChange={(e) => setBriefSummary(e.target.value)}
+            disabled={briefSaved}
+            className={`${inputCls} resize-none disabled:bg-zinc-50 disabled:text-zinc-500`}
+          />
+        </div>
+
+        <div>
+          <label className={labelCls}>
+            Επόμενο βήμα{' '}
+            <span className="text-zinc-400">(προαιρετικό)</span>
+          </label>
+          <input
+            type="text"
+            value={briefNextStep}
+            onChange={(e) => setBriefNextStep(e.target.value)}
+            disabled={briefSaved}
+            className={`${inputCls} disabled:bg-zinc-50 disabled:text-zinc-500`}
+          />
+        </div>
+
+        <label className={`flex items-center gap-2 ${briefSaved ? 'opacity-50' : 'cursor-pointer'}`}>
+          <input
+            type="checkbox"
+            checked={briefCreateFollowUp}
+            onChange={(e) => setBriefCreateFollowUp(e.target.checked)}
+            disabled={briefSaved || !customerId}
+            className="h-4 w-4 rounded border-zinc-300 text-indigo-600"
+          />
+          <span className="text-sm text-zinc-700">Δημιουργία task follow-up (αύριο)</span>
+          {!customerId && (
+            <span className="text-xs text-zinc-400">— χωρίς συνδεδεμένο πελάτη</span>
+          )}
+        </label>
+
+        {!customerId && (
+          <p className="text-xs text-zinc-400">
+            Δεν υπάρχει συνδεδεμένος πελάτης. Το brief θα αποθηκευτεί χωρίς σύνδεση.
+          </p>
+        )}
+
+        {briefSaved ? (
+          <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-2">
+            <p className="text-sm font-semibold text-green-700">Αποθηκεύτηκε στο CRM.</p>
+            {customerId && (
+              <Link
+                href={`/customers/${customerId}`}
+                className="inline-flex items-center rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
+              >
+                Άνοιγμα πελάτη →
+              </Link>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleSaveBrief}
+            disabled={!briefSummary.trim()}
+            className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Αποθήκευση στο CRM
+          </button>
+        )}
       </div>
 
       {/* SMS details request */}
