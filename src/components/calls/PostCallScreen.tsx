@@ -77,6 +77,7 @@ export default function PostCallScreen({
   const [editAddress, setEditAddress] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [saveResult, setSaveResult] = useState<'saved' | 'created' | null>(null);
+  const [savedCustomerId, setSavedCustomerId] = useState<string | null>(null);
   const [dataCopied, setDataCopied] = useState(false);
 
   function handleCopy() {
@@ -127,6 +128,7 @@ export default function PostCallScreen({
         email: editEmail || existing.email,
         updatedAt: now,
       });
+      setSavedCustomerId(customerId);
       setSaveResult('saved');
     } else if (customerPhone) {
       // Create new customer from SMS reply
@@ -146,6 +148,7 @@ export default function PostCallScreen({
         updatedAt: now,
       };
       addCustomer(newCustomer);
+      setSavedCustomerId(newCustomer.id);
       setSaveResult('created');
     }
   }
@@ -245,7 +248,7 @@ export default function PostCallScreen({
         <div className="space-y-3">
           <textarea
             value={smsRaw}
-            onChange={(e) => { setSmsRaw(e.target.value); setParsed(null); setSaveResult(null); }}
+            onChange={(e) => { setSmsRaw(e.target.value); setParsed(null); setSaveResult(null); setSavedCustomerId(null); }}
             rows={5}
             placeholder={
               'Όνομα: Γιώργος\nΕπώνυμο: Παπαδόπουλος\nΔιεύθυνση: Κηφισίας 10, Αθήνα\nEmail: george@example.com'
@@ -306,15 +309,20 @@ export default function PostCallScreen({
             </div>
 
             {/* Save / copy actions */}
-            {saveResult === 'saved' && (
-              <p className="rounded-xl bg-green-50 px-3 py-2 text-sm text-green-700 ring-1 ring-green-200">
-                Ο πελάτης ενημερώθηκε.
-              </p>
-            )}
-            {saveResult === 'created' && (
-              <p className="rounded-xl bg-green-50 px-3 py-2 text-sm text-green-700 ring-1 ring-green-200">
-                Νέος πελάτης δημιουργήθηκε.
-              </p>
+            {(saveResult === 'saved' || saveResult === 'created') && (
+              <div className="rounded-xl bg-green-50 p-3 ring-1 ring-green-200 space-y-2">
+                <p className="text-sm font-medium text-green-700">
+                  {saveResult === 'saved' ? 'Ο πελάτης ενημερώθηκε.' : 'Νέος πελάτης δημιουργήθηκε.'}
+                </p>
+                {savedCustomerId && (
+                  <Link
+                    href={`/customers/${savedCustomerId}`}
+                    className="inline-flex items-center rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
+                  >
+                    Άνοιγμα πελάτη
+                  </Link>
+                )}
+              </div>
             )}
 
             {saveResult === null && (
