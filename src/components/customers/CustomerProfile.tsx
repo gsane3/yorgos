@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { loadState, updateCustomer, deleteCustomer } from '@/lib/storage';
+import { loadState, updateCustomer, deleteCustomer, updateTask } from '@/lib/storage';
 import { buildMapsUrl } from '@/lib/maps';
 import type { Customer, Task, Offer, CallRecord } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
@@ -51,6 +51,14 @@ export default function CustomerProfile({ customerId }: Props) {
   const [customerOffers, setCustomerOffers] = useState<Offer[]>([]);
   const [customerCalls, setCustomerCalls] = useState<CallRecord[]>([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [lastCompletedTask, setLastCompletedTask] = useState<Task | null>(null);
+
+  // Auto-clear undo banner after 8 seconds.
+  useEffect(() => {
+    if (!lastCompletedTask) return;
+    const timer = window.setTimeout(() => setLastCompletedTask(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [lastCompletedTask]);
 
   // Open tasks derived from all customer tasks (used in the open tasks section).
   const openTasks = useMemo(
@@ -75,6 +83,24 @@ export default function CustomerProfile({ customerId }: Props) {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [customerId]);
+
+  function handleCompleteTask(taskId: string) {
+    const now = new Date().toISOString();
+    const task = customerTasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const completed = { ...task, status: 'completed' as const, completedAt: now, updatedAt: now };
+    updateTask(completed);
+    setCustomerTasks((prev) => prev.map((t) => (t.id === taskId ? completed : t)));
+    setLastCompletedTask(completed);
+  }
+
+  function handleUndoCompleteTask() {
+    if (!lastCompletedTask) return;
+    const undone = { ...lastCompletedTask, status: 'open' as const, completedAt: undefined, updatedAt: new Date().toISOString() };
+    updateTask(undone);
+    setCustomerTasks((prev) => prev.map((t) => (t.id === undone.id ? undone : t)));
+    setLastCompletedTask(null);
+  }
 
   function handleSave(updated: Customer) {
     updateCustomer(updated);
@@ -338,6 +364,20 @@ export default function CustomerProfile({ customerId }: Props) {
             Διαχείριση →
           </Link>
         </div>
+        {lastCompletedTask && (
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-green-50 px-3 py-2 ring-1 ring-green-200">
+            <p className="min-w-0 truncate text-xs text-green-700">
+              Ολοκληρώθηκε: <span className="font-medium">{lastCompletedTask.title}</span>
+            </p>
+            <button
+              type="button"
+              onClick={handleUndoCompleteTask}
+              className="shrink-0 rounded-lg border border-green-200 bg-white px-2.5 py-1 text-xs font-medium text-green-700 transition hover:bg-green-50"
+            >
+              Αναίρεση
+            </button>
+          </div>
+        )}
         {openTasks.length === 0 ? (
           <p className="text-sm text-zinc-400">Δεν υπάρχουν ανοιχτά tasks.</p>
         ) : (
@@ -377,6 +417,16 @@ export default function CustomerProfile({ customerId }: Props) {
                         Σήμερα
                       </span>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => handleCompleteTask(task.id)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
+                    >
+                      <svg className="h-3 w-3" fill="none" strokeWidth={2.5} stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                      </svg>
+                      Ολοκλήρωση
+                    </button>
                     <Link
                       href={`/tasks?taskId=${task.id}`}
                       className="text-xs text-indigo-600 hover:text-indigo-700"
