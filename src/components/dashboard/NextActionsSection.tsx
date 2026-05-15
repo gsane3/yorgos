@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
 import type { Customer, Task, Offer } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
@@ -8,9 +11,34 @@ const INITIAL_VISIBLE = 5;
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, normal: 1, low: 2 };
 
+type ItemCategory =
+  | 'task_overdue'
+  | 'task_today'
+  | 'offer_ready'
+  | 'offer_followup'
+  | 'customer_followup';
+
+type FilterId = 'all' | 'urgent' | 'tasks' | 'offers' | 'followups';
+
+const FILTER_CATEGORIES: Record<FilterId, ItemCategory[]> = {
+  all: ['task_overdue', 'task_today', 'offer_ready', 'offer_followup', 'customer_followup'],
+  urgent: ['task_overdue'],
+  tasks: ['task_overdue', 'task_today'],
+  offers: ['offer_ready', 'offer_followup'],
+  followups: ['customer_followup', 'offer_followup'],
+};
+
+const FILTER_EMPTY: Record<FilterId, string> = {
+  all: 'Δεν υπάρχουν άμεσες προτεραιότητες.',
+  urgent: 'Δεν υπάρχουν επείγοντα tasks.',
+  tasks: 'Δεν υπάρχουν tasks για σήμερα.',
+  offers: 'Δεν υπάρχουν προσφορές που χρειάζονται ενέργεια.',
+  followups: 'Δεν υπάρχουν εκκρεμότητες follow-up.',
+};
+
 interface ActionItem {
   id: string;
-  kind: 'task' | 'offer' | 'customer';
+  category: ItemCategory;
   tone: 'red' | 'amber' | 'indigo';
   title: string;
   detail: string;
@@ -38,14 +66,11 @@ function buildActions(
   // 1. Overdue open tasks — sorted high > normal > low priority.
   const overdueTasks = tasks
     .filter((t) => t.status === 'open' && getEffectiveStatus(t) === 'overdue')
-    .sort(
-      (a, b) =>
-        (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1)
-    );
+    .sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1));
   for (const task of overdueTasks) {
     items.push({
       id: task.id,
-      kind: 'task',
+      category: 'task_overdue',
       tone: 'red',
       title: task.title,
       detail: `Εκπρόθεσμο · ${TASK_TYPE_LABELS[task.type] ?? task.type}`,
@@ -57,14 +82,11 @@ function buildActions(
   // 2. Open tasks due today — sorted by priority.
   const todayTasks = tasks
     .filter((t) => t.status === 'open' && getEffectiveStatus(t) === 'due_today')
-    .sort(
-      (a, b) =>
-        (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1)
-    );
+    .sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1));
   for (const task of todayTasks) {
     items.push({
       id: task.id,
-      kind: 'task',
+      category: 'task_today',
       tone: 'amber',
       title: task.title,
       detail: `Σήμερα · ${TASK_TYPE_LABELS[task.type] ?? task.type}`,
@@ -73,14 +95,14 @@ function buildActions(
     });
   }
 
-  // 3. Offers ready to send — newest updatedAt first.
+  // 3. Offers ready to send — newest first.
   const readyOffers = offers
     .filter((o) => o.status === 'ready_to_send')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   for (const offer of readyOffers) {
     items.push({
       id: offer.id,
-      kind: 'offer',
+      category: 'offer_ready',
       tone: 'indigo',
       title: `Προσφορά ${offer.offerNumber} — έτοιμη για αποστολή`,
       detail: fmtEur(offer.total),
@@ -89,14 +111,14 @@ function buildActions(
     });
   }
 
-  // 4. Offers sent manually — suggest follow-up, newest first.
+  // 4. Sent offers — suggest follow-up, newest first.
   const sentOffers = offers
     .filter((o) => o.status === 'sent_manually')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   for (const offer of sentOffers) {
     items.push({
       id: `follow-${offer.id}`,
-      kind: 'offer',
+      category: 'offer_followup',
       tone: 'indigo',
       title: `Follow-up προσφοράς ${offer.offerNumber}`,
       detail: fmtEur(offer.total),
@@ -105,18 +127,14 @@ function buildActions(
     });
   }
 
-  // 5. Customers with follow_up_needed but no open task — newest updatedAt first.
+  // 5. Customers with follow_up_needed but no open task — newest first.
   const followUpCustomers = customers
-    .filter(
-      (c) =>
-        c.status === 'follow_up_needed' &&
-        !customerIdsWithOpenTask.has(c.id)
-    )
+    .filter((c) => c.status === 'follow_up_needed' && !customerIdsWithOpenTask.has(c.id))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   for (const c of followUpCustomers) {
     items.push({
       id: `cu-${c.id}`,
-      kind: 'customer',
+      category: 'customer_followup',
       tone: 'amber',
       title: 'Χρειάζεται follow-up',
       detail: '',
@@ -152,32 +170,92 @@ interface Props {
   offers: Offer[];
 }
 
+const FILTER_DEFS: { id: FilterId; label: string }[] = [
+  { id: 'all', label: 'Όλα' },
+  { id: 'urgent', label: 'Επείγοντα' },
+  { id: 'tasks', label: 'Tasks' },
+  { id: 'offers', label: 'Προσφορές' },
+  { id: 'followups', label: 'Follow-up' },
+];
+
 export default function NextActionsSection({ customers, tasks, offers }: Props) {
+  const [activeFilter, setActiveFilter] = useState<FilterId>('all');
+  const [showAll, setShowAll] = useState(false);
+
   const allItems = buildActions(customers, tasks, offers);
-  const visible = allItems.slice(0, INITIAL_VISIBLE);
-  const extra = allItems.length - INITIAL_VISIBLE;
+
+  function filterItems(filter: FilterId): ActionItem[] {
+    const allowed = new Set<ItemCategory>(FILTER_CATEGORIES[filter]);
+    return allItems.filter((item) => allowed.has(item.category));
+  }
+
+  const filteredItems = filterItems(activeFilter);
+  const visible = showAll ? filteredItems : filteredItems.slice(0, INITIAL_VISIBLE);
+  const extra = filteredItems.length - INITIAL_VISIBLE;
+
+  function handleFilterChange(f: FilterId) {
+    setActiveFilter(f);
+    setShowAll(false);
+  }
 
   return (
     <section className="space-y-3">
+      {/* Section header */}
       <div className="flex items-center gap-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
           Προτεραιότητες σήμερα
         </h2>
         {allItems.length > 0 && (
-          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-            allItems.some((i) => i.tone === 'red')
-              ? 'bg-red-100 text-red-700'
-              : 'bg-amber-100 text-amber-700'
-          }`}>
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              allItems.some((i) => i.category === 'task_overdue')
+                ? 'bg-red-100 text-red-700'
+                : 'bg-amber-100 text-amber-700'
+            }`}
+          >
             {allItems.length}
           </span>
         )}
       </div>
 
-      {allItems.length === 0 ? (
-        <p className="text-sm text-zinc-500">
-          Δεν υπάρχουν άμεσες προτεραιότητες.
-        </p>
+      {/* Filter chips — horizontally scrollable on narrow screens */}
+      <div className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
+        {FILTER_DEFS.map((f) => {
+          const count = filterItems(f.id).length;
+          const active = activeFilter === f.id;
+          return (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => handleFilterChange(f.id)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
+                active
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+              }`}
+            >
+              {f.label}
+              {count > 0 && (
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+                    active
+                      ? 'bg-white/20 text-white'
+                      : f.id === 'urgent'
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-zinc-200 text-zinc-600'
+                  }`}
+                >
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Items */}
+      {filteredItems.length === 0 ? (
+        <p className="text-sm text-zinc-500">{FILTER_EMPTY[activeFilter]}</p>
       ) : (
         <>
           <ul className="space-y-2">
@@ -214,13 +292,14 @@ export default function NextActionsSection({ customers, tasks, offers }: Props) 
             ))}
           </ul>
 
-          {extra > 0 && (
-            <Link
-              href="/tasks"
+          {!showAll && extra > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
               className="text-xs text-indigo-600 hover:text-indigo-700"
             >
-              +{extra} ακόμα προτεραιότητες
-            </Link>
+              +{extra} ακόμα
+            </button>
           )}
         </>
       )}
