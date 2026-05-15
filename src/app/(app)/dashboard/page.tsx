@@ -10,6 +10,7 @@ import LeadsSection from '@/components/dashboard/LeadsSection';
 import TodayTasksSection from '@/components/dashboard/TodayTasksSection';
 import OpenOffersSection from '@/components/dashboard/OpenOffersSection';
 import RecentCallsSection from '@/components/dashboard/RecentCallsSection';
+import NextActionsSection from '@/components/dashboard/NextActionsSection';
 
 const LEAD_STATUSES = new Set<string>([
   'new_lead',
@@ -104,6 +105,8 @@ export default function DashboardPage() {
       </div>
 
       <QuickAssistantInput />
+
+      <NextActionsSection customers={customers} tasks={tasks} offers={offers} />
 
       <MissedCallsSection callRecords={calls} customerMap={customerMap} />
       <LeadsSection leads={leads} />
