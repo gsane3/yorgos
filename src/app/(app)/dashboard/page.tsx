@@ -39,6 +39,16 @@ export default function DashboardPage() {
     calls: undefined,
   });
 
+  // Undo state for dashboard task completion — must be declared before any conditional return.
+  const [lastCompletedTask, setLastCompletedTask] = useState<Task | null>(null);
+
+  // Auto-clear the undo banner after 8 seconds.
+  useEffect(() => {
+    if (!lastCompletedTask) return;
+    const timer = setTimeout(() => setLastCompletedTask(null), 8000);
+    return () => clearTimeout(timer);
+  }, [lastCompletedTask]);
+
   // Load localStorage after mount to avoid hydration mismatch.
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
   useEffect(() => {
@@ -77,6 +87,7 @@ export default function DashboardPage() {
     const now = new Date().toISOString();
     const task = dashboardData.tasks.find((t) => t.id === taskId);
     if (!task) return;
+    setLastCompletedTask(task); // save for undo before overwriting
     const completed: Task = {
       ...task,
       status: 'completed' as TaskBaseStatus,
@@ -88,6 +99,18 @@ export default function DashboardPage() {
       ...prev,
       tasks: prev.tasks.map((t) => (t.id === taskId ? completed : t)),
     }));
+  }
+
+  function handleUndoCompleteTask() {
+    if (!lastCompletedTask) return;
+    updateTask(lastCompletedTask);
+    setDashboardData((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((t) =>
+        t.id === lastCompletedTask.id ? lastCompletedTask : t
+      ),
+    }));
+    setLastCompletedTask(null);
   }
 
   const leads = customers
@@ -128,6 +151,8 @@ export default function DashboardPage() {
         tasks={tasks}
         offers={offers}
         onCompleteTask={handleCompleteTask}
+        lastCompletedTaskTitle={lastCompletedTask?.title}
+        onUndoCompleteTask={handleUndoCompleteTask}
       />
 
       <MissedCallsSection callRecords={calls} customerMap={customerMap} />

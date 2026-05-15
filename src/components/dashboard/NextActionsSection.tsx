@@ -172,6 +172,8 @@ interface Props {
   tasks: Task[];
   offers: Offer[];
   onCompleteTask?: (taskId: string) => void;
+  lastCompletedTaskTitle?: string;
+  onUndoCompleteTask?: () => void;
 }
 
 const FILTER_DEFS: { id: FilterId; label: string }[] = [
@@ -182,7 +184,14 @@ const FILTER_DEFS: { id: FilterId; label: string }[] = [
   { id: 'followups', label: 'Follow-up' },
 ];
 
-export default function NextActionsSection({ customers, tasks, offers, onCompleteTask }: Props) {
+export default function NextActionsSection({
+  customers,
+  tasks,
+  offers,
+  onCompleteTask,
+  lastCompletedTaskTitle,
+  onUndoCompleteTask,
+}: Props) {
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
   const [showAll, setShowAll] = useState(false);
 
@@ -256,6 +265,23 @@ export default function NextActionsSection({ customers, tasks, offers, onComplet
           );
         })}
       </div>
+
+      {/* Undo banner — shown after completing a task */}
+      {lastCompletedTaskTitle && onUndoCompleteTask && (
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-green-50 px-3 py-2 ring-1 ring-green-200">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-green-800">Το task ολοκληρώθηκε.</p>
+            <p className="truncate text-xs text-green-700">{lastCompletedTaskTitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onUndoCompleteTask}
+            className="shrink-0 rounded-lg border border-green-300 bg-white px-2.5 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-50"
+          >
+            Αναίρεση
+          </button>
+        </div>
+      )}
 
       {/* Items */}
       {filteredItems.length === 0 ? (
