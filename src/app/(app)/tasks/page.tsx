@@ -112,6 +112,30 @@ export default function TasksPage() {
 
   const hasTaskFilter = taskSearch.trim() !== '' || priorityFilter !== '' || typeFilter !== '';
 
+  // Clear focused task highlight and remove taskId from URL.
+  function clearFocusedTask() {
+    setFocusedTaskId(null);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', '/tasks');
+    }
+  }
+
+  // Clear focus when the focused task is completed or deleted.
+  // setState is deferred into a timer to avoid react-hooks/set-state-in-effect.
+  useEffect(() => {
+    if (!hydrated || !focusedTaskId) return;
+    const found = tasks.find((t) => t.id === focusedTaskId);
+    if (!found) {
+      const timer = window.setTimeout(() => {
+        setFocusedTaskId(null);
+        window.history.replaceState(null, '', '/tasks');
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [tasks, focusedTaskId, hydrated]);
+
+  const focusedTask = focusedTaskId ? tasks.find((t) => t.id === focusedTaskId) ?? null : null;
+
   const customerMap = useMemo(
     () => Object.fromEntries(customers.map((c) => [c.id, c.name])),
     [customers]
@@ -276,6 +300,23 @@ export default function TasksPage() {
 
       {/* Duplicate follow-up task cleanup panel */}
       <DuplicateTasksPanel tasks={tasks} onDeleteMany={handleDeleteManyTasks} />
+
+      {/* Focus banner — shown when arriving from dashboard with a taskId param */}
+      {focusedTask && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-indigo-50 px-4 py-3 ring-1 ring-indigo-200">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-indigo-600">Άνοιξες task από το dashboard</p>
+            <p className="truncate text-sm font-semibold text-indigo-900">{focusedTask.title}</p>
+          </div>
+          <button
+            type="button"
+            onClick={clearFocusedTask}
+            className="shrink-0 rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-600 transition hover:bg-indigo-50"
+          >
+            Καθαρισμός εστίασης
+          </button>
+        </div>
+      )}
 
       {/* Tabs — counts are total per tab, unaffected by search/filter */}
       <div className="mb-3 -mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
