@@ -1,4 +1,27 @@
+import type { CallRecord } from '@/lib/types';
 import { demoRecentCalls } from '@/lib/demo-data';
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds} δευτ.`;
+  const m = Math.floor(seconds / 60);
+  return `${m} λεπτ.`;
+}
+
+function formatTime(isoStr: string): string {
+  const date = new Date(isoStr);
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  const dateStr = date.toISOString().split('T')[0];
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const timeStr = date.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' });
+  if (dateStr === todayStr) return `σήμερα ${timeStr}`;
+  if (dateStr === yesterdayStr) return `χθες ${timeStr}`;
+  return (
+    date.toLocaleDateString('el-GR', { day: 'numeric', month: 'short' }) + ` ${timeStr}`
+  );
+}
 
 function InboundIcon() {
   return (
@@ -30,31 +53,32 @@ function OutboundIcon() {
   );
 }
 
-export default function RecentCallsSection() {
-  const calls = demoRecentCalls;
+interface Props {
+  callRecords: CallRecord[] | undefined;
+  customerMap: Record<string, string>;
+}
 
-  return (
-    <section className="space-y-3">
-      <div className="flex items-center gap-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Πρόσφατες κλήσεις
-        </h2>
-      </div>
+export default function RecentCallsSection({ callRecords, customerMap }: Props) {
+  const isDemo = callRecords === undefined;
 
-      {calls.length === 0 ? (
-        <p className="text-sm text-zinc-500">Δεν υπάρχουν πρόσφατες κλήσεις.</p>
-      ) : (
+  // Demo fallback: user has never used the call mock
+  if (isDemo) {
+    return (
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Πρόσφατες κλήσεις
+          </h2>
+        </div>
         <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 overflow-hidden">
           <ul className="divide-y divide-zinc-100">
-            {calls.map((call) => (
+            {demoRecentCalls.map((call) => (
               <li key={call.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-50 ring-1 ring-zinc-200">
                   {call.direction === 'inbound' ? <InboundIcon /> : <OutboundIcon />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-zinc-800">
-                    {call.nameOrNumber}
-                  </p>
+                  <p className="truncate text-sm font-medium text-zinc-800">{call.nameOrNumber}</p>
                   <p className="text-xs text-zinc-400">
                     {call.durationLabel} · {call.timeLabel}
                   </p>
@@ -65,6 +89,53 @@ export default function RecentCallsSection() {
           <div className="border-t border-zinc-100 px-4 py-2.5">
             <p className="text-xs text-zinc-400">
               Demo κλήσεις. Δεν έγινε πραγματική τηλεφωνική κλήση ή ηχογράφηση.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Real call records — sorted newest first, limit 5
+  const recent = [...callRecords]
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+    .slice(0, 5);
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          Πρόσφατες κλήσεις
+        </h2>
+      </div>
+
+      {recent.length === 0 ? (
+        <p className="text-sm text-zinc-500">Δεν υπάρχουν πρόσφατες κλήσεις.</p>
+      ) : (
+        <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 overflow-hidden">
+          <ul className="divide-y divide-zinc-100">
+            {recent.map((call) => {
+              const name = call.customerId ? customerMap[call.customerId] : undefined;
+              return (
+                <li key={call.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-50 ring-1 ring-zinc-200">
+                    {call.direction === 'inbound' ? <InboundIcon /> : <OutboundIcon />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-zinc-800">
+                      {name ?? 'Άγνωστος αριθμός'}
+                    </p>
+                    <p className="text-xs text-zinc-400">
+                      {formatDuration(call.durationSeconds)} · {formatTime(call.startedAt)}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="border-t border-zinc-100 px-4 py-2.5">
+            <p className="text-xs text-zinc-400">
+              Mock κλήσεις — δεν έγινε πραγματική τηλεφωνική κλήση ή ηχογράφηση.
             </p>
           </div>
         </div>
