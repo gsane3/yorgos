@@ -129,6 +129,28 @@ export default function PostCallScreen({
   const [demoSmsText, setDemoSmsText] = useState('');
   const [crmRegistered, setCrmRegistered] = useState(false);
   const [crmRegisteredCustomerId, setCrmRegisteredCustomerId] = useState<string | null>(null);
+
+  // Manual registration form state.
+  const [manualOpen, setManualOpen] = useState(() =>
+    !!(customerLandlinePhone && !customerPhone && !customerId)
+  );
+  const [manualFirst, setManualFirst] = useState(() => {
+    if (!customerName || /^Πελάτης #\d+$/.test(customerName)) return '';
+    const parts = customerName.trim().split(/\s+/);
+    return parts[0] || '';
+  });
+  const [manualLast, setManualLast] = useState(() => {
+    if (!customerName || /^Πελάτης #\d+$/.test(customerName)) return '';
+    const parts = customerName.trim().split(/\s+/);
+    return parts.slice(1).join(' ') || '';
+  });
+  const [manualMobile, setManualMobile] = useState(customerPhone || '');
+  const [manualLandline, setManualLandline] = useState(customerLandlinePhone || '');
+  const [manualAddress, setManualAddress] = useState('');
+  const [manualEmail, setManualEmail] = useState('');
+  const [manualRegistered, setManualRegistered] = useState(false);
+  const [manualRegisteredCustomerId, setManualRegisteredCustomerId] = useState<string | null>(null);
+
   const smsTimerRef = useRef<number | null>(null);
 
   // Clear SMS timer on unmount.
@@ -357,6 +379,115 @@ export default function PostCallScreen({
     setBriefSaved(true);
     setCrmRegistered(true);
     setCrmRegisteredCustomerId(resolvedId);
+  }
+
+  function handleManualRegister() {
+    if (manualRegistered) return;
+    const now = new Date().toISOString();
+    const trimmedSummary = briefSummary.trim();
+    const trimmedNextStep = briefNextStep.trim();
+    const mobile = manualMobile.trim();
+    const landline = manualLandline.trim();
+    const combinedName = [manualFirst.trim(), manualLast.trim()].filter(Boolean).join(' ');
+    const resolvedPhone = mobile || landline || tempPhone.trim() || '';
+
+    let resolvedId = activeCrmId || customerId || null;
+
+    if (resolvedId) {
+      const state = loadState();
+      const existing = (state.customers ?? []).find((c) => c.id === resolvedId);
+      if (existing) {
+        const noteAdd = trimmedSummary || 'Στοιχεία καταχωρήθηκαν χειροκίνητα.';
+        updateCustomer({
+          ...existing,
+          name: combinedName || existing.name,
+          phone: resolvedPhone || existing.phone,
+          mobilePhone: mobile || existing.mobilePhone,
+          landlinePhone: landline || existing.landlinePhone,
+          address: manualAddress.trim() || existing.address,
+          email: manualEmail.trim() || existing.email,
+          status: existing.status === 'new_lead' ? 'contacted' : existing.status,
+          intakeStatus: 'completed',
+          notes: existing.notes ? `${existing.notes}\n${noteAdd}` : noteAdd,
+          updatedAt: now,
+        });
+      }
+    } else {
+      const state = loadState();
+      const crmNumber = getNextCrmNumber(state.customers ?? []);
+      const newCustomer: Customer = {
+        id: crypto.randomUUID(),
+        crmNumber,
+        name: combinedName || `Πελάτης ${crmNumber}`,
+        companyName: '',
+        phone: resolvedPhone,
+        mobilePhone: mobile || undefined,
+        landlinePhone: landline || undefined,
+        email: manualEmail.trim(),
+        address: manualAddress.trim(),
+        source: 'inbound_call',
+        status: 'contacted',
+        preferredContactMethod: 'phone',
+        needsSummary: trimmedSummary,
+        notes: trimmedSummary || 'Στοιχεία καταχωρήθηκαν χειροκίνητα.',
+        intakeStatus: 'completed',
+        createdAt: now,
+        updatedAt: now,
+      };
+      addCustomer(newCustomer);
+      resolvedId = newCustomer.id;
+      setActiveCrmId(newCustomer.id);
+    }
+
+    // Save call brief.
+    const linkedId = resolvedId ?? undefined;
+    if (endedRecord) {
+      updateCallRecord({
+        ...endedRecord,
+        customerId: endedRecord.customerId ?? linkedId,
+        summary: trimmedSummary,
+        nextStep: trimmedNextStep || undefined,
+      });
+    } else {
+      addCallRecord({
+        id: crypto.randomUUID(),
+        customerId: linkedId,
+        callType: 'outbound_existing_customer',
+        direction: 'outbound',
+        status: 'completed',
+        startedAt: now,
+        durationSeconds: 0,
+        isMock: true,
+        summary: trimmedSummary,
+        nextStep: trimmedNextStep || undefined,
+        createdAt: now,
+      });
+    }
+
+    // Follow-up task.
+    if (briefCreateFollowUp && resolvedId) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const noteLines = [`Brief: ${trimmedSummary}`];
+      if (trimmedNextStep) noteLines.push(`Επόμενο βήμα: ${trimmedNextStep}`);
+      addTask({
+        id: crypto.randomUUID(),
+        customerId: resolvedId,
+        title: 'Follow-up μετά από κλήση',
+        type: 'other',
+        status: 'open',
+        priority: 'normal',
+        dueDate: tomorrow.toISOString().split('T')[0],
+        note: noteLines.join('\n'),
+        createdFromAi: false,
+        createdAt: now,
+        updatedAt: now,
+      } as Task);
+    }
+
+    setBriefSaved(true);
+    setManualRegistered(true);
+    setManualRegisteredCustomerId(resolvedId);
   }
 
   return (
@@ -597,6 +728,118 @@ export default function PostCallScreen({
             </div>
           </>
         )}
+      </div>
+
+      {/* Manual registration */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-zinc-800">Χειροκίνητη καταχώρηση στοιχείων</h2>
+          {!manualRegistered && (
+            <button
+              type="button"
+              onClick={() => setManualOpen((v) => !v)}
+              className="text-xs text-indigo-600 hover:text-indigo-700 transition"
+            >
+              {manualOpen ? 'Σύμπτυξη' : 'Άνοιγμα'}
+            </button>
+          )}
+        </div>
+
+        {!customerPhone && customerLandlinePhone && (
+          <p className="text-xs text-amber-700">
+            Δεν υπάρχει κινητό για SMS. Μπορείς να ζητήσεις κινητό ή να καταχωρήσεις τα στοιχεία χειροκίνητα.
+          </p>
+        )}
+
+        {manualRegistered ? (
+          <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-2">
+            <p className="text-sm font-semibold text-green-700">
+              Η καρτέλα πελάτη και το call brief καταχωρήθηκαν στο CRM.
+            </p>
+            {manualRegisteredCustomerId && (
+              <Link
+                href={`/customers/${manualRegisteredCustomerId}`}
+                className="inline-flex items-center rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
+              >
+                Άνοιγμα καρτέλας →
+              </Link>
+            )}
+          </div>
+        ) : manualOpen ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Όνομα</label>
+                <input
+                  type="text"
+                  value={manualFirst}
+                  onChange={(e) => setManualFirst(e.target.value)}
+                  placeholder="Γιώργης"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Επώνυμο</label>
+                <input
+                  type="text"
+                  value={manualLast}
+                  onChange={(e) => setManualLast(e.target.value)}
+                  placeholder="Παπαδόπουλος"
+                  className={inputCls}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Κινητό</label>
+                <input
+                  type="tel"
+                  value={manualMobile}
+                  onChange={(e) => setManualMobile(e.target.value)}
+                  placeholder="694 000 0000"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Σταθερό</label>
+                <input
+                  type="tel"
+                  value={manualLandline}
+                  onChange={(e) => setManualLandline(e.target.value)}
+                  placeholder="210 000 0000"
+                  className={inputCls}
+                />
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Διεύθυνση</label>
+              <input
+                type="text"
+                value={manualAddress}
+                onChange={(e) => setManualAddress(e.target.value)}
+                placeholder="π.χ. Αθήνα, Αττική"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Email</label>
+              <input
+                type="email"
+                value={manualEmail}
+                onChange={(e) => setManualEmail(e.target.value)}
+                placeholder="email@example.gr"
+                className={inputCls}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleManualRegister}
+              className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            >
+              Καταχώρηση στοιχείων &amp; brief στο CRM
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {/* AI review */}
