@@ -65,6 +65,9 @@ interface TimelineItem {
   dateIso: string;
   dateLabel: string;
   href?: string;
+  summary?: string;
+  nextStep?: string;
+  isMock?: boolean;
 }
 
 function buildItems(
@@ -82,7 +85,7 @@ function buildItems(
     items.push({
       id: call.id,
       kind: 'call',
-      title: 'Κλήση',
+      title: call.summary ? 'Brief κλήσης' : 'Κλήση',
       detail: [
         DIRECTION_LABELS[call.direction] ?? call.direction,
         call.durationSeconds > 0 ? fmtDuration(call.durationSeconds) : null,
@@ -91,6 +94,9 @@ function buildItems(
         .join(' · '),
       dateIso,
       dateLabel,
+      summary: call.summary,
+      nextStep: call.nextStep,
+      isMock: call.isMock,
     });
   }
 
@@ -269,8 +275,27 @@ export default function CustomerTimeline({ customerId, tasks, offers, calls }: P
                 <div className="flex min-w-0 flex-1 items-start gap-3">
                   {icon}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-zinc-800">{item.title}</p>
-                    <p className="truncate text-xs text-zinc-500">{item.detail}</p>
+                    {item.kind === 'call' && item.summary ? (
+                      <>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="truncate text-sm font-medium text-zinc-800">{item.title}</p>
+                          <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-400">
+                            {item.isMock ? 'Demo κλήση' : 'Από κλήση'}
+                          </span>
+                        </div>
+                        <p className="line-clamp-2 text-xs text-zinc-500">{item.summary}</p>
+                        {item.nextStep && (
+                          <p className="truncate text-xs text-indigo-600 mt-0.5">
+                            Επόμενο: {item.nextStep}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="truncate text-sm font-medium text-zinc-800">{item.title}</p>
+                        <p className="truncate text-xs text-zinc-500">{item.detail}</p>
+                      </>
+                    )}
                   </div>
                   <span className="shrink-0 text-xs text-zinc-400">{item.dateLabel}</span>
                 </div>
