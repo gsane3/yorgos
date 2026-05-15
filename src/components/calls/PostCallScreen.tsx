@@ -35,7 +35,7 @@ function getNextCrmNumber(customers: Customer[]): string {
       const match = n!.match(/(\d+)$/);
       return match ? parseInt(match[1]) : 0;
     });
-  const max = nums.length > 0 ? Math.max(...nums) : 329;
+  const max = nums.length > 0 ? Math.max(...nums) : 0;
   return `#${max + 1}`;
 }
 
