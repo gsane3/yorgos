@@ -17,10 +17,9 @@ const NEEDS_EXISTING_CUSTOMER: CallType[] = [
 ];
 
 export default function MockCallPage() {
-  const [customers] = useState<Customer[]>(() => {
-    if (typeof window === 'undefined') return [];
-    return loadState().customers ?? [];
-  });
+  // Start with [] so server render and first client render match.
+  const [hydrated, setHydrated] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
 
   const [phase, setPhase] = useState<Phase>('setup');
   const [callType, setCallType] = useState<CallType | null>(null);
@@ -30,6 +29,18 @@ export default function MockCallPage() {
   const [startedAt, setStartedAt] = useState('');
   const [endedRecord, setEndedRecord] = useState<CallRecord | null>(null);
   const [error, setError] = useState('');
+
+  // Load localStorage after mount to avoid hydration mismatch.
+  // setState calls are deferred into a timer so they are not synchronous in the effect body.
+  useEffect(() => {
+    const state = loadState();
+    const nextCustomers = state.customers ?? [];
+    const timer = window.setTimeout(() => {
+      setCustomers(nextCustomers);
+      setHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (phase !== 'active') return;
@@ -93,6 +104,15 @@ export default function MockCallPage() {
     setStartedAt('');
     setEndedRecord(null);
     setError('');
+  }
+
+  // Stable loading shell — identical on server and first client render.
+  if (!hydrated) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-10 text-center">
+        <p className="text-sm text-zinc-400">Φόρτωση demo κλήσης...</p>
+      </div>
+    );
   }
 
   if (phase === 'active') {
