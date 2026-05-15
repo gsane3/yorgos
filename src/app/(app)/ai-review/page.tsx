@@ -15,6 +15,7 @@ import type {
   Customer,
   Task,
   Offer,
+  BusinessProfile,
 } from '@/lib/types';
 import type { AiReviewResult } from '@/lib/ai/schema';
 import { STATUS_LABELS } from '@/components/customers/CustomerStatusBadge';
@@ -66,10 +67,8 @@ export default function AiReviewPage() {
   const router = useRouter();
 
   const [init] = useState(generateDemoAiResult);
-  const [businessProfile] = useState(() => {
-    if (typeof window === 'undefined') return null;
-    return loadState().businessProfile ?? null;
-  });
+  // Start as null so server render and first client render match.
+  const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
 
   // Customer fields
   const [customerName, setCustomerName] = useState(init.customer.name);
@@ -101,9 +100,8 @@ export default function AiReviewPage() {
     init.offer.items.map((i) => ({ ...i, _id: crypto.randomUUID() }))
   );
   const [offerNotes, setOfferNotes] = useState(init.offer.notes);
-  const [offerTerms] = useState(
-    init.offer.terms || businessProfile?.defaultOfferTerms || ''
-  );
+  // offerTerms starts without businessProfile (null at first render); effect applies bp default.
+  const [offerTerms, setOfferTerms] = useState(init.offer.terms || '');
 
   // AI input state
   const [aiInputText, setAiInputText] = useState('');
@@ -111,8 +109,8 @@ export default function AiReviewPage() {
   const [aiError, setAiError] = useState('');
   const [resultSource, setResultSource] = useState<'demo' | 'ai'>('demo');
 
-  // Speech state
-  const [speechSupported] = useState(() => isSpeechSupported());
+  // Speech state — start false so server render and first client render match.
+  const [speechSupported, setSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');
   const recognitionRef = useRef<AppSpeechRecognition | null>(null);
@@ -123,6 +121,7 @@ export default function AiReviewPage() {
   const [phase, setPhase] = useState<'review' | 'saved'>('review');
   const [savedCustomerId, setSavedCustomerId] = useState('');
   const [saveError, setSaveError] = useState('');
+  const [hydrated, setHydrated] = useState(false);
 
   const vatRate = businessProfile?.defaultVatRate ?? 24;
 
@@ -149,6 +148,23 @@ export default function AiReviewPage() {
   function updateItem(_id: string, updates: Partial<Omit<EditableItem, '_id'>>) {
     setOfferItems((prev) => prev.map((i) => (i._id === _id ? { ...i, ...updates } : i)));
   }
+
+  // Load browser-only data after mount to avoid hydration mismatch.
+  // setState calls are deferred into a timer so they are not synchronous in the effect body.
+  useEffect(() => {
+    const loadedBp = loadState().businessProfile ?? null;
+    const detectedSpeech = isSpeechSupported();
+    const timer = window.setTimeout(() => {
+      setBusinessProfile(loadedBp);
+      setSpeechSupported(detectedSpeech);
+      // Apply business default offer terms if the demo result has none.
+      if (!init.offer.terms && loadedBp?.defaultOfferTerms) {
+        setOfferTerms(loadedBp.defaultOfferTerms);
+      }
+      setHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ensure recognition stops on unmount — refs prevent restart in onend
   useEffect(() => {
@@ -453,6 +469,15 @@ export default function AiReviewPage() {
 
     setSavedCustomerId(customerId);
     setPhase('saved');
+  }
+
+  // Stable loading shell — identical on server and first client render.
+  if (!hydrated) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 pt-5 pb-10">
+        <p className="py-10 text-center text-sm text-zinc-400">Φόρτωση AI review...</p>
+      </div>
+    );
   }
 
   // ── Success screen ────────────────────────────────────────────────────────
