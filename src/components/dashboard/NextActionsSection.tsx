@@ -78,7 +78,7 @@ function buildActions(
       title: task.title,
       detail: `Εκπρόθεσμο · ${TASK_TYPE_LABELS[task.type] ?? task.type}`,
       customerName: task.customerId ? customerMap[task.customerId] : undefined,
-      href: '/tasks',
+      href: `/tasks?taskId=${task.id}`,
       taskId: task.id,
     });
   }
@@ -95,7 +95,7 @@ function buildActions(
       title: task.title,
       detail: `Σήμερα · ${TASK_TYPE_LABELS[task.type] ?? task.type}`,
       customerName: task.customerId ? customerMap[task.customerId] : undefined,
-      href: '/tasks',
+      href: `/tasks?taskId=${task.id}`,
       taskId: task.id,
     });
   }
@@ -122,8 +122,8 @@ function buildActions(
     .filter((o) => o.status === 'sent_manually')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   for (const offer of sentOffers) {
-    // Detect if an open follow-up task already exists for this offer (persistent dedup check).
-    const hasExistingTask = tasks.some(
+    // Detect existing open follow-up task for this offer (persistent dedup + task-first navigation).
+    const existingFollowUpTask = tasks.find(
       (t) =>
         t.type === 'follow_up_offer' &&
         t.status === 'open' &&
@@ -137,9 +137,12 @@ function buildActions(
       title: `Follow-up προσφοράς ${offer.offerNumber}`,
       detail: fmtEur(offer.total),
       customerName: offer.customerId ? customerMap[offer.customerId] : undefined,
-      href: `/offers/${offer.id}`,
+      // If a follow-up task exists, navigate to the task; otherwise navigate to the offer.
+      href: existingFollowUpTask
+        ? `/tasks?taskId=${existingFollowUpTask.id}`
+        : `/offers/${offer.id}`,
       offerId: offer.id,
-      hasExistingTask,
+      hasExistingTask: !!existingFollowUpTask,
     });
   }
 

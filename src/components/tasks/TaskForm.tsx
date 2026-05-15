@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import type { Task, TaskType, TaskPriority, Customer } from '@/lib/types';
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from './TaskStatusBadge';
+import { norm } from '@/lib/search';
 
 interface Props {
   initial?: Task;
@@ -22,6 +23,42 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
   const [priority, setPriority] = useState<TaskPriority>(initial?.priority ?? 'normal');
   const [note, setNote] = useState(initial?.note ?? '');
   const [error, setError] = useState('');
+
+  // Searchable customer picker state.
+  const [customerQuery, setCustomerQuery] = useState(() => {
+    if (!initial?.customerId) return '';
+    return customers.find((c) => c.id === initial.customerId)?.name ?? '';
+  });
+  const [showDropdown, setShowDropdown] = useState(false);
+  const customerInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const filteredCustomers = useMemo(() => {
+    const q = norm(customerQuery.trim());
+    if (!q) return customers.slice(0, 10);
+    return customers
+      .filter(
+        (c) =>
+          norm(c.name).includes(q) ||
+          norm(c.companyName ?? '').includes(q) ||
+          norm(c.phone).includes(q) ||
+          norm(c.email).includes(q)
+      )
+      .slice(0, 10);
+  }, [customers, customerQuery]);
+
+  function selectCustomer(c: Customer) {
+    setCustomerId(c.id);
+    setCustomerQuery(c.name);
+    setShowDropdown(false);
+  }
+
+  function clearCustomer() {
+    setCustomerId('');
+    setCustomerQuery('');
+    setShowDropdown(false);
+    customerInputRef.current?.focus();
+  }
 
   function handleSave() {
     if (!title.trim()) {
@@ -43,6 +80,7 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
       dueDate,
       dueTime: dueTime || undefined,
       note: note.trim(),
+      offerId: initial?.offerId,
       createdFromAi: initial?.createdFromAi ?? false,
       createdAt: initial?.createdAt ?? now,
       updatedAt: now,
@@ -89,21 +127,79 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
           </select>
         </div>
 
+        {/* Searchable customer picker */}
         <div>
           <label className={labelCls}>
             Πελάτης{' '}
             <span className="text-xs font-normal text-zinc-400">(προαιρετικό)</span>
           </label>
-          <select
-            value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
-            className={selectCls}
-          >
-            <option value="">— Χωρίς πελάτη —</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <input
+              ref={customerInputRef}
+              type="text"
+              value={customerQuery}
+              onChange={(e) => {
+                setCustomerQuery(e.target.value);
+                setCustomerId('');
+                setShowDropdown(true);
+              }}
+              onFocus={() => setShowDropdown(true)}
+              onBlur={(e) => {
+                if (!dropdownRef.current?.contains(e.relatedTarget as Node)) {
+                  setShowDropdown(false);
+                  if (!customerId) setCustomerQuery('');
+                }
+              }}
+              placeholder="Αναζήτηση πελάτη..."
+              autoComplete="off"
+              className={inputCls + ' pr-8'}
+            />
+            {customerQuery && (
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); clearCustomer(); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                tabIndex={-1}
+              >
+                ✕
+              </button>
+            )}
+            {showDropdown && (
+              <div
+                ref={dropdownRef}
+                className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-md"
+              >
+                <button
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); clearCustomer(); }}
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-400 hover:bg-zinc-50"
+                >
+                  — Χωρίς πελάτη —
+                </button>
+                {filteredCustomers.length === 0 ? (
+                  <p className="px-3 py-2 text-sm text-zinc-400">Δεν βρέθηκαν αποτελέσματα.</p>
+                ) : (
+                  filteredCustomers.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); selectCustomer(c); }}
+                      className={`w-full px-3 py-2 text-left text-sm transition hover:bg-indigo-50 ${
+                        c.id === customerId
+                          ? 'bg-indigo-50 font-medium text-indigo-700'
+                          : 'text-zinc-800'
+                      }`}
+                    >
+                      <span className="block truncate">{c.name}</span>
+                      {c.companyName && (
+                        <span className="block truncate text-xs text-zinc-400">{c.companyName}</span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-3">

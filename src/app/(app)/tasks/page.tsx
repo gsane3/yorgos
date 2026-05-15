@@ -39,6 +39,7 @@ export default function TasksPage() {
   const [activeTab, setActiveTab] = useState<TabId>('due_today');
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
 
   // Search + filter state (does not affect tab counts)
   const [taskSearch, setTaskSearch] = useState('');
@@ -46,6 +47,7 @@ export default function TasksPage() {
   const [typeFilter, setTypeFilter] = useState<TaskType | ''>('');
 
   // Load localStorage after mount to avoid hydration mismatch.
+  // If taskId URL param is present and found, switch to correct tab and clear filters.
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
   useEffect(() => {
     const state = loadState();
@@ -58,13 +60,54 @@ export default function TasksPage() {
     } else {
       nextTasks = state.tasks;
     }
+
+    // Determine if we should focus a specific task from the URL param.
+    const pid =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('taskId')
+        : null;
+    let tabOverride: TabId | null = null;
+    let foundTaskId: string | null = null;
+    if (pid) {
+      const found = nextTasks.find((t) => t.id === pid);
+      if (found) {
+        foundTaskId = found.id;
+        const eff = getEffectiveStatus(found);
+        tabOverride =
+          eff === 'completed' || eff === 'cancelled'
+            ? 'completed'
+            : eff === 'overdue'
+            ? 'overdue'
+            : eff === 'due_today'
+            ? 'due_today'
+            : 'upcoming';
+      }
+    }
+
     const timer = window.setTimeout(() => {
       setTasks(nextTasks);
       setCustomers(nextCustomers);
+      if (tabOverride) {
+        setActiveTab(tabOverride);
+        setTaskSearch('');
+        setPriorityFilter('');
+        setTypeFilter('');
+      }
+      if (foundTaskId) setFocusedTaskId(foundTaskId);
       setHydrated(true);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+  // After hydration, scroll to the focused task.
+  useEffect(() => {
+    if (!hydrated || !focusedTaskId) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`task-${focusedTaskId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [hydrated, focusedTaskId]);
 
   const hasTaskFilter = taskSearch.trim() !== '' || priorityFilter !== '' || typeFilter !== '';
 
@@ -308,7 +351,15 @@ export default function TasksPage() {
       ) : (
         <ul className="space-y-2">
           {filteredTasks.map((task) => (
-            <li key={task.id}>
+            <li
+              key={task.id}
+              id={`task-${task.id}`}
+              className={
+                task.id === focusedTaskId
+                  ? 'rounded-2xl outline outline-2 outline-offset-2 outline-indigo-400'
+                  : ''
+              }
+            >
               <TaskCard
                 task={task}
                 customerName={task.customerId ? customerMap[task.customerId] : undefined}

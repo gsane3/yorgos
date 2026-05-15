@@ -34,7 +34,9 @@ const PRIORITY_DOT: Record<string, string> = {
 function primaryAction(type: TaskType, customerId?: string, offerId?: string): { label: string; href: string } | null {
   if (type === 'call_back') return { label: 'Άνοιγμα κλήσης', href: '/call/mock' };
   if (type === 'send_offer' || type === 'follow_up_offer') {
-    return { label: 'Άνοιγμα προσφοράς', href: offerId ? `/offers/${offerId}` : '/offers' };
+    return offerId
+      ? { label: 'Άνοιγμα προσφοράς', href: `/offers/${offerId}` }
+      : { label: 'Άνοιγμα προσφορών', href: '/offers' };
   }
   if (
     type === 'visit_customer' ||
