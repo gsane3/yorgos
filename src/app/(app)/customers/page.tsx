@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { loadState, saveState, addCustomer } from '@/lib/storage';
 import { demoCustomers } from '@/lib/demo-data';
 import type { Customer, CustomerStatus, CustomerSource } from '@/lib/types';
@@ -10,25 +10,36 @@ import CustomerForm from '@/components/customers/CustomerForm';
 import { STATUS_LABELS } from '@/components/customers/CustomerStatusBadge';
 import { SOURCE_LABELS } from '@/components/customers/CustomerCard';
 
-function initCustomers(): Customer[] {
-  if (typeof window === 'undefined') return [];
-  const state = loadState();
-  if (state.customers === undefined) {
-    saveState({ customers: demoCustomers });
-    return demoCustomers;
-  }
-  return state.customers;
-}
-
 const selCls =
   'rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm text-zinc-700 outline-none focus:border-indigo-400';
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>(initCustomers);
+  // Start with [] so server render and first client render match.
+  const [hydrated, setHydrated] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
   const [sourceFilter, setSourceFilter] = useState<CustomerSource | ''>('');
   const [showForm, setShowForm] = useState(false);
+
+  // Load localStorage after mount to avoid hydration mismatch.
+  // Preserves seeding rule: undefined = seed demo, [] = user cleared intentionally.
+  // setState calls are deferred into a timer so they are not synchronous in the effect body.
+  useEffect(() => {
+    const state = loadState();
+    let nextCustomers: Customer[];
+    if (state.customers === undefined) {
+      saveState({ customers: demoCustomers });
+      nextCustomers = demoCustomers;
+    } else {
+      nextCustomers = state.customers;
+    }
+    const timer = window.setTimeout(() => {
+      setCustomers(nextCustomers);
+      setHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const hasFilter = search.trim() !== '' || statusFilter !== '' || sourceFilter !== '';
 
@@ -61,6 +72,40 @@ export default function CustomersPage() {
     addCustomer(customer);
     setCustomers((prev) => [...prev, customer]);
     setShowForm(false);
+  }
+
+  // Stable loading shell — identical on server and first client render.
+  if (!hydrated) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h1 className="text-lg font-semibold text-zinc-900">Πελάτες</h1>
+          <button
+            type="button"
+            className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white"
+          >
+            + Νέος πελάτης
+          </button>
+        </div>
+        <div className="mb-4 space-y-2">
+          <input
+            type="search"
+            disabled
+            placeholder="Αναζήτηση ονόματος, εταιρείας, τηλεφώνου, email, σημειώσεων..."
+            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none"
+          />
+          <div className="flex flex-wrap gap-2">
+            <select disabled className={selCls}>
+              <option>Όλα τα status</option>
+            </select>
+            <select disabled className={selCls}>
+              <option>Όλες οι πηγές</option>
+            </select>
+          </div>
+        </div>
+        <p className="py-10 text-center text-sm text-zinc-400">Φόρτωση πελατών...</p>
+      </div>
+    );
   }
 
   return (
