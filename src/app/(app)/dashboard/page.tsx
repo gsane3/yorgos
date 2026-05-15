@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { loadState } from '@/lib/storage';
 import { getEffectiveStatus } from '@/lib/types';
 import type { Customer, Task, Offer, CallRecord } from '@/lib/types';
@@ -28,21 +28,49 @@ interface DashboardData {
   calls: CallRecord[] | undefined;
 }
 
-function initDashboard(): DashboardData {
-  if (typeof window === 'undefined') {
-    return { customers: [], tasks: [], offers: [], calls: undefined };
-  }
-  const state = loadState();
-  return {
-    customers: state.customers ?? [],
-    tasks: state.tasks ?? [],
-    offers: state.offers ?? [],
-    calls: state.calls, // undefined = never created a call record
-  };
-}
-
 export default function DashboardPage() {
-  const [{ customers, tasks, offers, calls }] = useState(initDashboard);
+  // Start empty so server render and first client render match.
+  const [hydrated, setHydrated] = useState(false);
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
+    customers: [],
+    tasks: [],
+    offers: [],
+    calls: undefined,
+  });
+
+  // Load localStorage after mount to avoid hydration mismatch.
+  // setState calls are deferred into a timer so they are not synchronous in the effect body.
+  useEffect(() => {
+    const state = loadState();
+    const nextData: DashboardData = {
+      customers: state.customers ?? [],
+      tasks: state.tasks ?? [],
+      offers: state.offers ?? [],
+      calls: state.calls,
+    };
+    const timer = window.setTimeout(() => {
+      setDashboardData(nextData);
+      setHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  // Stable loading shell — identical on server and first client render.
+  if (!hydrated) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6 px-4 py-5">
+        <div>
+          <h1 className="text-lg font-semibold text-zinc-900">
+            Καλημέρα. Τι πρέπει να γίνει σήμερα;
+          </h1>
+        </div>
+        <QuickAssistantInput />
+        <p className="py-6 text-center text-sm text-zinc-400">Φόρτωση dashboard...</p>
+      </div>
+    );
+  }
+
+  const { customers, tasks, offers, calls } = dashboardData;
 
   const leads = customers
     .filter((c) => LEAD_STATUSES.has(c.status))
