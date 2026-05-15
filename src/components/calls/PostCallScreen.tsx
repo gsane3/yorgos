@@ -16,7 +16,7 @@ interface BusinessInfo {
 
 function buildCrmSmsMessage(bp?: BusinessInfo): string {
   const body =
-    'Για την καταχώρηση στο CRM, παρακαλώ στείλτε μου τα παρακάτω στοιχεία με σειρά:\n\nΌνομα:\nΕπώνυμο:\nΔιεύθυνση:\nEmail:';
+    'Για την καταχώρηση των στοιχείων σας, παρακαλώ στείλτε μου τα παρακάτω με σειρά:\n\nΌνομα:\nΕπώνυμο:\nΔιεύθυνση:\nEmail:';
   const sigLines: string[] = [];
   if (bp?.ownerName) sigLines.push(bp.ownerName);
   if (bp?.businessName) sigLines.push(bp.businessName);
@@ -149,11 +149,6 @@ export default function PostCallScreen({
     addCustomer(newCustomer);
     setActiveCrmId(newCustomer.id);
     return newCustomer.id;
-  }
-
-  function handleCreateTempCard() {
-    if (activeCrmId || !tempPhone.trim()) return;
-    ensureCrmCustomer(briefSummary);
   }
 
   function handleSmsSend() {
@@ -352,82 +347,34 @@ export default function PostCallScreen({
         )}
       </div>
 
-      {/* Temporary customer card */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-4">
-        <h2 className="text-sm font-semibold text-zinc-800">Προσωρινή καρτέλα πελάτη</h2>
-
-        {customerId ? (
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-zinc-500">
-              Η κλήση είναι ήδη συνδεδεμένη με πελάτη.
-            </p>
-            <Link
-              href={`/customers/${customerId}`}
-              className="shrink-0 text-xs text-indigo-600 hover:text-indigo-700"
-            >
-              Άνοιγμα πελάτη →
-            </Link>
-          </div>
-        ) : activeCrmId ? (
-          <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-2">
-            <p className="text-sm font-semibold text-green-700">
-              Δημιουργήθηκε προσωρινή καρτέλα.
-            </p>
-            <Link
-              href={`/customers/${activeCrmId}`}
-              className="inline-flex items-center rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
-            >
-              Άνοιγμα καρτέλας →
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-xs text-zinc-500">
-              Δημιούργησε προσωρινή καρτέλα με αριθμό πελάτη. Τα στοιχεία θα συμπληρωθούν από SMS.
-            </p>
-            <div>
-              <label className={labelCls}>Τηλέφωνο πελάτη</label>
-              <input
-                type="tel"
-                value={tempPhone}
-                onChange={(e) => setTempPhone(e.target.value)}
-                placeholder="69xxxxxxxx"
-                className={inputCls}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={handleCreateTempCard}
-              disabled={!tempPhone.trim()}
-              className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Δημιουργία προσωρινής καρτέλας
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* SMS CRM intake — send decision */}
+      {/* SMS intake — consolidated yes/no decision + demo simulation */}
       <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-4">
         <h2 className="text-sm font-semibold text-zinc-800">
-          Αποστολή SMS καταχώρησης στοιχείων CRM
+          Αποστολή SMS στοιχείων πελάτη
         </h2>
 
         {smsDecision === 'undecided' && (
           <>
             <p className="text-sm text-zinc-600">
-              Να σταλεί SMS στον πελάτη για να συμπληρώσει τα στοιχεία της καρτέλας CRM;
+              Να σταλεί SMS στον πελάτη για να αποστείλει τα στοιχεία του στην καρτέλα;
             </p>
-            {!tempPhone.trim() && (
-              <p className="text-xs text-amber-600">
-                Δεν υπάρχει τηλέφωνο πελάτη. Δεν μπορεί να σταλεί SMS.
-              </p>
+            {!customerId && (
+              <div>
+                <label className={labelCls}>Τηλέφωνο πελάτη</label>
+                <input
+                  type="tel"
+                  value={tempPhone}
+                  onChange={(e) => setTempPhone(e.target.value)}
+                  placeholder="69xxxxxxxx"
+                  className={inputCls}
+                />
+              </div>
             )}
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={handleSmsSend}
-                disabled={!tempPhone.trim()}
+                disabled={!customerId && !tempPhone.trim()}
                 className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Ναι, αποστολή SMS
@@ -445,19 +392,27 @@ export default function PostCallScreen({
 
         {smsDecision === 'no' && (
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-zinc-400">Μπορείς να το στείλεις αργότερα.</p>
+            <p className="text-sm text-zinc-400">Δεν θα σταλεί SMS καταχώρησης στοιχείων.</p>
             <button
               type="button"
               onClick={() => setSmsDecision('undecided')}
               className="shrink-0 text-xs text-indigo-600 hover:text-indigo-700"
             >
-              Αποστολή SMS
+              Αλλαγή
             </button>
           </div>
         )}
 
         {smsDecision === 'yes' && (
           <>
+            {activeCrmId && (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-green-700 font-medium">Δημιουργήθηκε καρτέλα πελάτη.</p>
+                <Link href={`/customers/${activeCrmId}`} className="text-xs text-indigo-600 hover:text-indigo-700">
+                  Άνοιγμα →
+                </Link>
+              </div>
+            )}
             <pre className="rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-600 leading-relaxed whitespace-pre-wrap ring-1 ring-zinc-100">
               {smsMessage}
             </pre>
@@ -485,55 +440,47 @@ export default function PostCallScreen({
                 {copied ? 'Αντιγράφηκε' : 'Αντιγραφή μηνύματος'}
               </button>
             </div>
-          </>
-        )}
-      </div>
 
-      {/* Incoming SMS simulation */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold text-zinc-800">Απάντηση SMS πελάτη</h2>
-          <p className="mt-0.5 text-xs text-zinc-400">
-            Στο demo κάνε paste την απάντηση. Στο cloud θα έρχεται αυτόματα από SMS provider.
-          </p>
-        </div>
-
-        {smsSimDone ? (
-          <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-2">
-            <p className="text-sm font-semibold text-green-700">Η καρτέλα CRM ενημερώθηκε.</p>
-            {smsSimCustomerId && (
-              <Link
-                href={`/customers/${smsSimCustomerId}`}
-                className="inline-flex items-center rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
-              >
-                Άνοιγμα καρτέλας →
-              </Link>
-            )}
-          </div>
-        ) : (
-          <>
-            {!tempPhone.trim() && !customerId && (
-              <p className="text-xs text-zinc-400">
-                Χωρίς τηλέφωνο ή πελάτη δεν μπορεί να γίνει σύνδεση.
-              </p>
-            )}
-            <textarea
-              value={smsRaw}
-              onChange={(e) => setSmsRaw(e.target.value)}
-              rows={4}
-              placeholder={
-                'Όνομα: Γιώργος\nΕπώνυμο: Παπαδόπουλος\nΔιεύθυνση: Κηφισίας 10, Αθήνα\nEmail: george@example.com'
-              }
-              className={`${inputCls} resize-none font-mono text-xs leading-relaxed`}
-            />
-            <button
-              type="button"
-              onClick={handleSimulateSms}
-              disabled={!smsRaw.trim() || (!activeCrmId && !tempPhone.trim())}
-              className="w-full rounded-xl bg-zinc-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Προσομοίωση εισερχόμενου SMS
-            </button>
+            {/* Demo incoming SMS simulation — only visible after Yes */}
+            <div className="border-t border-zinc-100 pt-4 space-y-3">
+              <div>
+                <p className="text-xs font-semibold text-zinc-500">Demo εισερχόμενου SMS</p>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  Στο cloud αυτό θα γίνεται αυτόματα από SMS provider.
+                </p>
+              </div>
+              {smsSimDone ? (
+                <div className="rounded-xl bg-green-50 px-3 py-2.5 ring-1 ring-green-200 space-y-1.5">
+                  <p className="text-sm font-semibold text-green-700">Η καρτέλα πελάτη ενημερώθηκε.</p>
+                  {smsSimCustomerId && (
+                    <Link
+                      href={`/customers/${smsSimCustomerId}`}
+                      className="inline-flex items-center rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
+                    >
+                      Άνοιγμα καρτέλας →
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    value={smsRaw}
+                    onChange={(e) => setSmsRaw(e.target.value)}
+                    rows={3}
+                    placeholder={'Όνομα: Γιώργος\nΕπώνυμο: Παπαδόπουλος\nΔιεύθυνση: Κηφισίας 10, Αθήνα\nEmail: george@example.com'}
+                    className={`${inputCls} resize-none font-mono text-xs leading-relaxed`}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSimulateSms}
+                    disabled={!smsRaw.trim()}
+                    className="w-full rounded-xl bg-zinc-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Προσομοίωση εισερχόμενου SMS
+                  </button>
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
