@@ -8,6 +8,7 @@ import { getEffectiveStatus } from '@/lib/types';
 import { norm } from '@/lib/search';
 import TaskCard from '@/components/tasks/TaskCard';
 import TaskForm from '@/components/tasks/TaskForm';
+import DuplicateTasksPanel from '@/components/tasks/DuplicateTasksPanel';
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/components/tasks/TaskStatusBadge';
 
 type TabId = 'due_today' | 'upcoming' | 'overdue' | 'completed';
@@ -176,6 +177,13 @@ export default function TasksPage() {
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }
 
+  function handleDeleteManyTasks(taskIds: string[]) {
+    for (const id of taskIds) {
+      deleteTask(id);
+    }
+    setTasks((prev) => prev.filter((t) => !taskIds.includes(t.id)));
+  }
+
   function handleEdit(task: Task) {
     setEditingTask(task);
     setShowForm(true);
@@ -265,6 +273,9 @@ export default function TasksPage() {
           />
         </div>
       )}
+
+      {/* Duplicate follow-up task cleanup panel */}
+      <DuplicateTasksPanel tasks={tasks} onDeleteMany={handleDeleteManyTasks} />
 
       {/* Tabs — counts are total per tab, unaffected by search/filter */}
       <div className="mb-3 -mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
