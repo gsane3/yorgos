@@ -90,6 +90,9 @@ export default function PostCallScreen({
   // Active CRM customer — starts from prop customerId; may be set when a temp card is created.
   const [activeCrmId, setActiveCrmId] = useState<string | null>(customerId || null);
 
+  // Local phone — editable by user when no customer is pre-linked.
+  const [tempPhone, setTempPhone] = useState(customerPhone || '');
+
   // SMS flow state.
   const [smsDecision, setSmsDecision] = useState<'undecided' | 'yes' | 'no'>('undecided');
   const [smsRaw, setSmsRaw] = useState('');
@@ -117,11 +120,12 @@ export default function PostCallScreen({
     }
   }
 
-  // Ensure a CRM customer exists; creates a temp card if only phone is available.
+  // Ensure a CRM customer exists; creates a temp card if a phone is available.
   // Returns the resolved customer id or null.
   function ensureCrmCustomer(summary: string): string | null {
     if (activeCrmId) return activeCrmId;
-    if (!customerPhone) return null;
+    const phone = tempPhone.trim();
+    if (!phone) return null;
     const now = new Date().toISOString();
     const state = loadState();
     const customers = state.customers ?? [];
@@ -131,7 +135,7 @@ export default function PostCallScreen({
       crmNumber,
       name: `Πελάτης ${crmNumber}`,
       companyName: '',
-      phone: customerPhone,
+      phone,
       email: '',
       address: '',
       source: 'inbound_call',
@@ -145,6 +149,11 @@ export default function PostCallScreen({
     addCustomer(newCustomer);
     setActiveCrmId(newCustomer.id);
     return newCustomer.id;
+  }
+
+  function handleCreateTempCard() {
+    if (activeCrmId || !tempPhone.trim()) return;
+    ensureCrmCustomer(briefSummary);
   }
 
   function handleSmsSend() {
@@ -187,7 +196,12 @@ export default function PostCallScreen({
     const now = new Date().toISOString();
     const trimmedSummary = briefSummary.trim();
     const trimmedNextStep = briefNextStep.trim();
-    const linkedId = activeCrmId || customerId || undefined;
+    // Auto-create temp card if we have a phone but no linked customer yet.
+    let resolvedId = activeCrmId || customerId || null;
+    if (!resolvedId && tempPhone.trim()) {
+      resolvedId = ensureCrmCustomer(trimmedSummary);
+    }
+    const linkedId = resolvedId ?? undefined;
 
     if (endedRecord) {
       updateCallRecord({
@@ -338,6 +352,61 @@ export default function PostCallScreen({
         )}
       </div>
 
+      {/* Temporary customer card */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-4">
+        <h2 className="text-sm font-semibold text-zinc-800">Προσωρινή καρτέλα πελάτη</h2>
+
+        {customerId ? (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-zinc-500">
+              Η κλήση είναι ήδη συνδεδεμένη με πελάτη.
+            </p>
+            <Link
+              href={`/customers/${customerId}`}
+              className="shrink-0 text-xs text-indigo-600 hover:text-indigo-700"
+            >
+              Άνοιγμα πελάτη →
+            </Link>
+          </div>
+        ) : activeCrmId ? (
+          <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-2">
+            <p className="text-sm font-semibold text-green-700">
+              Δημιουργήθηκε προσωρινή καρτέλα.
+            </p>
+            <Link
+              href={`/customers/${activeCrmId}`}
+              className="inline-flex items-center rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
+            >
+              Άνοιγμα καρτέλας →
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-zinc-500">
+              Δημιούργησε προσωρινή καρτέλα με αριθμό πελάτη. Τα στοιχεία θα συμπληρωθούν από SMS.
+            </p>
+            <div>
+              <label className={labelCls}>Τηλέφωνο πελάτη</label>
+              <input
+                type="tel"
+                value={tempPhone}
+                onChange={(e) => setTempPhone(e.target.value)}
+                placeholder="69xxxxxxxx"
+                className={inputCls}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleCreateTempCard}
+              disabled={!tempPhone.trim()}
+              className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Δημιουργία προσωρινής καρτέλας
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* SMS CRM intake — send decision */}
       <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-4">
         <h2 className="text-sm font-semibold text-zinc-800">
@@ -349,7 +418,7 @@ export default function PostCallScreen({
             <p className="text-sm text-zinc-600">
               Να σταλεί SMS στον πελάτη για να συμπληρώσει τα στοιχεία της καρτέλας CRM;
             </p>
-            {!customerPhone && (
+            {!tempPhone.trim() && (
               <p className="text-xs text-amber-600">
                 Δεν υπάρχει τηλέφωνο πελάτη. Δεν μπορεί να σταλεί SMS.
               </p>
@@ -358,7 +427,7 @@ export default function PostCallScreen({
               <button
                 type="button"
                 onClick={handleSmsSend}
-                disabled={!customerPhone}
+                disabled={!tempPhone.trim()}
                 className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Ναι, αποστολή SMS
@@ -393,9 +462,9 @@ export default function PostCallScreen({
               {smsMessage}
             </pre>
             <div className="flex flex-col gap-2 sm:flex-row">
-              {customerPhone && (
+              {tempPhone.trim() && (
                 <a
-                  href={buildSmsHref(customerPhone, smsMessage)}
+                  href={buildSmsHref(tempPhone.trim(), smsMessage)}
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
                 >
                   <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
@@ -443,7 +512,7 @@ export default function PostCallScreen({
           </div>
         ) : (
           <>
-            {!customerPhone && !customerId && (
+            {!tempPhone.trim() && !customerId && (
               <p className="text-xs text-zinc-400">
                 Χωρίς τηλέφωνο ή πελάτη δεν μπορεί να γίνει σύνδεση.
               </p>
@@ -460,7 +529,7 @@ export default function PostCallScreen({
             <button
               type="button"
               onClick={handleSimulateSms}
-              disabled={!smsRaw.trim() || (!activeCrmId && !customerPhone)}
+              disabled={!smsRaw.trim() || (!activeCrmId && !tempPhone.trim())}
               className="w-full rounded-xl bg-zinc-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Προσομοίωση εισερχόμενου SMS
