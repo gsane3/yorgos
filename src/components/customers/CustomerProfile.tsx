@@ -15,6 +15,7 @@ import CustomerForm from './CustomerForm';
 import { TASK_TYPE_LABELS } from '@/components/tasks/TaskStatusBadge';
 import CustomerFilesSection from './CustomerFilesSection';
 import CustomerTimeline from './CustomerTimeline';
+import CustomerNextActionPanel from './CustomerNextActionPanel';
 
 const CONTACT_LABELS: Record<string, string> = {
   viber: 'Viber',
@@ -178,6 +179,13 @@ export default function CustomerProfile({ customerId }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Next action recommendation */}
+      <CustomerNextActionPanel
+        customer={customer}
+        tasks={customerTasks}
+        offers={customerOffers}
+      />
 
       {/* Quick actions */}
       <div>
