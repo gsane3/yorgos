@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { loadState, saveState, addOffer, updateOffer, deleteOffer } from '@/lib/storage';
 import { generateDemoOffers } from '@/lib/demo-data';
 import type { Offer, OfferStatus, Customer } from '@/lib/types';
@@ -8,22 +8,6 @@ import { norm } from '@/lib/search';
 import OfferCard from '@/components/offers/OfferCard';
 import OfferForm from '@/components/offers/OfferForm';
 import { OFFER_STATUS_LABELS } from '@/components/offers/OfferStatusBadge';
-
-function initOffers(): Offer[] {
-  if (typeof window === 'undefined') return [];
-  const state = loadState();
-  if (state.offers === undefined) {
-    const seeded = generateDemoOffers();
-    saveState({ offers: seeded });
-    return seeded;
-  }
-  return state.offers;
-}
-
-function initCustomers(): Customer[] {
-  if (typeof window === 'undefined') return [];
-  return loadState().customers ?? [];
-}
 
 type SortBy = 'newest' | 'amount_desc' | 'amount_asc';
 
@@ -37,8 +21,10 @@ const selCls =
   'rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm text-zinc-700 outline-none focus:border-indigo-400';
 
 export default function OffersPage() {
-  const [offers, setOffers] = useState<Offer[]>(initOffers);
-  const [customers] = useState<Customer[]>(initCustomers);
+  // Start with [] so server render and first client render match.
+  const [hydrated, setHydrated] = useState(false);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
 
@@ -46,6 +32,28 @@ export default function OffersPage() {
   const [offerSearch, setOfferSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OfferStatus | ''>('');
   const [sortBy, setSortBy] = useState<SortBy>('newest');
+
+  // Load localStorage after mount to avoid hydration mismatch.
+  // Preserves seeding rule: undefined = seed demo, [] = user cleared intentionally.
+  // setState calls are deferred into a timer so they are not synchronous in the effect body.
+  useEffect(() => {
+    const state = loadState();
+    let nextOffers: Offer[];
+    if (state.offers === undefined) {
+      const seeded = generateDemoOffers();
+      saveState({ offers: seeded });
+      nextOffers = seeded;
+    } else {
+      nextOffers = state.offers;
+    }
+    const nextCustomers: Customer[] = state.customers ?? [];
+    const timer = window.setTimeout(() => {
+      setOffers(nextOffers);
+      setCustomers(nextCustomers);
+      setHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const hasFilter = offerSearch.trim() !== '' || statusFilter !== '';
 
@@ -126,6 +134,40 @@ export default function OffersPage() {
   function handleCancelForm() {
     setShowForm(false);
     setEditingOffer(null);
+  }
+
+  // Stable loading shell — identical on server and first client render.
+  if (!hydrated) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h1 className="text-lg font-semibold text-zinc-900">Προσφορές</h1>
+          <button
+            type="button"
+            className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white"
+          >
+            + Νέα προσφορά
+          </button>
+        </div>
+        <div className="mb-4 space-y-2">
+          <input
+            type="search"
+            disabled
+            placeholder="Αναζήτηση αριθμού, πελάτη, σημειώσεων, όρων..."
+            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none"
+          />
+          <div className="flex flex-wrap gap-2">
+            <select disabled className={selCls}>
+              <option>Όλα τα status</option>
+            </select>
+            <select disabled className={selCls}>
+              <option>Νεότερες πρώτα</option>
+            </select>
+          </div>
+        </div>
+        <p className="py-10 text-center text-sm text-zinc-400">Φόρτωση προσφορών...</p>
+      </div>
+    );
   }
 
   return (
