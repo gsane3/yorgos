@@ -4,8 +4,24 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { DemoCallScenario } from '@/lib/demo-data';
 
-const SMS_MESSAGE =
-  'Παρακαλώ στείλτε μου τα παρακάτω με σειρά:\n\nΌνομα:\nΕπώνυμο:\nΔιεύθυνση:\nEmail:';
+interface BusinessInfo {
+  businessName?: string;
+  ownerName?: string;
+  businessPhone?: string;
+  businessEmail?: string;
+}
+
+function buildSmsMessage(bp?: BusinessInfo): string {
+  const body =
+    'Παρακαλώ στείλτε μου τα παρακάτω στοιχεία για την καταχώρηση στο σύστημά μας:\n\nΌνομα:\nΕπώνυμο:\nΔιεύθυνση:\nEmail:';
+  const sigLines: string[] = [];
+  if (bp?.ownerName) sigLines.push(bp.ownerName);
+  if (bp?.businessName) sigLines.push(bp.businessName);
+  if (bp?.businessPhone) sigLines.push(bp.businessPhone);
+  if (bp?.businessEmail) sigLines.push(bp.businessEmail);
+  const signature = sigLines.length > 0 ? `Ευχαριστώ,\n${sigLines.join('\n')}` : 'Ευχαριστώ';
+  return `${body}\n\n${signature}`;
+}
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -13,14 +29,18 @@ function formatDuration(seconds: number): string {
   return `${m}:${s}`;
 }
 
-function buildSmsHref(phone: string): string {
-  return `sms:${phone}?body=${encodeURIComponent(SMS_MESSAGE)}`;
+function buildSmsHref(phone: string, message: string): string {
+  return `sms:${phone}?body=${encodeURIComponent(message)}`;
 }
 
 interface Props {
   durationSeconds: number;
   scenario: DemoCallScenario | null;
   customerPhone?: string;
+  businessName?: string;
+  ownerName?: string;
+  businessPhone?: string;
+  businessEmail?: string;
   onNewCall: () => void;
 }
 
@@ -28,13 +48,18 @@ export default function PostCallScreen({
   durationSeconds,
   scenario,
   customerPhone,
+  businessName,
+  ownerName,
+  businessPhone,
+  businessEmail,
   onNewCall,
 }: Props) {
   const [copied, setCopied] = useState(false);
+  const smsMessage = buildSmsMessage({ businessName, ownerName, businessPhone, businessEmail });
 
   function handleCopy() {
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(SMS_MESSAGE).then(
+      navigator.clipboard.writeText(smsMessage).then(
         () => { setCopied(true); setTimeout(() => setCopied(false), 2000); },
         () => fallbackCopy()
       );
@@ -45,7 +70,7 @@ export default function PostCallScreen({
 
   function fallbackCopy() {
     const el = document.createElement('textarea');
-    el.value = SMS_MESSAGE;
+    el.value = smsMessage;
     document.body.appendChild(el);
     el.select();
     try { document.execCommand('copy'); } catch { /* ignore */ }
@@ -92,13 +117,13 @@ export default function PostCallScreen({
 
         {/* Message preview */}
         <pre className="mb-4 rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-600 leading-relaxed whitespace-pre-wrap ring-1 ring-zinc-100">
-          {SMS_MESSAGE}
+          {smsMessage}
         </pre>
 
         <div className="flex flex-col gap-2 sm:flex-row">
           {customerPhone ? (
             <a
-              href={buildSmsHref(customerPhone)}
+              href={buildSmsHref(customerPhone, smsMessage)}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
             >
               <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">

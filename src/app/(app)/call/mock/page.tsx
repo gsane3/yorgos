@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { loadState } from '@/lib/storage';
 import { addCallRecord } from '@/lib/storage';
 import { demoCallScenarios } from '@/lib/demo-data';
-import type { CallType, Customer, CallRecord } from '@/lib/types';
+import type { CallType, Customer, CallRecord, BusinessProfile } from '@/lib/types';
 import CallTypeSelector, { CALL_TYPE_LABELS } from '@/components/calls/CallTypeSelector';
 import MockCallScreen from '@/components/calls/MockCallScreen';
 import PostCallScreen from '@/components/calls/PostCallScreen';
@@ -20,6 +20,7 @@ export default function MockCallPage() {
   // Start with [] so server render and first client render match.
   const [hydrated, setHydrated] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
 
   const [phase, setPhase] = useState<Phase>('setup');
   const [callType, setCallType] = useState<CallType | null>(null);
@@ -35,8 +36,10 @@ export default function MockCallPage() {
   useEffect(() => {
     const state = loadState();
     const nextCustomers = state.customers ?? [];
+    const nextBp = state.businessProfile ?? null;
     const timer = window.setTimeout(() => {
       setCustomers(nextCustomers);
+      setBusinessProfile(nextBp);
       setHydrated(true);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -132,6 +135,10 @@ export default function MockCallPage() {
         durationSeconds={endedRecord?.durationSeconds ?? duration}
         scenario={selectedScenario}
         customerPhone={selectedCustomer?.phone || undefined}
+        businessName={businessProfile?.businessName || undefined}
+        ownerName={businessProfile?.ownerName || undefined}
+        businessPhone={businessProfile?.phone || undefined}
+        businessEmail={businessProfile?.email || undefined}
         onNewCall={handleNewCall}
       />
     );
