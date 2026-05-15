@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { Task, TaskType } from '@/lib/types';
+import type { Task } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
 import TaskStatusBadge, { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from './TaskStatusBadge';
 
@@ -31,25 +31,55 @@ const PRIORITY_DOT: Record<string, string> = {
   low: 'bg-zinc-300',
 };
 
-function primaryAction(type: TaskType, customerId?: string, offerId?: string): { label: string; href: string } | null {
-  if (type === 'call_back') return { label: 'Άνοιγμα κλήσης', href: '/call/mock' };
-  if (type === 'send_offer' || type === 'follow_up_offer') {
-    return offerId
+interface ActionLink { label: string; href: string }
+
+interface TaskActions {
+  main: ActionLink | null;
+  secondaryCustomer: ActionLink | null;
+  secondaryOffer: ActionLink | null;
+}
+
+// Build context-aware action links for a task without loading full offer/customer objects.
+// Deduplication: secondary links only appear when they differ from the main action target.
+function buildActions(task: Task): TaskActions {
+  const { type, customerId, offerId } = task;
+
+  let main: ActionLink | null = null;
+  let mainOpensCustomer = false;
+  let mainOpensOffer = false;
+
+  if (type === 'call_back') {
+    main = { label: 'Άνοιγμα κλήσης', href: '/call/mock' };
+  } else if (type === 'send_offer' || type === 'follow_up_offer') {
+    main = offerId
       ? { label: 'Άνοιγμα προσφοράς', href: `/offers/${offerId}` }
       : { label: 'Άνοιγμα προσφορών', href: '/offers' };
-  }
-  if (
+    mainOpensOffer = true;
+  } else if (
     type === 'visit_customer' ||
     type === 'ask_for_photos_documents' ||
     type === 'book_appointment' ||
-    type === 'wait_for_reply'
+    type === 'wait_for_reply' ||
+    type === 'other'
   ) {
-    return customerId ? { label: 'Άνοιγμα πελάτη', href: `/customers/${customerId}` } : null;
+    if (customerId) {
+      main = { label: 'Άνοιγμα πελάτη', href: `/customers/${customerId}` };
+      mainOpensCustomer = true;
+    }
   }
-  if (type === 'other') {
-    return customerId ? { label: 'Άνοιγμα πελάτη', href: `/customers/${customerId}` } : null;
-  }
-  return null;
+
+  // Secondary links — shown only when they add context beyond the main action.
+  const secondaryCustomer: ActionLink | null =
+    !mainOpensCustomer && customerId
+      ? { label: 'Άνοιγμα πελάτη', href: `/customers/${customerId}` }
+      : null;
+
+  const secondaryOffer: ActionLink | null =
+    !mainOpensOffer && offerId
+      ? { label: 'Άνοιγμα προσφοράς', href: `/offers/${offerId}` }
+      : null;
+
+  return { main, secondaryCustomer, secondaryOffer };
 }
 
 interface Props {
@@ -83,6 +113,8 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
     }
   }
 
+  const { main, secondaryCustomer, secondaryOffer } = buildActions(task);
+
   return (
     <div className={`rounded-2xl p-4 ring-1 ${cardBg}`}>
       <div className="flex items-start gap-2.5">
@@ -110,6 +142,7 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
 
       {effective !== 'completed' && effective !== 'cancelled' && (
         <div className="mt-3 flex flex-wrap gap-2">
+          {/* Complete */}
           <button
             type="button"
             onClick={() => onComplete(task.id)}
@@ -120,17 +153,38 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
             </svg>
             Ολοκλήρωση
           </button>
-          {(() => {
-            const action = primaryAction(task.type, task.customerId, task.offerId);
-            return action ? (
-              <Link
-                href={action.href}
-                className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
-              >
-                {action.label} →
-              </Link>
-            ) : null;
-          })()}
+
+          {/* Main contextual action */}
+          {main && (
+            <Link
+              href={main.href}
+              className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+            >
+              {main.label}
+            </Link>
+          )}
+
+          {/* Secondary: customer link if not duplicate */}
+          {secondaryCustomer && (
+            <Link
+              href={secondaryCustomer.href}
+              className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+            >
+              {secondaryCustomer.label}
+            </Link>
+          )}
+
+          {/* Secondary: offer link if not duplicate */}
+          {secondaryOffer && (
+            <Link
+              href={secondaryOffer.href}
+              className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+            >
+              {secondaryOffer.label}
+            </Link>
+          )}
+
+          {/* Edit / Delete */}
           <button
             type="button"
             onClick={() => onEdit(task)}
