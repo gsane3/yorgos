@@ -7,6 +7,7 @@ import type { Customer, CallRecord, Task } from '@/lib/types';
 import { updateCustomer, addCustomer, loadState, updateCallRecord, addCallRecord, addTask, getNextCrmNumber } from '@/lib/storage';
 import { parseSmsReply } from '@/lib/sms-intake';
 import { isLikelyMobile } from '@/lib/phone';
+import { buildSmsHref } from '@/lib/communications';
 
 interface BusinessInfo {
   businessName?: string;
@@ -56,9 +57,6 @@ function formatDuration(seconds: number): string {
   return `${m}:${s}`;
 }
 
-function buildSmsHref(phone: string, message: string): string {
-  return `sms:${phone}?body=${encodeURIComponent(message)}`;
-}
 
 const inputCls =
   'w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { loadState, updateCustomer, deleteCustomer, updateTask, addTask, addOffer, addCallRecord } from '@/lib/storage';
 import { buildMapsUrl } from '@/lib/maps';
 import { isLikelyMobile, getCallPhone, getSmsPhone, getLandlinePhone } from '@/lib/phone';
+import { buildCallHref, buildSmsHref } from '@/lib/communications';
 import type { Customer, Task, Offer, CallRecord } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
 import OfferStatusBadge from '@/components/offers/OfferStatusBadge';
@@ -436,7 +437,7 @@ export default function CustomerProfile({ customerId }: Props) {
           {/* Call — real when phone exists */}
           {callPhone ? (
             <a
-              href={`tel:${callPhone}`}
+              href={buildCallHref(callPhone)}
               className="flex w-full flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-2 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
             >
               <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
@@ -497,7 +498,7 @@ export default function CustomerProfile({ customerId }: Props) {
           {/* SMS — real when mobile exists */}
           {smsPhone ? (
             <a
-              href={`sms:${smsPhone}`}
+              href={buildSmsHref(smsPhone)}
               className="flex w-full flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-2 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
             >
               <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
