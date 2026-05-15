@@ -366,16 +366,24 @@ export default function CustomerProfile({ customerId }: Props) {
                       {task.dueTime ? ` ${task.dueTime}` : ''}
                     </p>
                   </div>
-                  {isOverdue && (
-                    <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                      Εκπρόθεσμο
-                    </span>
-                  )}
-                  {isToday && (
-                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                      Σήμερα
-                    </span>
-                  )}
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    {isOverdue && (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                        Εκπρόθεσμο
+                      </span>
+                    )}
+                    {isToday && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        Σήμερα
+                      </span>
+                    )}
+                    <Link
+                      href={`/tasks?taskId=${task.id}`}
+                      className="text-xs text-indigo-600 hover:text-indigo-700"
+                    >
+                      Άνοιγμα task
+                    </Link>
+                  </div>
                 </li>
               );
             })}

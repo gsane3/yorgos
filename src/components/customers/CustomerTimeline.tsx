@@ -108,7 +108,7 @@ function buildItems(
       ].join(' · '),
       dateIso,
       dateLabel,
-      href: '/tasks',
+      href: `/tasks?taskId=${task.id}`,
     });
   }
 
