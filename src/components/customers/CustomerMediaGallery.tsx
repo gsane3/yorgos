@@ -110,7 +110,6 @@ export default function CustomerMediaGallery({
           )}
 
           {current.record.kind === 'video' && (
-            // eslint-disable-next-line jsx-a11y/media-has-caption
             <video
               key={current.record.id}
               src={current.objectUrl}
