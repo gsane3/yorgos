@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { loadState, updateCustomer, deleteCustomer } from '@/lib/storage';
@@ -39,24 +39,31 @@ interface Props {
 
 export default function CustomerProfile({ customerId }: Props) {
   const router = useRouter();
-  const [customer, setCustomer] = useState<Customer | null>(() => {
-    if (typeof window === 'undefined') return null;
+
+  // Start with null/[] so server render and first client render match.
+  const [hydrated, setHydrated] = useState(false);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [openTasks, setOpenTasks] = useState<Task[]>([]);
+  const [customerOffers, setCustomerOffers] = useState<Offer[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Load localStorage after mount to avoid hydration mismatch.
+  // setState calls are deferred into a timer so they are not synchronous in the effect body.
+  useEffect(() => {
     const state = loadState();
-    return (state.customers ?? []).find((c) => c.id === customerId) ?? null;
-  });
-  const [openTasks] = useState<Task[]>(() => {
-    if (typeof window === 'undefined') return [];
-    const state = loadState();
-    return (state.tasks ?? []).filter(
+    const foundCustomer = (state.customers ?? []).find((c) => c.id === customerId) ?? null;
+    const foundTasks = (state.tasks ?? []).filter(
       (t) => t.customerId === customerId && t.status === 'open'
     );
-  });
-  const [customerOffers] = useState<Offer[]>(() => {
-    if (typeof window === 'undefined') return [];
-    const state = loadState();
-    return (state.offers ?? []).filter((o) => o.customerId === customerId);
-  });
-  const [isEditing, setIsEditing] = useState(false);
+    const foundOffers = (state.offers ?? []).filter((o) => o.customerId === customerId);
+    const timer = window.setTimeout(() => {
+      setCustomer(foundCustomer);
+      setOpenTasks(foundTasks);
+      setCustomerOffers(foundOffers);
+      setHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [customerId]);
 
   function handleSave(updated: Customer) {
     updateCustomer(updated);
@@ -70,6 +77,15 @@ export default function CustomerProfile({ customerId }: Props) {
     }
     deleteCustomer(customerId);
     router.push('/customers');
+  }
+
+  // Stable loading shell — identical on server and first client render.
+  if (!hydrated) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-10 text-center">
+        <p className="text-sm text-zinc-400">Φόρτωση πελάτη...</p>
+      </div>
+    );
   }
 
   if (customer === null) {
