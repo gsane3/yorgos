@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { getBusinessProfile, saveBusinessProfile, exportStateJson, importStateJson } from '@/lib/storage';
+import { getBusinessProfile, saveBusinessProfile, exportStateJson, importStateJson, loadState } from '@/lib/storage';
+import { buildDataHealthReport, type DataHealthReport } from '@/lib/data-health';
 import type { BusinessProfile } from '@/lib/types';
 import BusinessForm from '@/components/settings/BusinessForm';
 import MockWorkspacePanel from '@/components/settings/MockWorkspacePanel';
@@ -36,14 +37,17 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [restoreStatus, setRestoreStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [healthReport, setHealthReport] = useState<DataHealthReport | null>(null);
 
   // Load localStorage after mount to avoid hydration mismatch.
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
   useEffect(() => {
     const stored = getBusinessProfile();
     const nextProfile = stored ?? defaultProfile();
+    const report = buildDataHealthReport(loadState());
     const timer = window.setTimeout(() => {
       setProfile(nextProfile);
+      setHealthReport(report);
       setHydrated(true);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -87,6 +91,10 @@ export default function SettingsPage() {
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
+  }
+
+  function handleRecheck() {
+    setHealthReport(buildDataHealthReport(loadState()));
   }
 
   function handleSave() {
@@ -186,6 +194,77 @@ export default function SettingsPage() {
               <p className="text-sm font-medium text-red-700">
                 Το αρχείο backup δεν είναι έγκυρο.
               </p>
+            </div>
+          )}
+        </div>
+
+        {/* Data health */}
+        <div className="pt-8 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-800">Έλεγχος τοπικών δεδομένων</h2>
+              <p className="mt-0.5 text-xs text-zinc-400">
+                Ο έλεγχος γίνεται μόνο τοπικά στον browser. Δεν στέλνονται δεδομένα εκτός συσκευής.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRecheck}
+              className="shrink-0 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+            >
+              Επανέλεγχος
+            </button>
+          </div>
+
+          {healthReport && (
+            <div className="rounded-2xl bg-white ring-1 ring-zinc-100 shadow-sm overflow-hidden">
+              {/* Status banner */}
+              <div className={`px-4 py-3 ${healthReport.healthy ? 'bg-green-50' : 'bg-amber-50'}`}>
+                <p className={`text-sm font-semibold ${healthReport.healthy ? 'text-green-700' : 'text-amber-900'}`}>
+                  {healthReport.healthy
+                    ? 'Όλα φαίνονται σωστά'
+                    : `Βρέθηκαν ${healthReport.issues.length} θέματα στα τοπικά δεδομένα`}
+                </p>
+              </div>
+
+              {/* Counts */}
+              <div className="grid grid-cols-2 gap-px bg-zinc-100 sm:grid-cols-5">
+                {[
+                  { label: 'Πελάτες', value: healthReport.counts.customers },
+                  { label: 'Tasks', value: healthReport.counts.tasks },
+                  { label: 'Προσφορές', value: healthReport.counts.offers },
+                  { label: 'Κλήσεις', value: healthReport.counts.calls },
+                  { label: 'Επικοινωνίες', value: healthReport.counts.communications },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-white px-4 py-3 text-center">
+                    <p className="text-lg font-bold text-zinc-900">{value}</p>
+                    <p className="text-xs text-zinc-400">{label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Issues list */}
+              {healthReport.issues.length > 0 && (
+                <div className="border-t border-zinc-100 px-4 py-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-zinc-500 mb-2">Λεπτομέρειες</p>
+                  <ul className="space-y-1">
+                    {healthReport.issues.slice(0, 20).map((issue, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-zinc-600">
+                        <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+                        <span>
+                          <span className="font-medium text-zinc-700">{issue.entity}:</span>{' '}
+                          {issue.message}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {healthReport.issues.length > 20 && (
+                    <p className="text-xs text-zinc-400">
+                      +{healthReport.issues.length - 20} ακόμα
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
