@@ -39,6 +39,9 @@ export default function OfferPreview({ offerId }: Props) {
   const [offer, setOffer] = useState<Offer | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [bp, setBp] = useState<BusinessProfile | null>(null);
+  // Steps 131+132: task suggestion state
+  const [acceptTaskState, setAcceptTaskState] = useState<'idle' | 'created' | 'duplicate'>('idle');
+  const [rejectTaskState, setRejectTaskState] = useState<'idle' | 'created' | 'duplicate'>('idle');
 
   // Load localStorage after mount to avoid hydration mismatch.
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
@@ -107,6 +110,62 @@ export default function OfferPreview({ offerId }: Props) {
     if (!window.confirm(`Διαγραφή προσφοράς ${offer.offerNumber};`)) return;
     deleteOffer(offerId);
     router.push('/offers');
+  }
+
+  // Step 131: suggest work-scheduling task after accepted offer
+  function handleCreateAcceptTask() {
+    if (!offer) return;
+    const state = loadState();
+    const hasDup = (state.tasks ?? []).some(
+      (t) => t.status === 'open' && t.offerId === offer.id
+    );
+    if (hasDup) { setAcceptTaskState('duplicate'); return; }
+    const now = new Date().toISOString();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    addTask({
+      id: crypto.randomUUID(),
+      customerId: offer.customerId,
+      offerId: offer.id,
+      title: `Προγραμμάτισε εργασία για προσφορά ${offer.offerNumber}`,
+      type: 'other',
+      status: 'open',
+      priority: 'high',
+      dueDate: tomorrow.toISOString().split('T')[0],
+      note: `Η προσφορά ${offer.offerNumber} έγινε αποδεκτή. Προγραμμάτισε την εκτέλεση.`,
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    setAcceptTaskState('created');
+  }
+
+  // Step 132: suggest follow-up task after rejected offer
+  function handleCreateRejectTask() {
+    if (!offer) return;
+    const state = loadState();
+    const hasDup = (state.tasks ?? []).some(
+      (t) => t.status === 'open' && t.offerId === offer.id
+    );
+    if (hasDup) { setRejectTaskState('duplicate'); return; }
+    const now = new Date().toISOString();
+    const in3days = new Date();
+    in3days.setDate(in3days.getDate() + 3);
+    addTask({
+      id: crypto.randomUUID(),
+      customerId: offer.customerId,
+      offerId: offer.id,
+      title: `Follow-up για απορριφθείσα προσφορά ${offer.offerNumber}`,
+      type: 'follow_up_offer',
+      status: 'open',
+      priority: 'normal',
+      dueDate: in3days.toISOString().split('T')[0],
+      note: `Η προσφορά ${offer.offerNumber} απορρίφθηκε. Σκέψου follow-up ή αναθεώρηση τιμής.`,
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    setRejectTaskState('created');
   }
 
   // Stable loading shell — identical on server and first client render.
@@ -314,6 +373,112 @@ export default function OfferPreview({ offerId }: Props) {
 
       {/* Acceptance demo */}
       <OfferAcceptanceDemoSection offer={offer} onUpdateOffer={handleUpdateOffer} />
+
+      {/* Step 128: Response history card — shown when offer is accepted or rejected */}
+      {offer && (offer.status === 'accepted' || offer.status === 'rejected') && (
+        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
+          <div className="mb-3 flex items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Απάντηση πελάτη
+            </p>
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+              Τοπική απάντηση
+            </span>
+          </div>
+          <div className={`rounded-xl px-4 py-3 ring-1 space-y-1 ${
+            offer.status === 'accepted'
+              ? 'bg-green-50 ring-green-200'
+              : 'bg-red-50 ring-red-200'
+          }`}>
+            <p className={`text-sm font-semibold ${
+              offer.status === 'accepted' ? 'text-green-700' : 'text-red-700'
+            }`}>
+              {offer.status === 'accepted'
+                ? 'Η προσφορά έγινε αποδεκτή'
+                : 'Η προσφορά απορρίφθηκε'}
+            </p>
+            <p className="text-xs text-zinc-500">
+              Πηγή: demo link · τοπικό MVP
+            </p>
+            <p className="text-xs text-zinc-400">
+              Τελευταία ενημέρωση:{' '}
+              {new Date(offer.updatedAt).toLocaleDateString('el-GR', {
+                day: 'numeric', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit',
+              })}
+            </p>
+            {offer.status === 'rejected' && offer.notes && (() => {
+              const commentMatch = offer.notes.match(/Σχόλιο: (.+?)(?:\n|$)/);
+              return commentMatch ? (
+                <p className="text-xs text-zinc-600 mt-1">
+                  Σχόλιο: {commentMatch[1]}
+                </p>
+              ) : null;
+            })()}
+          </div>
+          <p className="mt-2 text-xs text-zinc-400">
+            Δεν αποτελεί νόμιμη ηλεκτρονική υπογραφή. Επικοινωνήστε με τον πελάτη για επιβεβαίωση.
+          </p>
+        </section>
+      )}
+
+      {/* Step 131: Task suggestion for accepted offer */}
+      {offer && offer.status === 'accepted' && (
+        <section className="rounded-2xl border border-green-200 bg-green-50 p-4 print:hidden">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-green-600">
+            Επόμενο βήμα
+          </p>
+          <p className="text-sm text-zinc-700 mb-3">
+            Δημιούργησε task για προγραμματισμό εργασίας.
+          </p>
+          {acceptTaskState === 'created' ? (
+            <p className="text-sm font-medium text-green-700">✓ Το task δημιουργήθηκε.</p>
+          ) : acceptTaskState === 'duplicate' ? (
+            <p className="text-sm text-zinc-500">Υπάρχει ήδη σχετικό task.</p>
+          ) : (
+            <button
+              type="button"
+              onClick={handleCreateAcceptTask}
+              className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700"
+            >
+              Δημιουργία task
+            </button>
+          )}
+        </section>
+      )}
+
+      {/* Step 132: Rejection learning prompt */}
+      {offer && offer.status === 'rejected' && (
+        <section className="rounded-2xl border border-zinc-200 bg-white p-4 print:hidden">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            Μάθηση από απόρριψη
+          </p>
+          {offer.notes && (() => {
+            const commentMatch = offer.notes.match(/Σχόλιο: (.+?)(?:\n|$)/);
+            return commentMatch ? (
+              <p className="mb-2 text-sm text-zinc-600">
+                Λόγος: {commentMatch[1]}
+              </p>
+            ) : null;
+          })()}
+          <p className="text-sm text-zinc-700 mb-3">
+            Σκέψου follow-up ή αναθεώρηση προσφοράς.
+          </p>
+          {rejectTaskState === 'created' ? (
+            <p className="text-sm font-medium text-indigo-600">✓ Το task δημιουργήθηκε.</p>
+          ) : rejectTaskState === 'duplicate' ? (
+            <p className="text-sm text-zinc-500">Υπάρχει ήδη σχετικό task.</p>
+          ) : (
+            <button
+              type="button"
+              onClick={handleCreateRejectTask}
+              className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+            >
+              Δημιουργία follow-up task
+            </button>
+          )}
+        </section>
+      )}
 
       {/* Copy drafts */}
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">

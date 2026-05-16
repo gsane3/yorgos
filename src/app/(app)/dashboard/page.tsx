@@ -16,6 +16,7 @@ import NextActionsSection from '@/components/dashboard/NextActionsSection';
 import SmsIntakeNotificationBar from '@/components/dashboard/SmsIntakeNotificationBar';
 import DataQualityWidget from '@/components/dashboard/DataQualityWidget';
 import LocalAnalyticsWidget from '@/components/dashboard/LocalAnalyticsWidget';
+import RecentResponsesSection from '@/components/dashboard/RecentResponsesSection';
 
 const LEAD_STATUSES = new Set<string>([
   'new_lead',
@@ -311,6 +312,7 @@ export default function DashboardPage() {
       <LeadsSection leads={leads} />
       <TodayTasksSection tasks={urgentTasks} customerMap={customerMap} />
       <OpenOffersSection offers={openOffers} customerMap={customerMap} />
+      <RecentResponsesSection offers={offers} customerMap={customerMap} />
       <RecentCommunicationsSection communications={communications} customerMap={customerMap} />
       <RecentCallsSection callRecords={calls} customerMap={customerMap} />
       <LocalAnalyticsWidget customers={customers} tasks={tasks} offers={offers} />
