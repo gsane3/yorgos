@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { loadState } from '@/lib/storage';
 
 interface GapRow {
   area: string;
@@ -124,7 +125,36 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+interface LocalCounts {
+  customers: number;
+  tasks: number;
+  tasksOpen: number;
+  tasksCompleted: number;
+  offers: number;
+  calls: number;
+  communications: number;
+}
+
 export default function ProductionReadinessPage() {
+  const [counts, setCounts] = useState<LocalCounts | null>(null);
+
+  useEffect(() => {
+    const state = loadState();
+    const tasks = state.tasks ?? [];
+    const timer = window.setTimeout(() => {
+      setCounts({
+        customers: state.customers?.length ?? 0,
+        tasks: tasks.length,
+        tasksOpen: tasks.filter((t) => t.status === 'open').length,
+        tasksCompleted: tasks.filter((t) => t.status === 'completed').length,
+        offers: state.offers?.length ?? 0,
+        calls: state.calls?.length ?? 0,
+        communications: state.communications?.length ?? 0,
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 space-y-8">
       {/* Header */}
@@ -298,6 +328,74 @@ export default function ProductionReadinessPage() {
               </li>
             ))}
           </ol>
+        </div>
+      </Section>
+
+      {/* Step 119: Pilot metrics dashboard */}
+      <Section title="Pilot Metrics (τοπικά)">
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-4">
+          <p className="text-xs text-zinc-400">
+            Τοπικά δεδομένα μόνο — δεν είναι product analytics, δεν υπάρχει tracking.
+          </p>
+          {counts ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {[
+                { label: 'Πελάτες', value: counts.customers },
+                { label: 'Κλήσεις (mock)', value: counts.calls },
+                { label: 'Επικοινωνίες', value: counts.communications },
+                { label: 'Προσφορές', value: counts.offers },
+                { label: 'Tasks ανοιχτά', value: counts.tasksOpen },
+                { label: 'Tasks ολοκλ.', value: counts.tasksCompleted },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-xl bg-zinc-50 px-3 py-2.5 text-center ring-1 ring-zinc-100">
+                  <p className="text-lg font-bold text-zinc-900">{value}</p>
+                  <p className="text-xs text-zinc-400">{label}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-400">Φόρτωση...</p>
+          )}
+          <p className="text-xs text-zinc-400">
+            Οι κλήσεις και επικοινωνίες χρησιμοποιούνται ως proxy για AI review χρήση.
+          </p>
+        </div>
+      </Section>
+
+      {/* Step 118: AI usage estimator */}
+      <Section title="Τοπική εκτίμηση χρήσης">
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-3">
+          <p className="text-xs text-zinc-400">
+            Εκτίμηση από τοπικά δεδομένα — δεν είναι χρέωση. Δεν γίνεται tracking.
+          </p>
+          {counts ? (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between text-zinc-600">
+                <span>Πελάτες στο CRM</span>
+                <span className="font-semibold text-zinc-900">{counts.customers}</span>
+              </div>
+              <div className="flex justify-between text-zinc-600">
+                <span>Κλήσεις / AI reviews (proxy)</span>
+                <span className="font-semibold text-zinc-900">
+                  {counts.calls + counts.communications}
+                </span>
+              </div>
+              <div className="flex justify-between text-zinc-600">
+                <span>Προσφορές δημιουργημένες</span>
+                <span className="font-semibold text-zinc-900">{counts.offers}</span>
+              </div>
+              <div className="flex justify-between text-zinc-600">
+                <span>Tasks συνολικά</span>
+                <span className="font-semibold text-zinc-900">{counts.tasks}</span>
+              </div>
+              <div className="border-t border-zinc-100 pt-2 text-xs text-zinc-400">
+                Σε production, η χρέωση AI θα βασίζεται σε tokens per call — όχι σε αυτούς
+                τους αριθμούς. Αυτό είναι rough proxy μόνο για εσωτερική χρήση.
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-400">Φόρτωση...</p>
+          )}
         </div>
       </Section>
 

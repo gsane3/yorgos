@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { loadState } from '@/lib/storage';
 import DemoTruthBadge from '@/components/common/DemoTruthBadge';
+import KnownLimitationsBox from '@/components/common/KnownLimitationsBox';
 
 // ── Step 104: Scenario types ───────────────────────────────────────────────────
 type Scenario = 'technical' | 'sales' | 'construction';
@@ -445,6 +446,125 @@ export default function DemoPage() {
         <p className="text-xs text-amber-700">
           Όλα τα δεδομένα είναι τοπικά σε αυτόν τον browser. Δεν υπάρχει πραγματική VoIP,
           ηχογράφηση, SMS provider ή cloud sync.
+        </p>
+      </div>
+
+      {/* Step 112: Pilot user onboarding ─────────────────────────────────── */}
+      <div className="border-t border-zinc-100 pt-6 space-y-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
+            Για pilot χρήστες
+          </p>
+          <h2 className="mt-1 text-base font-bold text-zinc-900">Οδηγός pilot χρήστη</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Αν δοκιμάζεις το app για πρώτη φορά με δικά σου δεδομένα, διάβασε πρώτα αυτά.
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-3">
+          <div className="space-y-2">
+            {[
+              { label: 'Τι είναι πραγματικό:', text: 'Αποθήκευση πελατών, tasks, προσφορών, AI review (με API key), CSV εξαγωγή, backup JSON.' },
+              { label: 'Τι είναι demo:', text: 'Κλήσεις (VoIP), ηχογράφηση, αποστολή SMS/email, cloud sync — όλα local/demo.' },
+              { label: 'Πώς να δοκιμάσεις:', text: 'Πρόσθεσε 1-2 δικούς σου πελάτες, δημιούργησε task, δοκίμασε AI review. Παρακολούθησε τι αποθηκεύεται.' },
+              { label: 'Γιατί backup πρώτα:', text: 'Τα δεδομένα είναι μόνο στον browser. Αν διαγραφεί το localStorage, χάνονται χωρίς backup.' },
+            ].map(({ label, text }) => (
+              <div key={label} className="flex items-start gap-2 text-sm">
+                <span className="mt-0.5 shrink-0 font-semibold text-zinc-700">{label}</span>
+                <span className="text-zinc-500">{text}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-zinc-100">
+            <Link href="/dashboard" className="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700">
+              Άνοιγμα Αρχικής
+            </Link>
+            <Link href="/customers" className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50">
+              Προσθήκη πελάτη
+            </Link>
+            <Link href="/settings" className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50">
+              Δημιουργία backup
+            </Link>
+            <Link href="/demo/pilot-feedback" className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50">
+              Feedback pilot
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Step 115: First real-use checklist ──────────────────────────────── */}
+      <FirstUseChecklist />
+
+      {/* Known limitations + pilot links */}
+      <KnownLimitationsBox />
+      <div className="flex flex-wrap gap-4 text-xs">
+        <Link href="/demo/pilot-feedback" className="text-indigo-600 hover:text-indigo-700">Feedback pilot →</Link>
+        <Link href="/demo/privacy" className="text-zinc-500 hover:text-zinc-700">Απόρρητο →</Link>
+        <Link href="/demo/production-readiness" className="text-zinc-500 hover:text-zinc-700">Τεχνική ετοιμότητα →</Link>
+      </div>
+    </div>
+  );
+}
+
+// ── Step 115: First real-use checklist (local state only) ─────────────────────
+const FIRST_USE_ITEMS = [
+  'Κάνε backup πριν ξεκινήσεις.',
+  'Πρόσθεσε έναν πελάτη.',
+  'Κάνε demo call ή AI review.',
+  'Αποθήκευσε summary στο CRM.',
+  'Δημιούργησε ένα task.',
+  'Δημιούργησε μία προσφορά.',
+  'Αντέγραψε Viber ή email draft.',
+  'Κάνε ξανά backup μετά τη δοκιμή.',
+];
+
+function FirstUseChecklist() {
+  const [checked, setChecked] = useState<Set<number>>(new Set());
+
+  function toggle(i: number) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <h2 className="text-base font-bold text-zinc-900">Πρώτη δοκιμή με δικά σου δεδομένα</h2>
+        <p className="mt-0.5 text-xs text-zinc-400">
+          Τοπική λίστα — δεν αποθηκεύεται. Μόνο οδηγός.
+        </p>
+      </div>
+      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-2">
+        {FIRST_USE_ITEMS.map((item, i) => {
+          const done = checked.has(i);
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => toggle(i)}
+              className="flex w-full items-center gap-3 text-left"
+            >
+              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+                done ? 'border-indigo-600 bg-indigo-600' : 'border-zinc-300 bg-white'
+              }`}>
+                {done && (
+                  <svg className="h-2.5 w-2.5 text-white" fill="none" strokeWidth={3} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                )}
+              </span>
+              <span className={`text-sm ${done ? 'text-zinc-400 line-through' : 'text-zinc-700'}`}>
+                {item}
+              </span>
+            </button>
+          );
+        })}
+        <p className="pt-1 text-xs text-zinc-400">
+          {checked.size} / {FIRST_USE_ITEMS.length} ολοκληρωμένα
         </p>
       </div>
     </div>

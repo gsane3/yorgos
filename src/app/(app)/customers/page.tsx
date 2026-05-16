@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import Link from 'next/link';
 import { loadState, saveState, addCustomer, ensureCustomerCrmNumbers, getNextCrmNumber, mergeCustomers } from '@/lib/storage';
 import { demoCustomers } from '@/lib/demo-data';
 import type { Customer, CustomerStatus, CustomerSource } from '@/lib/types';
@@ -222,11 +223,32 @@ export default function CustomersPage() {
 
       {/* Customer list */}
       {customers.length === 0 ? (
-        <div className="py-12 text-center">
+        <div className="py-10 space-y-4 text-center">
           <p className="text-sm font-medium text-zinc-500">Δεν έχεις πελάτες ακόμα.</p>
-          <p className="mt-1 text-sm text-zinc-400">
-            Πρόσθεσε έναν πελάτη με το κουμπί παραπάνω.
+          <p className="text-sm text-zinc-400">
+            Πρόσθεσε έναν πελάτη με το κουμπί παραπάνω ή δοκίμασε ένα από τα παρακάτω:
           </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            >
+              + Νέος πελάτης
+            </button>
+            <Link
+              href="/ai-review"
+              className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+            >
+              Δοκίμασε AI review
+            </Link>
+            <Link
+              href="/settings"
+              className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+            >
+              Επαναφορά demo δεδομένων
+            </Link>
+          </div>
         </div>
       ) : filtered.length === 0 ? (
         <div className="py-12 text-center">
