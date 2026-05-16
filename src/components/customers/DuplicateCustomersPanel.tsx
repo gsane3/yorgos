@@ -22,6 +22,24 @@ function bestCustomerId(group: Customer[]): string {
   return [...group].sort((a, b) => scoreCustomer(b) - scoreCustomer(a))[0].id;
 }
 
+function buildMergePreview(primary: Customer, duplicates: Customer[]): string[] {
+  const lines: string[] = [];
+  const anyHas = (getter: (c: Customer) => string | undefined) =>
+    !getter(primary)?.trim() && duplicates.some((d) => !!getter(d)?.trim());
+  if (anyHas((c) => c.companyName)) lines.push('Θα συμπληρωθεί εταιρεία');
+  if (anyHas((c) => c.mobilePhone)) lines.push('Θα συμπληρωθεί κινητό');
+  if (anyHas((c) => c.landlinePhone)) lines.push('Θα συμπληρωθεί σταθερό');
+  if (anyHas((c) => c.phone)) lines.push('Θα συμπληρωθεί τηλέφωνο');
+  if (anyHas((c) => c.email)) lines.push('Θα συμπληρωθεί email');
+  if (anyHas((c) => c.address)) lines.push('Θα συμπληρωθεί διεύθυνση');
+  if (anyHas((c) => c.needsSummary)) lines.push('Θα συμπληρωθεί σύνοψη αναγκών');
+  const dupsHaveNotes = duplicates.some((d) => !!d.notes?.trim());
+  if (dupsHaveNotes) {
+    lines.push(primary.notes?.trim() ? 'Θα προστεθούν σημειώσεις' : 'Θα συμπληρωθούν σημειώσεις');
+  }
+  return lines;
+}
+
 function getSharedPhone(group: Customer[]): string | null {
   const counts = new Map<string, number>();
   for (const c of group) {
@@ -144,6 +162,35 @@ export default function DuplicateCustomersPanel({ customers, onMerge }: Props) {
                 );
               })}
             </div>
+
+            {/* Merge preview */}
+            {(() => {
+              const primary = group.find((c) => c.id === selectedId)!;
+              const duplicates = group.filter((c) => c.id !== selectedId);
+              const preview = buildMergePreview(primary, duplicates);
+              return (
+                <div className="rounded-xl bg-zinc-50 px-3 py-2.5 ring-1 ring-zinc-100 space-y-1.5">
+                  <p className="text-xs font-semibold text-zinc-600">Τι θα μεταφερθεί</p>
+                  {preview.length > 0 ? (
+                    <ul className="space-y-0.5">
+                      {preview.slice(0, 5).map((line, j) => (
+                        <li key={j} className="flex items-center gap-1.5 text-xs text-zinc-600">
+                          <span className="text-indigo-400 shrink-0">·</span>
+                          {line}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-zinc-400">
+                      Δεν υπάρχουν νέα πεδία για μεταφορά. Θα μεταφερθούν μόνο οι συνδέσεις ιστορικού.
+                    </p>
+                  )}
+                  <p className="text-xs text-zinc-400">
+                    Tasks, προσφορές, κλήσεις και επικοινωνίες θα μεταφερθούν στη βασική καρτέλα.
+                  </p>
+                </div>
+              );
+            })()}
 
             <button
               type="button"
