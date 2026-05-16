@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { getBusinessProfile, saveBusinessProfile, exportStateJson, importStateJson, loadState } from '@/lib/storage';
+import { getBusinessProfile, saveBusinessProfile, exportStateJson, importStateJson, loadState, clearState } from '@/lib/storage';
 import { buildDataHealthReport, type DataHealthReport } from '@/lib/data-health';
 import type { BusinessProfile } from '@/lib/types';
 import BusinessForm from '@/components/settings/BusinessForm';
@@ -38,6 +38,8 @@ export default function SettingsPage() {
   const [restoreStatus, setRestoreStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [healthReport, setHealthReport] = useState<DataHealthReport | null>(null);
+  const [resetConfirming, setResetConfirming] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
 
   // Load localStorage after mount to avoid hydration mismatch.
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
@@ -95,6 +97,14 @@ export default function SettingsPage() {
 
   function handleRecheck() {
     setHealthReport(buildDataHealthReport(loadState()));
+  }
+
+  function handleReset() {
+    clearState();
+    setResetConfirming(false);
+    setResetDone(true);
+    setHealthReport(buildDataHealthReport(loadState()));
+    setTimeout(() => window.location.reload(), 1500);
   }
 
   function handleSave() {
@@ -266,6 +276,63 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
+          )}
+        </div>
+        {/* Data reset */}
+        <div className="pt-8 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-800">Καθαρισμός τοπικών δεδομένων</h2>
+            <div className="mt-2 space-y-1 text-xs text-zinc-500">
+              <p>Τα δεδομένα είναι αποθηκευμένα μόνο σε αυτόν τον browser.</p>
+              <p>
+                Πριν τα διαγράψεις, μπορείς να κατεβάσεις backup από την ενότητα{' '}
+                <span className="font-medium text-zinc-700">Backup δεδομένων</span> παραπάνω.
+              </p>
+              <p className="font-medium text-zinc-700">
+                Η διαγραφή δεν μπορεί να αναιρεθεί από το app αν δεν έχεις backup.
+              </p>
+            </div>
+          </div>
+
+          {resetDone ? (
+            <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200">
+              <p className="text-sm font-medium text-green-700">
+                Τα δεδομένα διαγράφηκαν. Η σελίδα θα ανανεωθεί...
+              </p>
+            </div>
+          ) : resetConfirming ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 space-y-3">
+              <p className="text-sm font-semibold text-red-900">Επιβεβαίωση διαγραφής</p>
+              <p className="text-xs text-red-700">
+                Η ενέργεια αυτή θα αφαιρέσει όλα τα τοπικά δεδομένα CRM από αυτόν τον browser.
+                Πελάτες, tasks, προσφορές, κλήσεις και επικοινωνίες θα διαγραφούν χωρίς δυνατότητα
+                ανάκτησης εκτός αν έχεις αποθηκευμένο backup.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setResetConfirming(false)}
+                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                >
+                  Ακύρωση
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+                >
+                  Ναι, διαγραφή δεδομένων
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setResetConfirming(true)}
+              className="rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+            >
+              Διαγραφή τοπικών δεδομένων
+            </button>
           )}
         </div>
       </div>
