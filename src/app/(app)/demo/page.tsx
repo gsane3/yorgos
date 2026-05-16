@@ -199,6 +199,7 @@ export default function DemoPage() {
 
   // Step 161: copy demo URL state
   const [copyLinkCopied, setCopyLinkCopied] = useState(false);
+  const [showPilotDetails, setShowPilotDetails] = useState(false);
 
   function handleCopyLink() {
     const url = `${window.location.origin}/demo`;
@@ -444,6 +445,55 @@ export default function DemoPage() {
           </div>
         )}
       </div>
+
+      {/* "Τι θα δεις σε 5 λεπτά" card */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
+        <h2 className="text-base font-bold text-zinc-900">Τι θα δεις σε 5 λεπτά</h2>
+        <ul className="space-y-2">
+          {[
+            'Κλήση → AI brief → δεδομένα CRM.',
+            'Καρτέλα πελάτη με tasks και ιστορικό.',
+            'Προσφορά με link αποδοχής από τον πελάτη.',
+            'Αποδοχή → αυτόματο follow-up task.',
+          ].map((b) => (
+            <li key={b} className="flex items-start gap-2 text-sm text-zinc-600">
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
+              {b}
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs text-zinc-400">
+          Στο MVP δεν γίνεται πραγματική κλήση, SMS, VoIP, ή cloud sync. Όλα τοπικά στον browser.
+        </p>
+      </div>
+
+      {/* Links */}
+      <div className="flex flex-wrap gap-4 text-xs">
+        <Link href="/demo/pilot-feedback" className="text-indigo-600 hover:text-indigo-700">Feedback →</Link>
+        <Link href="/demo/privacy" className="text-zinc-500 hover:text-zinc-700">Απόρρητο →</Link>
+        <Link href="/demo/production-readiness" className="text-zinc-500 hover:text-zinc-700">Τεχνική ετοιμότητα →</Link>
+      </div>
+
+      {/* Collapsible pilot section */}
+      <button
+        type="button"
+        onClick={() => setShowPilotDetails((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-100 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100"
+      >
+        <span>Περισσότερα για pilot χρήστες</span>
+        <svg
+          className={`h-4 w-4 text-zinc-400 transition-transform ${showPilotDetails ? 'rotate-180' : ''}`}
+          fill="none"
+          strokeWidth={2}
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+
+      {showPilotDetails && (
+      <>
 
       {/* Step 104: Scenario selector — shown on step 0 */}
       {isFirst && (
@@ -764,13 +814,12 @@ export default function DemoPage() {
       {/* Step 115: First real-use checklist ──────────────────────────────── */}
       <FirstUseChecklist />
 
-      {/* Known limitations + pilot links */}
+      {/* Known limitations */}
       <KnownLimitationsBox />
-      <div className="flex flex-wrap gap-4 text-xs">
-        <Link href="/demo/pilot-feedback" className="text-indigo-600 hover:text-indigo-700">Feedback pilot →</Link>
-        <Link href="/demo/privacy" className="text-zinc-500 hover:text-zinc-700">Απόρρητο →</Link>
-        <Link href="/demo/production-readiness" className="text-zinc-500 hover:text-zinc-700">Τεχνική ετοιμότητα →</Link>
-      </div>
+
+      </>
+      )}
+
     </div>
   );
 }

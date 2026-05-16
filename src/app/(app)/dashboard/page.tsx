@@ -1,26 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { loadState, updateTask, updateOffer, addTask, updateCustomer, deleteCustomer, saveCustomers, advanceSmsIntakeStatuses, addCommunicationRecord } from '@/lib/storage';
 import { getSmsPhone } from '@/lib/phone';
 import { getEffectiveStatus } from '@/lib/types';
 import type { Customer, Task, Offer, CallRecord, TaskBaseStatus, CommunicationRecord } from '@/lib/types';
 import QuickAssistantInput from '@/components/dashboard/QuickAssistantInput';
-import MissedCallsSection from '@/components/dashboard/MissedCallsSection';
-import LeadsSection from '@/components/dashboard/LeadsSection';
-import TodayTasksSection from '@/components/dashboard/TodayTasksSection';
-import OpenOffersSection from '@/components/dashboard/OpenOffersSection';
-import RecentCallsSection from '@/components/dashboard/RecentCallsSection';
-import RecentCommunicationsSection from '@/components/dashboard/RecentCommunicationsSection';
 import NextActionsSection from '@/components/dashboard/NextActionsSection';
 import SmsIntakeNotificationBar from '@/components/dashboard/SmsIntakeNotificationBar';
 import DataQualityWidget from '@/components/dashboard/DataQualityWidget';
-import LocalAnalyticsWidget from '@/components/dashboard/LocalAnalyticsWidget';
-import RecentResponsesSection from '@/components/dashboard/RecentResponsesSection';
 import DemoStepBanner from '@/components/common/DemoStepBanner';
 import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
 import DashboardSmartCards from '@/components/dashboard/DashboardSmartCards';
-import PageHelp from '@/components/common/PageHelp';
 
 const LEAD_STATUSES = new Set<string>([
   'new_lead',
@@ -51,7 +43,7 @@ export default function DashboardPage() {
     communications: [],
   });
 
-  // Undo state for dashboard task completion — must be declared before any conditional return.
+  // Undo state for dashboard task completion â€” must be declared before any conditional return.
   const [lastCompletedTask, setLastCompletedTask] = useState<Task | null>(null);
 
   // Auto-clear the undo banner after 8 seconds.
@@ -84,7 +76,7 @@ export default function DashboardPage() {
           direction: 'outbound',
           status: 'sent',
           phone,
-          summary: 'Αποστολή δεύτερου SMS υπενθύμισης για στοιχεία πελάτη.',
+          summary: 'Î‘Ï€Î¿ÏƒÏ„Î¿Î»Î® Î´ÎµÏÏ„ÎµÏÎ¿Ï… SMS Ï…Ï€ÎµÎ½Î¸ÏÎ¼Î¹ÏƒÎ·Ï‚ Î³Î¹Î± ÏƒÏ„Î¿Î¹Ï‡ÎµÎ¯Î± Ï€ÎµÎ»Î¬Ï„Î·.',
           createdAt: now,
           isMock: true,
         };
@@ -107,22 +99,22 @@ export default function DashboardPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  // Stable loading shell — identical on server and first client render.
+  // Stable loading shell â€” identical on server and first client render.
   if (!hydrated) {
     return (
       <div className="mx-auto max-w-2xl space-y-6 px-4 py-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-900">
-            Καλημέρα. Τι πρέπει να γίνει σήμερα;
+            ÎšÎ±Î»Î·Î¼Î­ÏÎ±. Î¤Î¹ Ï€ÏÎ­Ï€ÎµÎ¹ Î½Î± Î³Î¯Î½ÎµÎ¹ ÏƒÎ®Î¼ÎµÏÎ±;
           </h1>
         </div>
         <QuickAssistantInput />
-        <p className="py-6 text-center text-sm text-zinc-400">Φόρτωση dashboard...</p>
+        <p className="py-6 text-center text-sm text-zinc-400">Î¦ÏŒÏÏ„Ï‰ÏƒÎ· dashboard...</p>
       </div>
     );
   }
 
-  const { customers, tasks, offers, calls, communications } = dashboardData;
+  const { customers, tasks, offers, calls } = dashboardData;
 
   function handleCompleteTask(taskId: string) {
     const now = new Date().toISOString();
@@ -182,12 +174,12 @@ export default function DashboardPage() {
     const task: Task = {
       id: crypto.randomUUID(),
       customerId,
-      title: 'Follow-up για στοιχεία πελάτη',
+      title: 'Follow-up Î³Î¹Î± ÏƒÏ„Î¿Î¹Ï‡ÎµÎ¯Î± Ï€ÎµÎ»Î¬Ï„Î·',
       type: 'other',
       status: 'open',
       priority: 'normal',
       dueDate: tomorrow.toISOString().split('T')[0],
-      note: 'Ο πελάτης δεν απάντησε στο SMS στοιχείων.',
+      note: 'ÎŸ Ï€ÎµÎ»Î¬Ï„Î·Ï‚ Î´ÎµÎ½ Î±Ï€Î¬Î½Ï„Î·ÏƒÎµ ÏƒÏ„Î¿ SMS ÏƒÏ„Î¿Î¹Ï‡ÎµÎ¯Ï‰Î½.',
       createdFromAi: false,
       createdAt: now,
       updatedAt: now,
@@ -210,8 +202,8 @@ export default function DashboardPage() {
       ...customer,
       intakeStatus: 'kept_draft' as const,
       notes: customer.notes
-        ? `${customer.notes}\nΚρατήθηκε ως πρόχειρη καρτέλα.`
-        : 'Κρατήθηκε ως πρόχειρη καρτέλα.',
+        ? `${customer.notes}\nÎšÏÎ±Ï„Î®Î¸Î·ÎºÎµ Ï‰Ï‚ Ï€ÏÏŒÏ‡ÎµÎ¹ÏÎ· ÎºÎ±ÏÏ„Î­Î»Î±.`
+        : 'ÎšÏÎ±Ï„Î®Î¸Î·ÎºÎµ Ï‰Ï‚ Ï€ÏÏŒÏ‡ÎµÎ¹ÏÎ· ÎºÎ±ÏÏ„Î­Î»Î±.',
       updatedAt: now,
     };
     updateCustomer(updated);
@@ -231,7 +223,7 @@ export default function DashboardPage() {
         t.type === 'follow_up_offer' &&
         t.status === 'open' &&
         t.customerId === offer.customerId &&
-        (t.offerId === offer.id || t.title === `Follow-up προσφοράς ${offer.offerNumber}`)
+        (t.offerId === offer.id || t.title === `Follow-up Ï€ÏÎ¿ÏƒÏ†Î¿ÏÎ¬Ï‚ ${offer.offerNumber}`)
     );
     if (alreadyExists) return;
 
@@ -242,12 +234,12 @@ export default function DashboardPage() {
       id: crypto.randomUUID(),
       customerId: offer.customerId,
       offerId: offer.id,
-      title: `Follow-up προσφοράς ${offer.offerNumber}`,
+      title: `Follow-up Ï€ÏÎ¿ÏƒÏ†Î¿ÏÎ¬Ï‚ ${offer.offerNumber}`,
       type: 'follow_up_offer',
       status: 'open',
       priority: 'normal',
       dueDate: dueDate.toISOString().split('T')[0],
-      note: 'Follow-up μετά την αποστολή της προσφοράς.',
+      note: 'Follow-up Î¼ÎµÏ„Î¬ Ï„Î·Î½ Î±Ï€Î¿ÏƒÏ„Î¿Î»Î® Ï„Î·Ï‚ Ï€ÏÎ¿ÏƒÏ†Î¿ÏÎ¬Ï‚.',
       createdFromAi: false,
       createdAt: now,
       updatedAt: now,
@@ -287,47 +279,43 @@ export default function DashboardPage() {
       <DemoStepBanner
         step="dashboard"
         stepNum={2}
-        title="Dashboard -- εκκρεμότητες της ημέρας"
-        body="Κοίτα tasks εκπρόθεσμα, ανοιχτές προσφορές και τοπική εικόνα στο κάτω μέρος."
-        watchLabel="Αν δεν βλέπεις στοιχεία, γύρνα στο Mission 1 και επαναφέρε Rich demo."
-        actionLabel="Επόμενο: AI review"
+        title="Dashboard -- ÎµÎºÎºÏÎµÎ¼ÏŒÏ„Î·Ï„ÎµÏ‚ Ï„Î·Ï‚ Î·Î¼Î­ÏÎ±Ï‚"
+        body="ÎšÎ¿Î¯Ï„Î± tasks ÎµÎºÏ€ÏÏŒÎ¸ÎµÏƒÎ¼Î±, Î±Î½Î¿Î¹Ï‡Ï„Î­Ï‚ Ï€ÏÎ¿ÏƒÏ†Î¿ÏÎ­Ï‚ ÎºÎ±Î¹ Ï„Î¿Ï€Î¹ÎºÎ® ÎµÎ¹ÎºÏŒÎ½Î± ÏƒÏ„Î¿ ÎºÎ¬Ï„Ï‰ Î¼Î­ÏÎ¿Ï‚."
+        watchLabel="Î‘Î½ Î´ÎµÎ½ Î²Î»Î­Ï€ÎµÎ¹Ï‚ ÏƒÏ„Î¿Î¹Ï‡ÎµÎ¯Î±, Î³ÏÏÎ½Î± ÏƒÏ„Î¿ Mission 1 ÎºÎ±Î¹ ÎµÏ€Î±Î½Î±Ï†Î­ÏÎµ Rich demo."
+        actionLabel="Î•Ï€ÏŒÎ¼ÎµÎ½Î¿: AI review"
         actionHref="/ai-review?demoStep=review"
       />
       <GuidedDemoBanner
         step="dashboard"
         stepNum={1}
-        title="Dashboard — κέντρο ελέγχου"
-        whatYouSee="Εκκρεμότητες ημέρας: tasks εκπρόθεσμα, ανοιχτές προσφορές, πρόσφατες απαντήσεις, local analytics."
-        whatToDo="Πάτα ένα εικονίδιο για να δεις λεπτομέρειες χωρίς να φύγεις από την Αρχική. Κάνε scroll ως κάτω για να δεις όλες τις ενότητες."
-        whyItMatters="Στο τελικό προϊόν, εδώ θα βλέπεις τι χρειάζεται follow-up μετά από κλήσεις, SMS, Viber ή email. Στο MVP: τοπικά δεδομένα μόνο."
+        title="Dashboard â€” ÎºÎ­Î½Ï„ÏÎ¿ ÎµÎ»Î­Î³Ï‡Î¿Ï…"
+        whatYouSee="Î•ÎºÎºÏÎµÎ¼ÏŒÏ„Î·Ï„ÎµÏ‚ Î·Î¼Î­ÏÎ±Ï‚: tasks ÎµÎºÏ€ÏÏŒÎ¸ÎµÏƒÎ¼Î±, Î±Î½Î¿Î¹Ï‡Ï„Î­Ï‚ Ï€ÏÎ¿ÏƒÏ†Î¿ÏÎ­Ï‚, Ï€ÏÏŒÏƒÏ†Î±Ï„ÎµÏ‚ Î±Ï€Î±Î½Ï„Î®ÏƒÎµÎ¹Ï‚, local analytics."
+        whatToDo="Î Î¬Ï„Î± Î­Î½Î± ÎµÎ¹ÎºÎ¿Î½Î¯Î´Î¹Î¿ Î³Î¹Î± Î½Î± Î´ÎµÎ¹Ï‚ Î»ÎµÏ€Ï„Î¿Î¼Î­ÏÎµÎ¹ÎµÏ‚ Ï‡Ï‰ÏÎ¯Ï‚ Î½Î± Ï†ÏÎ³ÎµÎ¹Ï‚ Î±Ï€ÏŒ Ï„Î·Î½ Î‘ÏÏ‡Î¹ÎºÎ®. ÎšÎ¬Î½Îµ scroll Ï‰Ï‚ ÎºÎ¬Ï„Ï‰ Î³Î¹Î± Î½Î± Î´ÎµÎ¹Ï‚ ÏŒÎ»ÎµÏ‚ Ï„Î¹Ï‚ ÎµÎ½ÏŒÏ„Î·Ï„ÎµÏ‚."
+        whyItMatters="Î£Ï„Î¿ Ï„ÎµÎ»Î¹ÎºÏŒ Ï€ÏÎ¿ÏŠÏŒÎ½, ÎµÎ´ÏŽ Î¸Î± Î²Î»Î­Ï€ÎµÎ¹Ï‚ Ï„Î¹ Ï‡ÏÎµÎ¹Î¬Î¶ÎµÏ„Î±Î¹ follow-up Î¼ÎµÏ„Î¬ Î±Ï€ÏŒ ÎºÎ»Î®ÏƒÎµÎ¹Ï‚, SMS, Viber Î® email. Î£Ï„Î¿ MVP: Ï„Î¿Ï€Î¹ÎºÎ¬ Î´ÎµÎ´Î¿Î¼Î­Î½Î± Î¼ÏŒÎ½Î¿."
         canManualComplete={true}
       />
 
-      <PageHelp title="Τι βλέπω εδώ;">
-        <p className="text-sm text-zinc-600">
-          Εδώ βλέπεις τι πρέπει να γίνει σήμερα. Ξεκίνα από την πρώτη κάρτα.
-        </p>
-        <ul className="space-y-1 mt-1">
-          {[
-            'Πάτα μια κάρτα (Tasks, Πελάτες, Προσφορές) για να δεις λεπτομέρειες χωρίς να φύγεις από τη σελίδα.',
-            'Δεν χαλάς τίποτα — τα δεδομένα αποθηκεύονται μόνο τοπικά.',
-            'Δεν αποστέλλεται τίποτα αυτόματα.',
-          ].map((t) => (
-            <li key={t} className="flex items-start gap-2 text-xs text-zinc-500">
-              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
-              {t}
-            </li>
-          ))}
-        </ul>
-      </PageHelp>
-
-      <div>
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-zinc-900">
-          Καλημέρα. Τι πρέπει να γίνει σήμερα;
+          ÎšÎ±Î»Î·Î¼Î­ÏÎ±. Î¤Î¹ Ï€ÏÎ­Ï€ÎµÎ¹ Î½Î± Î³Î¯Î½ÎµÎ¹ ÏƒÎ®Î¼ÎµÏÎ±;
         </h1>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/demo"
+            className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+          >
+            Demo
+          </Link>
+          <Link
+            href="/settings"
+            className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+          >
+            Î¡Ï…Î¸Î¼Î¯ÏƒÎµÎ¹Ï‚
+          </Link>
+        </div>
       </div>
 
-      {/* Smart overview cards — 6 icon cards */}
+      {/* Smart overview cards â€” 6 icon cards */}
       <DashboardSmartCards
         urgentTasks={urgentTasks}
         leads={leads}
@@ -360,14 +348,6 @@ export default function DashboardPage() {
         onCreateOfferFollowUpTask={handleCreateOfferFollowUpTask}
       />
 
-      <MissedCallsSection callRecords={calls} customerMap={customerMap} />
-      <LeadsSection leads={leads} />
-      <TodayTasksSection tasks={urgentTasks} customerMap={customerMap} />
-      <OpenOffersSection offers={openOffers} customerMap={customerMap} />
-      <RecentResponsesSection offers={offers} customerMap={customerMap} tasks={tasks} />
-      <RecentCommunicationsSection communications={communications} customerMap={customerMap} />
-      <RecentCallsSection callRecords={calls} customerMap={customerMap} />
-      <LocalAnalyticsWidget customers={customers} tasks={tasks} offers={offers} />
     </div>
   );
 }
