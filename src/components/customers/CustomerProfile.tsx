@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { loadState, updateCustomer, deleteCustomer, updateTask, addTask, addOffer, addCallRecord, addCommunicationRecord } from '@/lib/storage';
@@ -9,10 +9,10 @@ import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
 import { buildMapsUrl } from '@/lib/maps';
 import { isLikelyMobile, getCallPhone, getSmsPhone, getLandlinePhone } from '@/lib/phone';
 import { buildCallHref, buildSmsHref } from '@/lib/communications';
-import type { Customer, Task, Offer, OfferItem, CallRecord, CommunicationRecord } from '@/lib/types';
+import type { Customer, Task, Offer, CallRecord, CommunicationRecord } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
 import OfferStatusBadge from '@/components/offers/OfferStatusBadge';
-import { fmtEur, calculateTotals } from '@/lib/offer-calculations';
+import { fmtEur } from '@/lib/offer-calculations';
 import CustomerStatusBadge, { STATUS_LABELS } from './CustomerStatusBadge';
 import { SOURCE_LABELS } from './CustomerCard';
 import CustomerForm from './CustomerForm';
@@ -23,7 +23,6 @@ import CustomerNextActionPanel from './CustomerNextActionPanel';
 import TaskForm from '@/components/tasks/TaskForm';
 import OfferForm from '@/components/offers/OfferForm';
 import { isIncompleteCustomer, getMissingFields } from './CustomerDataQualityPanel';
-import ActionSheet from '@/components/common/ActionSheet';
 
 const CONTACT_LABELS: Record<string, string> = {
   viber: 'Viber',
@@ -145,22 +144,12 @@ export default function CustomerProfile({ customerId }: Props) {
   const [showAiDemoPanel, setShowAiDemoPanel] = useState(false);
   const [aiTranscriptionText, setAiTranscriptionText] = useState('');
   const [summaryCopied, setSummaryCopied] = useState(false);
-  // Quick task sheet (customer-specific inline creation)
-  const [showQuickTaskSheet, setShowQuickTaskSheet] = useState(false);
-  const [quickTaskTitle, setQuickTaskTitle] = useState('');
-  const [quickTaskDueDate, setQuickTaskDueDate] = useState('');
-  const [quickTaskPriority, setQuickTaskPriority] = useState<'high' | 'normal' | 'low'>('normal');
-  const [quickTaskNote, setQuickTaskNote] = useState('');
-  const [quickTaskSuccess, setQuickTaskSuccess] = useState(false);
-  // Quick offer sheet (customer-specific inline creation)
-  const [showQuickOfferSheet, setShowQuickOfferSheet] = useState(false);
-  const [quickOfferDesc, setQuickOfferDesc] = useState('');
-  const [quickOfferQty, setQuickOfferQty] = useState('1');
-  const [quickOfferPrice, setQuickOfferPrice] = useState('');
-  const [quickOfferVat, setQuickOfferVat] = useState('24');
-  const [quickOfferNotes, setQuickOfferNotes] = useState('');
-  const [quickOfferSuccess, setQuickOfferSuccess] = useState(false);
-  const [quickOfferNewId, setQuickOfferNewId] = useState<string | null>(null);
+  // Refs for scroll-to-section when quick action buttons are tapped
+  const tasksSectionRef = useRef<HTMLDivElement>(null);
+  const offersSectionRef = useRef<HTMLDivElement>(null);
+  // Highlight banners shown near sections after tapping quick action
+  const [taskHighlight, setTaskHighlight] = useState(false);
+  const [offerHighlight, setOfferHighlight] = useState(false);
   // Email draft copy
   const [emailDraftCopied, setEmailDraftCopied] = useState(false);
 
@@ -366,107 +355,24 @@ export default function CustomerProfile({ customerId }: Props) {
     setNewTaskInitial(null);
   }
 
-  // ── Quick task (inline, customer-specific) ───────────────────────────────────
-  function openQuickTaskSheet() {
-    if (!customer) return;
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setQuickTaskTitle(`Follow-up με ${customer.name}`);
-    setQuickTaskDueDate(tomorrow.toISOString().split('T')[0]);
-    setQuickTaskPriority('normal');
-    setQuickTaskNote('');
-    setQuickTaskSuccess(false);
-    setShowQuickTaskSheet(true);
+  // ── Quick action: scroll to existing task form ───────────────────────────────
+  function handleQuickNewTask() {
+    openNewTaskForm();
+    setTaskHighlight(true);
+    window.setTimeout(() => {
+      tasksSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+    window.setTimeout(() => setTaskHighlight(false), 5000);
   }
 
-  function handleSaveQuickTask() {
-    if (!customer) return;
-    const now = new Date().toISOString();
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const task: Task = {
-      id: crypto.randomUUID(),
-      customerId: customer.id,
-      title: quickTaskTitle.trim() || `Follow-up με ${customer.name}`,
-      type: 'call_back',
-      status: 'open',
-      priority: quickTaskPriority,
-      dueDate: quickTaskDueDate || tomorrow.toISOString().split('T')[0],
-      note: quickTaskNote.trim(),
-      createdFromAi: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    addTask(task);
-    setCustomerTasks((prev) => [...prev, task]);
-    setQuickTaskSuccess(true);
-  }
-
-  // ── Quick offer (inline, customer-specific) ───────────────────────────────────
-  function openQuickOfferSheet() {
-    setQuickOfferDesc('');
-    setQuickOfferQty('1');
-    setQuickOfferPrice('');
-    setQuickOfferVat('24');
-    setQuickOfferNotes('');
-    setQuickOfferSuccess(false);
-    setQuickOfferNewId(null);
-    setShowQuickOfferSheet(true);
-  }
-
-  function handleSaveQuickOffer() {
-    if (!customer) return;
-    const now = new Date().toISOString();
-    const allOffers = loadState().offers ?? [];
-    const maxNum =
-      allOffers.length === 0
-        ? 0
-        : Math.max(
-            ...allOffers.map((o) => {
-              const m = o.offerNumber.match(/(\d+)$/);
-              return m ? parseInt(m[1]) : 0;
-            })
-          );
-    const offerNumber = `#${String(maxNum + 1).padStart(3, '0')}`;
-    const validUntil = new Date();
-    validUntil.setDate(validUntil.getDate() + 30);
-
-    const qty = parseFloat(quickOfferQty) || 1;
-    const price = parseFloat(quickOfferPrice.replace(',', '.')) || 0;
-    const vatRate = parseFloat(quickOfferVat) || 24;
-
-    const item: OfferItem = {
-      id: crypto.randomUUID(),
-      description: quickOfferDesc.trim() || 'Υπηρεσία',
-      quantity: qty,
-      unitPrice: price,
-    };
-    const { subtotal, vatAmount, total } = calculateTotals([item], vatRate);
-
-    const newId = crypto.randomUUID();
-    const offer: Offer = {
-      id: newId,
-      customerId: customer.id,
-      offerNumber,
-      status: 'draft',
-      offerDate: now.split('T')[0],
-      validUntil: validUntil.toISOString().split('T')[0],
-      items: [item],
-      subtotal,
-      vatRate,
-      vatAmount,
-      total,
-      notes: quickOfferNotes.trim(),
-      terms: '',
-      acceptanceText: '',
-      createdFromAi: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    addOffer(offer);
-    setCustomerOffers((prev) => [...prev, offer]);
-    setQuickOfferSuccess(true);
-    setQuickOfferNewId(newId);
+  // ── Quick action: scroll to existing offer form ───────────────────────────────
+  function handleQuickNewOffer() {
+    openOfferForm();
+    setOfferHighlight(true);
+    window.setTimeout(() => {
+      offersSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+    window.setTimeout(() => setOfferHighlight(false), 5000);
   }
 
   // ── Email draft copy (customer-specific) ──────────────────────────────────────
@@ -841,30 +747,30 @@ export default function CustomerProfile({ customerId }: Props) {
             />
           )}
 
-          {/* Tasks — opens inline sheet for this customer */}
+          {/* Tasks — scrolls to and opens full TaskForm for this customer */}
           <button
             type="button"
-            onClick={openQuickTaskSheet}
+            onClick={handleQuickNewTask}
             className="flex flex-col items-center gap-1.5 rounded-2xl bg-indigo-50 px-3 py-4 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 min-h-[72px]"
           >
             <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
             </svg>
             <span>+ Νέο task</span>
-            <span className="text-[10px] font-normal text-indigo-500 text-center leading-tight">Για τον συγκεκριμένο πελάτη</span>
+            <span className="text-[10px] font-normal text-indigo-500 text-center leading-tight">Ανοίγει φόρμα παρακάτω</span>
           </button>
 
-          {/* Προσφορά — opens inline sheet for this customer */}
+          {/* Προσφορά — scrolls to and opens full OfferForm for this customer */}
           <button
             type="button"
-            onClick={openQuickOfferSheet}
+            onClick={handleQuickNewOffer}
             className="flex flex-col items-center gap-1.5 rounded-2xl bg-indigo-50 px-3 py-4 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 min-h-[72px]"
           >
             <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
             </svg>
             <span>+ Προσφορά</span>
-            <span className="text-[10px] font-normal text-indigo-500 text-center leading-tight">Για τον συγκεκριμένο πελάτη</span>
+            <span className="text-[10px] font-normal text-indigo-500 text-center leading-tight">Ανοίγει φόρμα παρακάτω</span>
           </button>
 
           {/* Maps */}
@@ -909,13 +815,7 @@ export default function CustomerProfile({ customerId }: Props) {
         </div>
       </div>
 
-      {/* ── Quick task sheet ──────────────────────────────────────────────────── */}
-      <ActionSheet
-        open={showQuickTaskSheet}
-        onClose={() => setShowQuickTaskSheet(false)}
-        title={`Νέο task για ${customer.name}`}
-        subtitle="Δημιουργία task για αυτόν τον πελάτη"
-      >
+      {/*__DEAD_START__
         {quickTaskSuccess ? (
           <div className="space-y-4">
             <div className="rounded-2xl bg-green-50 px-4 py-3 ring-1 ring-green-200 text-center">
@@ -994,8 +894,8 @@ export default function CustomerProfile({ customerId }: Props) {
         )}
       </ActionSheet>
 
-      {/* ── Quick offer sheet ─────────────────────────────────────────────────── */}
-      <ActionSheet
+      offer sheet section also dead
+      ActionSheet-removed
         open={showQuickOfferSheet}
         onClose={() => setShowQuickOfferSheet(false)}
         title={`Νέα προσφορά για ${customer.name}`}
@@ -1116,12 +1016,7 @@ export default function CustomerProfile({ customerId }: Props) {
                 onClick={() => setShowQuickOfferSheet(false)}
                 className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
               >
-                Ακύρωση
-              </button>
-            </div>
-          </div>
-        )}
-      </ActionSheet>
+      __DEAD_END__*/}
 
       {/* Contact info */}
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-3">
@@ -1218,7 +1113,14 @@ export default function CustomerProfile({ customerId }: Props) {
       </section>
 
       {/* Open tasks */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+      <section ref={tasksSectionRef} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+        {taskHighlight && (
+          <div className="mb-3 rounded-xl bg-indigo-50 px-3 py-2 ring-1 ring-indigo-200">
+            <p className="text-xs font-semibold text-indigo-700">
+              Άνοιξε φόρμα task για τον πελάτη — {customer.name}
+            </p>
+          </div>
+        )}
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
             Ανοιχτά tasks
@@ -1328,7 +1230,14 @@ export default function CustomerProfile({ customerId }: Props) {
       </section>
 
       {/* Offers & files */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+      <section ref={offersSectionRef} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+        {offerHighlight && (
+          <div className="mb-3 rounded-xl bg-indigo-50 px-3 py-2 ring-1 ring-indigo-200">
+            <p className="text-xs font-semibold text-indigo-700">
+              Άνοιξε φόρμα προσφοράς για τον πελάτη — {customer.name}
+            </p>
+          </div>
+        )}
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
             Προσφορές &amp; αρχεία πελάτη

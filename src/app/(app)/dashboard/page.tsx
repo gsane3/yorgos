@@ -298,7 +298,7 @@ export default function DashboardPage() {
         stepNum={1}
         title="Dashboard — κέντρο ελέγχου"
         whatYouSee="Εκκρεμότητες ημέρας: tasks εκπρόθεσμα, ανοιχτές προσφορές, πρόσφατες απαντήσεις, local analytics."
-        whatToDo="Κάνε scroll ως κάτω. Δες τα tasks εκπρόθεσμα και την ενότητα Τοπικά Στατιστικά."
+        whatToDo="Πάτα ένα εικονίδιο για να δεις λεπτομέρειες χωρίς να φύγεις από την Αρχική. Κάνε scroll ως κάτω για να δεις όλες τις ενότητες."
         whyItMatters="Στο τελικό προϊόν, εδώ θα βλέπεις τι χρειάζεται follow-up μετά από κλήσεις, SMS, Viber ή email. Στο MVP: τοπικά δεδομένα μόνο."
         canManualComplete={true}
       />
@@ -327,11 +327,13 @@ export default function DashboardPage() {
         </h1>
       </div>
 
-      {/* Smart overview cards */}
+      {/* Smart overview cards — 6 icon cards */}
       <DashboardSmartCards
         urgentTasks={urgentTasks}
         leads={leads}
         openOffers={openOffers}
+        customers={customers}
+        calls={calls}
         customerMap={customerMap}
         onCompleteTask={handleCompleteTask}
       />

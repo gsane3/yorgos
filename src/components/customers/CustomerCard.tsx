@@ -30,50 +30,53 @@ interface Props {
 }
 
 export default function CustomerCard({ customer }: Props) {
+  const mobilePhone = customer.mobilePhone || (customer.phone && isLikelyMobile(customer.phone) ? customer.phone : null);
+  const landlinePhone = customer.landlinePhone || (customer.phone && !isLikelyMobile(customer.phone) && !customer.mobilePhone ? customer.phone : null);
+  const displayPhone = mobilePhone || landlinePhone;
+
   return (
     <Link
       href={`/customers/${customer.id}`}
       className="block rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 transition hover:ring-indigo-200 active:bg-zinc-50"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-zinc-900">{customer.name}</span>
-            {customer.crmNumber && (
-              <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-400">
-                Πελάτης {customer.crmNumber}
-              </span>
-            )}
-            {customer.isDemo && (
-              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
-                Demo
-              </span>
-            )}
-          </div>
-          {customer.companyName && (
-            <p className="mt-0.5 text-xs text-zinc-500">{customer.companyName}</p>
-          )}
-        </div>
+      {/* Row 1: Name + CRM chip */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-base font-bold text-zinc-900 leading-tight">{customer.name}</span>
+        {customer.crmNumber && (
+          <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-400">
+            {customer.crmNumber}
+          </span>
+        )}
+        {customer.isDemo && (
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
+            Demo
+          </span>
+        )}
+      </div>
+
+      {/* Row 2: Company name */}
+      {customer.companyName && (
+        <p className="mt-0.5 text-xs text-zinc-500">{customer.companyName}</p>
+      )}
+
+      {/* Row 3: Status badge (max 1 prominent badge) */}
+      <div className="mt-1.5">
         <CustomerStatusBadge status={customer.status} />
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
-        <span>{SOURCE_LABELS[customer.source] ?? customer.source}</span>
+      {/* Row 4: Value + phone — muted */}
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-zinc-500">
         {customer.opportunityValue && (
-          <span className="font-medium text-zinc-700">
+          <span className="font-semibold text-zinc-700">
             €{customer.opportunityValue.toLocaleString('el-GR')}
           </span>
         )}
-        {(customer.mobilePhone || (customer.phone && isLikelyMobile(customer.phone))) && (
-          <span>Κιν. {customer.mobilePhone || customer.phone}</span>
+        {displayPhone && (
+          <span>
+            {mobilePhone ? 'Κιν.' : 'Σταθ.'} {displayPhone}
+          </span>
         )}
-        {(customer.landlinePhone || (customer.phone && !isLikelyMobile(customer.phone) && !customer.mobilePhone)) && (
-          <span>Σταθ. {customer.landlinePhone || customer.phone}</span>
-        )}
-        {(customer.intakeStatus === 'waiting_sms' ||
-          customer.intakeStatus === 'reminder_sent' ||
-          customer.intakeStatus === 'no_response' ||
-          customer.intakeStatus === 'kept_draft') && (
+        {customer.intakeStatus && customer.intakeStatus !== 'none' && customer.intakeStatus !== 'completed' && (
           <span className={
             customer.intakeStatus === 'no_response'
               ? 'text-red-500'
@@ -83,14 +86,15 @@ export default function CustomerCard({ customer }: Props) {
           }>
             {customer.intakeStatus === 'waiting_sms' ? 'Αναμονή SMS'
               : customer.intakeStatus === 'reminder_sent' ? 'Υπενθύμιση SMS'
-              : customer.intakeStatus === 'no_response' ? 'Δεν απάντησε στο SMS'
+              : customer.intakeStatus === 'no_response' ? 'Δεν απάντησε'
               : 'Πρόχειρη'}
           </span>
         )}
       </div>
 
+      {/* Row 5: Last contact — very muted */}
       {customer.lastContactAt && (
-        <p className="mt-1.5 text-xs text-zinc-400">
+        <p className="mt-1 text-xs text-zinc-400">
           Τελευταία επικοινωνία: {formatDate(customer.lastContactAt)}
         </p>
       )}
