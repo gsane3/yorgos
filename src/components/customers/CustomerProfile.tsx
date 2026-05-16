@@ -20,6 +20,7 @@ import CustomerTimeline from './CustomerTimeline';
 import CustomerNextActionPanel from './CustomerNextActionPanel';
 import TaskForm from '@/components/tasks/TaskForm';
 import OfferForm from '@/components/offers/OfferForm';
+import { isIncompleteCustomer, getMissingFields } from './CustomerDataQualityPanel';
 
 const CONTACT_LABELS: Record<string, string> = {
   viber: 'Viber',
@@ -422,6 +423,50 @@ export default function CustomerProfile({ customerId }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Data quality summary */}
+      {isIncompleteCustomer(customer) && (() => {
+        const missing = getMissingFields(customer);
+        const intakeLabels: Record<string, string> = {
+          waiting_sms: 'Αναμονή SMS στοιχείων',
+          reminder_sent: 'Στάλθηκε υπενθύμιση',
+          no_response: 'Δεν απάντησε στο SMS',
+          kept_draft: 'Πρόχειρη καρτέλα',
+        };
+        const intakeLabel = customer.intakeStatus ? intakeLabels[customer.intakeStatus] : null;
+        return (
+          <div className="rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200 space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-900">Η καρτέλα θέλει συμπλήρωση</p>
+              <p className="text-xs text-amber-700">
+                Λείπουν στοιχεία που βοηθούν στην επικοινωνία και στις προσφορές.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {missing.map((f) => (
+                <span
+                  key={f}
+                  className="rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700"
+                >
+                  {f}
+                </span>
+              ))}
+              {intakeLabel && (
+                <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                  {intakeLabel}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="rounded-xl border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-50"
+            >
+              Επεξεργασία στοιχείων
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Next action recommendation */}
       <CustomerNextActionPanel

@@ -26,7 +26,7 @@ function hasMobile(c: Customer): boolean {
   return !!(c.mobilePhone?.trim() || (c.phone?.trim() && isLikelyMobile(c.phone)));
 }
 
-function getMissingFields(c: Customer): string[] {
+export function getMissingFields(c: Customer): string[] {
   const missing: string[] = [];
   if (isPlaceholderName(c)) missing.push('Όνομα');
   if (!hasMobile(c)) missing.push('Κινητό');
