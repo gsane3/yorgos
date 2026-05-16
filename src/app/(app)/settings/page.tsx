@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { getBusinessProfile, saveBusinessProfile, exportStateJson, importStateJson, loadState, clearState } from '@/lib/storage';
 import { buildDataHealthReport, type DataHealthReport } from '@/lib/data-health';
+import { downloadCustomersCsv } from '@/lib/csv-export';
 import type { BusinessProfile } from '@/lib/types';
 import BusinessForm from '@/components/settings/BusinessForm';
 import MockWorkspacePanel from '@/components/settings/MockWorkspacePanel';
@@ -97,6 +98,10 @@ export default function SettingsPage() {
 
   function handleRecheck() {
     setHealthReport(buildDataHealthReport(loadState()));
+  }
+
+  function handleExportCsv() {
+    downloadCustomersCsv(loadState().customers ?? []);
   }
 
   function handleReset() {
@@ -278,6 +283,31 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+        {/* CSV export */}
+        <div className="pt-8 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-800">Εξαγωγή πελατών CSV</h2>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Κατέβασε τους πελάτες σου σε CSV για έλεγχο ή μεταφορά σε spreadsheet.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+            >
+              <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              Κατέβασμα CSV
+            </button>
+            <p className="text-xs text-zinc-400">
+              Η εξαγωγή γίνεται μόνο από τα τοπικά δεδομένα αυτού του browser.
+            </p>
+          </div>
+        </div>
+
         {/* Data reset */}
         <div className="pt-8 space-y-4">
           <div>
