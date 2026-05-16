@@ -374,6 +374,75 @@ export default function DemoPage() {
         )
       )}
 
+      {/* Step 172: Guided demo entry — primary CTA, shown before old wizard */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
+        {guideDone ? (
+          <div className="space-y-2 text-center">
+            <p className="text-sm font-semibold text-green-700">
+              Το guided demo ολοκληρωθηκε!
+            </p>
+            <p className="text-xs text-zinc-500">
+              Μπορεις να χρησιμοποιησεις ελευθερα την εφαρμογη ή να ξεκινησεις ξανα.
+            </p>
+            <button
+              type="button"
+              onClick={handleStartGuide}
+              className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-50"
+            >
+              Ξεκινα ξανα guided demo
+            </button>
+          </div>
+        ) : guideActive ? (
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500 mb-1">
+                Guided demo ενεργο
+              </p>
+              <p className="text-sm font-bold text-zinc-900">Συνεχισε απο εκει που εμεινες</p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Ο οδηγος θυμαται το βημα σου σε αυτο το tab.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleContinueGuide}
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+              >
+                Συνεχεια guided demo &rarr;
+              </button>
+              <button
+                type="button"
+                onClick={handleExitGuide}
+                className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-500 transition hover:bg-zinc-50"
+              >
+                Εξοδος απο guided demo
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500 mb-1">
+                Για reviewers
+              </p>
+              <p className="text-sm font-bold text-zinc-900">Ξεκινα guided demo</p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Ο οδηγος θα σε παει βημα-βημα και θα σου λεει τι να πατησεις.
+                Μπορεις να βγεις οποτε θελεις.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleStartGuide}
+              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            >
+              Ξεκινα guided demo &rarr;
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Step 104: Scenario selector — shown on step 0 */}
       {isFirst && (
         <div className="space-y-2">
@@ -557,75 +626,6 @@ export default function DemoPage() {
         <Link href="/demo/privacy" className="text-xs text-indigo-600 hover:text-indigo-700">
           Απόρρητο και αποθήκευση →
         </Link>
-      </div>
-
-      {/* Step 172: Guided demo entry */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
-        {guideDone ? (
-          <div className="space-y-2 text-center">
-            <p className="text-sm font-semibold text-green-700">
-              Το guided demo ολοκληρωθηκε!
-            </p>
-            <p className="text-xs text-zinc-500">
-              Μπορεις να χρησιμοποιησεις ελευθερα την εφαρμογη ή να ξεκινησεις ξανα.
-            </p>
-            <button
-              type="button"
-              onClick={handleStartGuide}
-              className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-50"
-            >
-              Ξεκινα ξανα guided demo
-            </button>
-          </div>
-        ) : guideActive ? (
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500 mb-1">
-                Guided demo ενεργο
-              </p>
-              <p className="text-sm font-bold text-zinc-900">Συνεχισε απο εκει που εμεινες</p>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                Ο οδηγος θυμαται το βημα σου σε αυτο το tab.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={handleContinueGuide}
-                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-              >
-                Συνεχεια guided demo &rarr;
-              </button>
-              <button
-                type="button"
-                onClick={handleExitGuide}
-                className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-500 transition hover:bg-zinc-50"
-              >
-                Εξοδος απο guided demo
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500 mb-1">
-                Για reviewers
-              </p>
-              <p className="text-sm font-bold text-zinc-900">Ξεκινα guided demo</p>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                Ο οδηγος θα σε παει βημα-βημα και θα σου λεει τι να πατησεις.
-                Μπορεις να βγεις οποτε θελεις.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleStartGuide}
-              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
-            >
-              Ξεκινα guided demo &rarr;
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Steps 164+166+170: Demo missions — primary reviewer entry */}

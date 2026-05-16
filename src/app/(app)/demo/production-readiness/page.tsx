@@ -442,20 +442,25 @@ export default function ProductionReadinessPage() {
           </p>
           <div className="space-y-2">
             {[
-              { route: '/demo', check: 'Loads, wizard starts, data card shows.' },
+              { route: '/demo', check: 'Loads, guided demo CTA visible without scrolling, data card shows.' },
+              { route: '/demo (guided start)', check: 'Click "Ξεκινα guided demo" -> lands on /dashboard with guide=1 banner.' },
+              { route: '/demo (wrong click)', check: 'Navigate away during guide -> GlobalGuideGuard banner appears.' },
+              { route: '/demo (empty browser)', check: 'Clear localStorage -> visit /demo -> rich demo data auto-seeds.' },
               { route: '/dashboard', check: 'Loads, sections render, no console errors.' },
+              { route: '/ai-review', check: 'Demo result loads, GuidedDemoBanner shows in guide mode.' },
               { route: '/customers', check: 'Customer list loads, empty state correct.' },
+              { route: '/customers/demo-karagiannis', check: 'Customer profile loads with demo data, timeline visible.' },
               { route: '/tasks', check: 'Tabs render, empty state correct.' },
               { route: '/offers', check: 'List loads, create offer works.' },
-              { route: '/offers/demo-offer-1', check: 'Offer detail loads, print preview works.' },
-              { route: '/offer-response/demo-offer-1', check: 'Customer page loads, accept/reject shows.' },
+              { route: '/offers/demo-offer-1', check: 'Offer detail loads, print preview works, followup step in guide mode.' },
+              { route: '/offer-response/demo-offer-1', check: 'Accept/reject shows, Next disabled until action, comm record added.' },
               { route: '/settings', check: 'All sections load, backup download works.' },
-              { route: '/demo/pilot-feedback', check: 'Feedback form loads, copy buttons work.' },
+              { route: '/demo/pilot-feedback', check: 'Feedback form loads, Copy full pilot report calls finishDemoGuide, app unlocks.' },
               { route: '/demo/privacy', check: 'Privacy page loads cleanly.' },
               { route: '/api/ai/review', check: 'Returns demo result without API key (POST with text).' },
             ].map(({ route, check }) => (
               <div key={route} className="flex items-start gap-3 text-xs">
-                <code className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-zinc-600">
+                <code className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-zinc-600 whitespace-nowrap">
                   {route}
                 </code>
                 <span className="text-zinc-500">{check}</span>
@@ -468,6 +473,8 @@ export default function ProductionReadinessPage() {
               'No hydration errors in browser console.',
               'localStorage data persists after page refresh.',
               'Mobile layout: no horizontal overflow.',
+              'Print offer (/offers/demo-offer-1 -> print): document fills page, no sidebar clip.',
+              'Guided demo app unlock: after feedback Copy report, guide session inactive, all nav works.',
             ].map((c) => (
               <p key={c} className="flex items-start gap-1.5 text-xs text-zinc-500">
                 <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-zinc-400" />

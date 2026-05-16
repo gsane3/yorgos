@@ -581,7 +581,7 @@ export default function AiReviewPage() {
         stepNum={2}
         title="AI Review — brief μετά από κλήση"
         whatYouSee="Επεξεργαστής υπαγόρευσης και editable fields: πελάτης, tasks, προσφορά."
-        whatToDo="Επέλεξε παράδειγμα, πάτα 'Δημιούργησε με AI' και κοίτα τα editable fields. Αλλαξέ ό,τι θέλεις πριν αποθηκεύσεις."
+        whatToDo="Επέλεξε παράδειγμα, πάτα 'Δημιούργησε με AI', κοίτα τα editable fields και αποθήκευσε αν θες."
         whyItMatters="Στο τελικό προϊόν, μετά κάθε κλήση το AI θα ετοιμάζει αυτόματα brief για CRM. Στο MVP: demo κείμενα — δεν αποθηκεύεται τίποτα χωρίς επιβεβαίωση σου."
         canManualComplete={true}
       />
