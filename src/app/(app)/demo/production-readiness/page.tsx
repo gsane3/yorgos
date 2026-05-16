@@ -434,6 +434,50 @@ export default function ProductionReadinessPage() {
         </div>
       </Section>
 
+      {/* Step 160: Vercel post-deploy smoke test checklist */}
+      <Section title="Post-deploy Smoke Test (Vercel)">
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-3">
+          <p className="text-xs text-zinc-400">
+            After every Vercel deploy, open each route and confirm it loads correctly.
+          </p>
+          <div className="space-y-2">
+            {[
+              { route: '/demo', check: 'Loads, wizard starts, data card shows.' },
+              { route: '/dashboard', check: 'Loads, sections render, no console errors.' },
+              { route: '/customers', check: 'Customer list loads, empty state correct.' },
+              { route: '/tasks', check: 'Tabs render, empty state correct.' },
+              { route: '/offers', check: 'List loads, create offer works.' },
+              { route: '/offers/demo-offer-1', check: 'Offer detail loads, print preview works.' },
+              { route: '/offer-response/demo-offer-1', check: 'Customer page loads, accept/reject shows.' },
+              { route: '/settings', check: 'All sections load, backup download works.' },
+              { route: '/demo/pilot-feedback', check: 'Feedback form loads, copy buttons work.' },
+              { route: '/demo/privacy', check: 'Privacy page loads cleanly.' },
+              { route: '/api/ai/review', check: 'Returns demo result without API key (POST with text).' },
+            ].map(({ route, check }) => (
+              <div key={route} className="flex items-start gap-3 text-xs">
+                <code className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-zinc-600">
+                  {route}
+                </code>
+                <span className="text-zinc-500">{check}</span>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-xl bg-zinc-50 p-3 ring-1 ring-zinc-200 space-y-1">
+            <p className="text-xs font-semibold text-zinc-600">Also check after each test:</p>
+            {[
+              'No hydration errors in browser console.',
+              'localStorage data persists after page refresh.',
+              'Mobile layout: no horizontal overflow.',
+            ].map((c) => (
+              <p key={c} className="flex items-start gap-1.5 text-xs text-zinc-500">
+                <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-zinc-400" />
+                {c}
+              </p>
+            ))}
+          </div>
+        </div>
+      </Section>
+
       {/* Step 111: Pilot readiness checklist */}
       <Section title="Pilot Readiness Checklist (5-10 users)">
         <PilotChecklist />

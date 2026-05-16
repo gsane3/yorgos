@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist } from 'next/font/google';
 import './globals.css';
 
@@ -10,6 +10,14 @@ const geist = Geist({
 export const metadata: Metadata = {
   title: 'yorgos.ai',
   description: 'Ο AI βοηθός σου για πελάτες, follow-ups και προσφορές.',
+  applicationName: 'yorgos.ai',
+};
+
+// Step 159: PWA viewport/theme config
+export const viewport: Viewport = {
+  themeColor: '#4f46e5',
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({

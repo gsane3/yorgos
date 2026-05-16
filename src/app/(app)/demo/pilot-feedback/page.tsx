@@ -141,15 +141,23 @@ Demo/MVP only. No customer PII included.`;
             ← Demo οδηγός
           </Link>
         </div>
-        <h1 className="text-xl font-bold text-zinc-900">Feedback pilot χρήστη</h1>
+        <h1 className="text-xl font-bold text-zinc-900">Feedback reviewer</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Συμπλήρωσε και αντίγραψε — δεν αποστέλλεται τίποτα αυτόματα.
+          Συμπλήρωσε τις ερωτήσεις — πάτα «Αντιγραφή» και στείλ&apos; το αποτέλεσμα χειροκίνητα.
+          Δεν αποστέλλεται τίποτα αυτόματα.
         </p>
+        {/* Step 158: Privacy note for public reviewers */}
+        <div className="mt-2 rounded-xl bg-zinc-50 px-3 py-2 ring-1 ring-zinc-200">
+          <p className="text-xs text-zinc-500">
+            Μην γράψεις ευαίσθητα πραγματικά δεδομένα στις απαντήσεις.
+            Τα reports δεν περιέχουν ονόματα ή τηλέφωνα — μόνο αριθμούς.
+          </p>
+        </div>
       </div>
 
       {/* Step 113: Feedback questions */}
       <section className="space-y-5">
-        <h2 className="text-sm font-semibold text-zinc-800">Ερωτήσεις feedback</h2>
+        <h2 className="text-sm font-semibold text-zinc-800">Ερωτήσεις (5-6 λεπτά)</h2>
         {QUESTIONS.map((q) => (
           <div key={q.id}>
             <label className="mb-1.5 block text-sm font-medium text-zinc-700">{q.label}</label>

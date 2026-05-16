@@ -181,6 +181,22 @@ export default function DemoPage() {
   // Step 102: data state awareness
   const [dataCounts, setDataCounts] = useState<DataCounts | null>(null);
 
+  // Step 161: copy demo URL state
+  const [copyLinkCopied, setCopyLinkCopied] = useState(false);
+
+  function handleCopyLink() {
+    const url = `${window.location.origin}/demo`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(
+        () => { setCopyLinkCopied(true); setTimeout(() => setCopyLinkCopied(false), 2000); },
+        () => { setCopyLinkCopied(true); setTimeout(() => setCopyLinkCopied(false), 2000); }
+      );
+    } else {
+      setCopyLinkCopied(true);
+      setTimeout(() => setCopyLinkCopied(false), 2000);
+    }
+  }
+
   // Load state + resolve initial step from URL param after mount
   useEffect(() => {
     const state = loadState();
@@ -233,20 +249,31 @@ export default function DemoPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 space-y-5">
-      {/* Header */}
+      {/* Step 154: Public-friendly header */}
       <div>
         <div className="mb-1 flex flex-wrap items-center gap-2">
-          <DemoTruthBadge label="Demo / Internal" />
+          <DemoTruthBadge label="Demo — yorgos.ai" />
           <Link
             href="/demo/production-readiness"
             className="text-xs text-zinc-400 hover:text-zinc-600"
           >
             Τεχνική ετοιμότητα →
           </Link>
+          {/* Step 161: Copy review link */}
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className={`text-xs transition ${
+              copyLinkCopied ? 'text-green-600' : 'text-zinc-400 hover:text-zinc-600'
+            }`}
+          >
+            {copyLinkCopied ? '✓ Αντιγράφηκε' : 'Αντιγραφή review link'}
+          </button>
         </div>
-        <h1 className="text-xl font-bold text-zinc-900">Demo οδηγός</h1>
+        <h1 className="text-xl font-bold text-zinc-900">Δοκίμασε το yorgos.ai</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Ακολούθησε τα βήματα για να δεις πώς μια κλήση γίνεται CRM, task και προσφορά.
+          Demo CRM για τεχνικές υπηρεσίες — κλήση, AI review, CRM, προσφορά.
+          Τα δεδομένα μένουν μόνο στον browser σου. Δεν αποστέλλεται τίποτα αυτόματα.
         </p>
       </div>
 
@@ -268,17 +295,17 @@ export default function DemoPage() {
           <div className="flex items-start justify-between gap-3 rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
             <div className="min-w-0">
               <p className="text-sm font-medium text-amber-800">
-                Δεν υπάρχουν αρκετά demo δεδομένα.
+                Δεν υπάρχουν demo δεδομένα.
               </p>
               <p className="text-xs text-amber-700">
-                Η ροή θα δείξει λιστάρισμα αντί για συγκεκριμένα αποτελέσματα.
+                Επαναφέρε demo δεδομένα για να δεις ολόκληρη τη ροή.
               </p>
             </div>
             <Link
               href="/settings"
               className="shrink-0 rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700"
             >
-              Ρυθμίσεις →
+              Επαναφορά →
             </Link>
           </div>
         )
@@ -447,6 +474,57 @@ export default function DemoPage() {
           Όλα τα δεδομένα είναι τοπικά σε αυτόν τον browser. Δεν υπάρχει πραγματική VoIP,
           ηχογράφηση, SMS provider ή cloud sync.
         </p>
+      </div>
+
+      {/* Step 158: Public review privacy note */}
+      <div className="rounded-xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200 space-y-1">
+        <p className="text-xs font-semibold text-zinc-500">Για reviewers</p>
+        <ul className="space-y-0.5">
+          {[
+            'Μην βάλεις ευαίσθητα πραγματικά δεδομένα.',
+            'Τα δεδομένα μένουν μόνο στον browser σου — δεν βλέπω τίποτα αυτόματα.',
+            'Για feedback: πάτα «Copy report» στη φόρμα feedback και στείλ\' το χειροκίνητα.',
+          ].map((t) => (
+            <li key={t} className="flex items-start gap-1.5 text-xs text-zinc-500">
+              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-zinc-400" />
+              {t}
+            </li>
+          ))}
+        </ul>
+        <Link href="/demo/privacy" className="text-xs text-indigo-600 hover:text-indigo-700">
+          Απόρρητο και αποθήκευση →
+        </Link>
+      </div>
+
+      {/* Step 162: 5-minute review script */}
+      <div className="border-t border-zinc-100 pt-5 space-y-3">
+        <div>
+          <h2 className="text-sm font-bold text-zinc-900">Τι να δοκιμάσεις σε 5 λεπτά</h2>
+          <p className="mt-0.5 text-xs text-zinc-400">Σύντομος οδηγός για reviewers.</p>
+        </div>
+        <ol className="space-y-1.5">
+          {[
+            { n: 1, text: 'Άνοιξε Demo οδηγό — πάτα Ξεκινάμε.' },
+            { n: 2, text: 'Αν δεν βλέπεις στοιχεία, πάτα Επαναφορά → Ρυθμίσεις > Demo.' },
+            { n: 3, text: 'Άνοιξε AI review ή demo call — κοίτα τι δημιουργεί το AI.' },
+            { n: 4, text: 'Άνοιξε μια προσφορά — προεπισκόπηση, print, copy draft.' },
+            { n: 5, text: 'Πάτα «Άνοιγμα demo link πελάτη» — δοκίμασε αποδοχή.' },
+            { n: 6, text: 'Συμπλήρωσε feedback report και στείλ\' το.' },
+          ].map(({ n, text }) => (
+            <li key={n} className="flex items-start gap-2.5 text-sm text-zinc-600">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-[10px] font-bold text-zinc-500">
+                {n}
+              </span>
+              {text}
+            </li>
+          ))}
+        </ol>
+        <Link
+          href="/demo/pilot-feedback"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
+        >
+          Φόρμα feedback →
+        </Link>
       </div>
 
       {/* Step 144: Pilot entry point — improved sequence card */}
