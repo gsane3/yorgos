@@ -22,14 +22,22 @@ function formatTimestamp(isoStr: string): string {
   });
 }
 
+function shiftTime(time: string, deltaMinutes: number): string | null {
+  const [h, m] = time.split(':').map(Number);
+  const total = h * 60 + m + deltaMinutes;
+  if (total < 0 || total >= 1440) return null;
+  const nh = Math.floor(total / 60);
+  const nm = total % 60;
+  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+}
+
 type ResponseAction =
   | 'idle'
   | 'confirming_accept'
   | 'confirming_decline'
-  | 'suggesting_alternative'
   | 'accepted'
   | 'declined'
-  | 'alternative_sent';
+  | 'time_shifted';
 
 interface Props {
   taskId: string;
@@ -41,7 +49,6 @@ export default function AppointmentResponseClient({ taskId }: Props) {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [offer, setOffer] = useState<Offer | null>(null);
   const [action, setAction] = useState<ResponseAction>('idle');
-  const [alternativeNote, setAlternativeNote] = useState('');
 
   useEffect(() => {
     const state = loadState();
@@ -109,14 +116,17 @@ export default function AppointmentResponseClient({ taskId }: Props) {
     setAction('declined');
   }
 
-  function handleSendAlternative() {
-    if (!task || !alternativeNote.trim()) return;
+  function handleTimeShift(direction: 'earlier' | 'later') {
+    if (!task?.dueTime) return;
+    const delta = direction === 'earlier' ? -60 : 60;
+    const newTime = shiftTime(task.dueTime, delta);
+    if (!newTime) return;
     const now = new Date().toISOString();
     const label = formatTimestamp(now);
-    const updatedNote = task.note
-      ? `${task.note}\nΠρόταση αλλαγής από πελάτη: ${alternativeNote.trim()}. ${label}.`
-      : `Πρόταση αλλαγής από πελάτη: ${alternativeNote.trim()}. ${label}.`;
-    const updated: Task = { ...task, note: updatedNote, updatedAt: now };
+    const dirLabel = direction === 'earlier' ? '1 ώρα νωρίτερα' : '1 ώρα αργότερα';
+    const noteAppend = `Πρόταση αλλαγής από πελάτη: ${dirLabel}, νέα ώρα ${newTime}. ${label}.`;
+    const updatedNote = task.note ? `${task.note}\n${noteAppend}` : noteAppend;
+    const updated: Task = { ...task, dueTime: newTime, note: updatedNote, updatedAt: now };
     updateTask(updated);
     addCommunicationRecord({
       id: crypto.randomUUID(),
@@ -124,12 +134,12 @@ export default function AppointmentResponseClient({ taskId }: Props) {
       channel: 'sms',
       direction: 'inbound',
       status: 'completed',
-      summary: `Πρόταση αλλαγής ραντεβού από πελάτη: ${alternativeNote.trim()}.`,
+      summary: `Πρόταση αλλαγής ώρας ραντεβού: ${dirLabel}, νέα ώρα ${newTime}.`,
       createdAt: now,
       isMock: true,
     });
     setTask(updated);
-    setAction('alternative_sent');
+    setAction('time_shifted');
   }
 
   if (!hydrated) {
@@ -224,12 +234,12 @@ export default function AppointmentResponseClient({ taskId }: Props) {
               </div>
             )}
 
-            {/* Alternative sent */}
-            {action === 'alternative_sent' && (
+            {/* Time shifted */}
+            {action === 'time_shifted' && (
               <div className="rounded-xl bg-indigo-50 px-4 py-4 ring-1 ring-indigo-200 text-center space-y-1">
-                <p className="text-base font-bold text-indigo-700">Η πρότασή σας στάλθηκε.</p>
+                <p className="text-base font-bold text-indigo-700">Η αλλαγή ώρας καταγράφηκε.</p>
                 <p className="text-sm text-indigo-600">
-                  Η επιχείρηση θα δει την εναλλακτική πρότασή σας στο CRM.
+                  Η επιχείρηση θα τη δει στο CRM.
                 </p>
                 <p className="text-xs text-zinc-400">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
               </div>
@@ -289,43 +299,6 @@ export default function AppointmentResponseClient({ taskId }: Props) {
               </div>
             )}
 
-            {/* Suggesting alternative */}
-            {action === 'suggesting_alternative' && (
-              <div className="rounded-xl bg-indigo-50 p-4 ring-1 ring-indigo-200 space-y-3">
-                <p className="text-sm font-semibold text-indigo-800">Πρόταση εναλλακτικής ώρας</p>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-600">
-                    Σχόλιο ή εναλλακτική ημερομηνία/ώρα{' '}
-                    <span className="text-zinc-400">(υποχρεωτικό)</span>
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={alternativeNote}
-                    onChange={(e) => setAlternativeNote(e.target.value)}
-                    placeholder="π.χ. Μπορούμε Παρασκευή απόγευμα 15:00;"
-                    className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                  />
-                </div>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={handleSendAlternative}
-                    disabled={!alternativeNote.trim()}
-                    className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    Αποστολή πρότασης
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAction('idle')}
-                    className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Πίσω
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Idle: action buttons */}
             {action === 'idle' && (
               <div className="flex flex-col gap-3">
@@ -336,19 +309,30 @@ export default function AppointmentResponseClient({ taskId }: Props) {
                 >
                   Ναι, το επιβεβαιώνω
                 </button>
+                {task.dueTime && shiftTime(task.dueTime, -60) !== null && (
+                  <button
+                    type="button"
+                    onClick={() => handleTimeShift('earlier')}
+                    className="w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                  >
+                    Μπορώ 1 ώρα νωρίτερα
+                  </button>
+                )}
+                {task.dueTime && shiftTime(task.dueTime, 60) !== null && (
+                  <button
+                    type="button"
+                    onClick={() => handleTimeShift('later')}
+                    className="w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                  >
+                    Μπορώ 1 ώρα αργότερα
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setAction('confirming_decline')}
                   className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
                 >
                   Δεν μπορώ αυτή την ώρα
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAction('suggesting_alternative')}
-                  className="w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100"
-                >
-                  Προτείνω άλλη ώρα
                 </button>
               </div>
             )}
