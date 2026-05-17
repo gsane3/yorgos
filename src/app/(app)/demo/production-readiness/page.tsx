@@ -198,6 +198,10 @@ export default function ProductionReadinessPage() {
             'Native tel: / sms: links για κλήση και SMS από συσκευή.',
             'Αντιγραφή draft Viber / email χειροκίνητα.',
             'Προαιρετική πραγματική αποστολή email μέσω Resend, μόνο όταν RESEND_API_KEY και EMAIL_FROM είναι ρυθμισμένα στον server. Safe preview mode παραλείπει αυτά τα vars σκόπιμα.',
+            'AI εντολές (/cmd) με 5 intents: query_appointments, create_task, create_appointment, create_offer, cancel_appointment. Απαιτεί έλεγχο χρήστη πριν αποθήκευση. Ακύρωση ραντεβού με ξεχωριστή επιβεβαίωση.',
+            'Πρόγραμμα ραντεβού (/appointments): δημιουργία, επισκόπηση, ακύρωση ραντεβού (soft cancel, με inline επιβεβαίωση). Ακύρωση υπάρχει επίσης σε CustomerProfile και /cmd.',
+            'Customer intake form (/customer-intake/[id]): δημόσια φόρμα συμπλήρωσης στοιχείων. Demo/localStorage μόνο. Λειτουργεί μόνο στον ίδιο browser όπου υπάρχουν τα CRM δεδομένα.',
+            'Αντιγραφή intake link από CustomerProfile (clipboard copy). Demo link. Δεν γίνεται αυτόματη αποστολή.',
           ].map((item) => (
             <div key={item} className="flex items-start gap-2 text-sm text-zinc-700">
               <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
@@ -416,7 +420,7 @@ export default function ProductionReadinessPage() {
         <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-2">
           {[
             { issue: 'Τοπική αποθήκευση', detail: 'Τα δεδομένα μπορεί να διαγραφούν αν καθαριστεί το localStorage του browser.' },
-            { issue: 'Demo links μόνο στον ίδιο browser', detail: 'Το /offer-response/[id] δεν λειτουργεί σε άλλο browser ή συσκευή.' },
+            { issue: 'Demo links μόνο στον ίδιο browser', detail: 'Τα /offer-response/[id], /appointment-response/[id] και /customer-intake/[id] δεν λειτουργούν σε άλλο browser ή συσκευή.' },
             { issue: 'Χωρίς cloud sync', detail: 'Δεν υπάρχει συγχρονισμός μεταξύ συσκευών ή browser tabs.' },
             { issue: 'Χωρίς πραγματικό SMS', detail: 'Δεν υπάρχει SMS provider. Οι επικοινωνίες γίνονται με αντιγραφή κειμένου ή native sms: link.' },
             { issue: 'Email: πραγματικό μόνο όταν ρυθμιστεί', detail: 'Πραγματική αποστολή email υπάρχει μόνο όταν RESEND_API_KEY και EMAIL_FROM είναι ρυθμισμένα. Safe preview mode δεν τα έχει.' },
@@ -460,7 +464,11 @@ export default function ProductionReadinessPage() {
               { route: '/demo/pilot-feedback', check: 'Feedback form loads, Copy full pilot report calls finishDemoGuide, app unlocks.' },
               { route: '/demo/privacy', check: 'Privacy page loads cleanly.' },
               { route: '/call/mock', check: 'Setup screen loads. Demo VoIP keypad visible. "Demo κλήση" shows no-real-call notice.' },
+              { route: '/cmd', check: 'AI command page loads, example chips visible (5 examples), submit enabled after input. Requires ANTHROPIC_API_KEY for real intents; 503 no_api_key when missing.' },
+              { route: '/appointments', check: 'Appointment agenda loads, demo appointments visible, cancellation shows inline confirmation before any update.' },
+              { route: '/customer-intake/demo-karagiannis', check: 'Pre-filled form loads with demo customer data. "Αποθήκευση στοιχείων" saves with intakeStatus: completed. Opening in a different browser shows not-found page.' },
               { route: '/api/ai/review', check: 'Returns 503 no_api_key when ANTHROPIC_API_KEY is missing. Returns AI result when key is set (POST with JSON body).' },
+              { route: '/api/ai/cmd', check: 'Returns 503 no_api_key when ANTHROPIC_API_KEY is missing. POST with JSON body returns { ok: true, result } on success.' },
               { route: '/api/email/send-offer', check: 'Safe preview mode (no Resend vars): returns 503 missing_email_config, no email sent. UI shows "not configured" message.' },
             ].map(({ route, check }) => (
               <div key={route} className="flex items-start gap-3 text-xs">
@@ -488,7 +496,7 @@ export default function ProductionReadinessPage() {
               'Demo VoIP keypad on /call/mock clearly says "Στο MVP δεν γίνεται πραγματική κλήση."',
               '"Demo κλήση" button shows disclaimer, not a fake connected/answered state.',
               'Native tel: link (if shown) labelled as "Άνοιγμα native κλήσης (συσκευή)", not in-app VoIP.',
-              'Mobile bottom nav: exactly 4 items (Αρχική, Πελάτες, Tasks, Προσφορές).',
+              'Mobile bottom nav: 7 items (Αρχική, AI, Κλήσεις, Πελάτες, Ραντεβού, Tasks, Προσφορές).',
             ].map((c) => (
               <p key={c} className="flex items-start gap-1.5 text-xs text-zinc-500">
                 <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-zinc-400" />
