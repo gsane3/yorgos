@@ -85,7 +85,7 @@ export default function SendEmailSection({
           Αποστολή email
         </p>
         <p className="rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
-          Δεν έχει ρυθμιστεί αποστολή email. Μπορείς να αντιγράψεις το draft.
+          Δεν έχει ρυθμιστεί αποστολή email στον server, οπότε δεν στάλθηκε email. Μπορείς να αντιγράψεις το draft και να το στείλεις χειροκίνητα.
         </p>
         <button
           type="button"
