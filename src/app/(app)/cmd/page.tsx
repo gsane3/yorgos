@@ -422,12 +422,12 @@ export default function CmdPage() {
                     Δεν βρέθηκε πελάτης, θα δημιουργηθεί χωρίς σύνδεση πελάτη.
                   </p>
                 )}
-                {result.params.dueDate && (
-                  <p>
-                    <span className="font-medium">Ημερομηνία:</span> {result.params.dueDate}
-                    {result.params.dueTime ? ` ${result.params.dueTime}` : ''}
-                  </p>
-                )}
+                <p>
+                  <span className="font-medium">Ημερομηνία:</span>{' '}
+                  {result.params.dueDate
+                    ? result.params.dueDate + (result.params.dueTime ? ` ${result.params.dueTime}` : '')
+                    : 'Σήμερα (προεπιλογή)'}
+                </p>
                 <p>
                   <span className="font-medium">Προτεραιότητα:</span>{' '}
                   {PRIORITY_LABELS[result.params.priority ?? 'normal'] ?? 'Κανονική'}
@@ -475,12 +475,12 @@ export default function CmdPage() {
                     Δεν βρέθηκε πελάτης, θα δημιουργηθεί χωρίς σύνδεση πελάτη.
                   </p>
                 )}
-                {result.params.dueDate && (
-                  <p>
-                    <span className="font-medium">Ημερομηνία:</span> {result.params.dueDate}
-                    {result.params.dueTime ? ` ${result.params.dueTime}` : ''}
-                  </p>
-                )}
+                <p>
+                  <span className="font-medium">Ημερομηνία:</span>{' '}
+                  {result.params.dueDate
+                    ? result.params.dueDate + (result.params.dueTime ? ` ${result.params.dueTime}` : '')
+                    : 'Σήμερα (προεπιλογή)'}
+                </p>
                 <p>
                   <span className="font-medium">Τύπος:</span>{' '}
                   {APPT_TYPE_LABELS[result.params.appointmentType ?? 'book_appointment'] ?? 'Ραντεβού'}
