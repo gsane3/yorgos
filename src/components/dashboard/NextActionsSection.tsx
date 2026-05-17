@@ -78,7 +78,7 @@ function buildActions(
       title: task.title,
       detail: `Εκπρόθεσμο · ${TASK_TYPE_LABELS[task.type] ?? task.type}`,
       customerName: task.customerId ? customerMap[task.customerId] : undefined,
-      href: `/tasks?taskId=${task.id}`,
+      href: task.customerId ? `/customers/${task.customerId}` : `/tasks?taskId=${task.id}`,
       taskId: task.id,
     });
   }
@@ -95,7 +95,7 @@ function buildActions(
       title: task.title,
       detail: `Σήμερα · ${TASK_TYPE_LABELS[task.type] ?? task.type}`,
       customerName: task.customerId ? customerMap[task.customerId] : undefined,
-      href: `/tasks?taskId=${task.id}`,
+      href: task.customerId ? `/customers/${task.customerId}` : `/tasks?taskId=${task.id}`,
       taskId: task.id,
     });
   }
