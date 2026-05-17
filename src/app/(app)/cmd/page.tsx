@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { loadState, addTask } from '@/lib/storage';
+import { loadState, addTask, addOffer } from '@/lib/storage';
 import {
   isSpeechSupported,
   createRecognition,
@@ -12,7 +12,7 @@ import type {
   AppSpeechRecognitionEvent,
   AppSpeechRecognitionErrorEvent,
 } from '@/lib/speech';
-import type { Task, Customer, BusinessProfile, TaskType, TaskPriority } from '@/lib/types';
+import type { Task, Customer, BusinessProfile, TaskType, TaskPriority, Offer } from '@/lib/types';
 import type { CmdReviewResult } from '@/lib/ai/cmd-schema';
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -42,6 +42,10 @@ function matchCustomer(name: string | undefined, customers: Customer[]): Custome
   return customers.find((c) => c.name.toLowerCase().includes(q)) ?? null;
 }
 
+function fmtEur(n: number): string {
+  return n.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
 function filterByRange(tasks: Task[], range: string): Task[] {
   const today = todayStr();
   const tomorrow = addDaysStr(1);
@@ -66,6 +70,14 @@ export default function CmdPage() {
   const [queryAppointments, setQueryAppointments] = useState<(Task & { customerName?: string })[]>([]);
   const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(null);
   const [noCustomerMatch, setNoCustomerMatch] = useState(false);
+
+  const [offerPreviewData, setOfferPreviewData] = useState<{
+    validItems: { description: string; quantity: number; unitPrice: number }[];
+    subtotal: number;
+    vatAmount: number;
+    total: number;
+    vatRate: number;
+  } | null>(null);
 
   const [hydrated, setHydrated] = useState(false);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
@@ -181,6 +193,7 @@ export default function CmdPage() {
     setQueryAppointments([]);
     setMatchedCustomer(null);
     setNoCustomerMatch(false);
+    setOfferPreviewData(null);
 
     try {
       const res = await fetch('/api/ai/cmd', {
@@ -217,10 +230,18 @@ export default function CmdPage() {
         setQueryAppointments(filtered);
       }
 
-      if (r.intent === 'create_task' || r.intent === 'create_appointment') {
+      if (r.intent === 'create_task' || r.intent === 'create_appointment' || r.intent === 'create_offer') {
         const matched = matchCustomer(r.params.customerName, customers);
         setMatchedCustomer(matched);
         setNoCustomerMatch(!!r.params.customerName?.trim() && !matched);
+      }
+
+      if (r.intent === 'create_offer') {
+        const items = (r.params.offerItems ?? []).filter((i) => i.description.trim());
+        const vat = businessProfile?.defaultVatRate ?? 24;
+        const sub = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+        const vatAmt = Number((sub * vat / 100).toFixed(2));
+        setOfferPreviewData({ validItems: items, subtotal: sub, vatAmount: vatAmt, total: Number((sub + vatAmt).toFixed(2)), vatRate: vat });
       }
     } catch {
       setCmdError('Δεν μπόρεσα να αναλύσω την εντολή. Δοκίμασε ξανά.');
@@ -276,6 +297,69 @@ export default function CmdPage() {
     setSavedResult(true);
   }
 
+  function handleSaveOffer() {
+    if (!result || !offerPreviewData || offerPreviewData.validItems.length === 0) return;
+    const now = new Date().toISOString();
+    const today = todayStr();
+    const { validItems, subtotal, vatAmount, total, vatRate } = offerPreviewData;
+
+    const existingOffers = loadState().offers ?? [];
+    const maxNum = existingOffers.length === 0 ? 0 : Math.max(
+      ...existingOffers.map((o) => {
+        const match = o.offerNumber.match(/(\d+)$/);
+        return match ? parseInt(match[1]) : 0;
+      })
+    );
+    const offerNumber = `#${String(maxNum + 1).padStart(3, '0')}`;
+
+    const validUntilDate = new Date();
+    validUntilDate.setDate(validUntilDate.getDate() + 14);
+    const validUntil = validUntilDate.toISOString().split('T')[0];
+
+    const offer: Offer = {
+      id: crypto.randomUUID(),
+      customerId: matchedCustomer?.id,
+      offerNumber,
+      status: 'draft',
+      offerDate: today,
+      validUntil,
+      items: validItems.map((i) => ({
+        id: crypto.randomUUID(),
+        description: i.description,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+      })),
+      subtotal,
+      vatRate,
+      vatAmount,
+      total,
+      notes: result.params.offerNotes || '',
+      terms: result.params.offerTerms || businessProfile?.defaultOfferTerms || '',
+      acceptanceText: businessProfile?.defaultAcceptanceText ?? 'Αποδέχομαι τους παραπάνω όρους.',
+      createdFromAi: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    addOffer(offer);
+
+    const followUp: Task = {
+      id: crypto.randomUUID(),
+      customerId: matchedCustomer?.id,
+      offerId: offer.id,
+      title: 'Έλεγχος και αποστολή προσφοράς',
+      type: 'send_offer' as TaskType,
+      status: 'open',
+      priority: 'normal' as TaskPriority,
+      dueDate: today,
+      note: 'Δημιουργήθηκε από AI εντολή. Έλεγξε την προσφορά πριν τη στείλεις.',
+      createdFromAi: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    addTask(followUp);
+    setSavedResult(true);
+  }
+
   function reset() {
     setCmdInput('');
     setResult(null);
@@ -284,6 +368,7 @@ export default function CmdPage() {
     setQueryAppointments([]);
     setMatchedCustomer(null);
     setNoCustomerMatch(false);
+    setOfferPreviewData(null);
   }
 
   if (!hydrated) {
@@ -514,6 +599,97 @@ export default function CmdPage() {
               </div>
               <Link href="/appointments" className="inline-block text-xs text-indigo-600 hover:text-indigo-700">
                 Δες τα ραντεβού →
+              </Link>
+            </div>
+          )}
+
+          {/* create_offer */}
+          {result.intent === 'create_offer' && !savedResult && (
+            <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                Draft προσφορά (προεπισκόπηση)
+              </p>
+              {matchedCustomer && (
+                <p className="text-sm text-zinc-700"><span className="font-medium">Πελάτης:</span> {matchedCustomer.name}</p>
+              )}
+              {noCustomerMatch && (
+                <p className="text-xs text-amber-600">
+                  Δεν βρέθηκε πελάτης, η προσφορά θα δημιουργηθεί χωρίς σύνδεση πελάτη.
+                </p>
+              )}
+              {!offerPreviewData || offerPreviewData.validItems.length === 0 ? (
+                <div className="rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
+                  <p className="text-sm text-amber-700">
+                    Δεν βρέθηκαν γραμμές προσφοράς στην εντολή. Δοκίμασε να γράψεις ποσά και περιγραφές.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-zinc-100 text-left text-xs text-zinc-400">
+                          <th className="pb-1.5 font-medium">Περιγραφή</th>
+                          <th className="pb-1.5 font-medium text-right">Ποσ.</th>
+                          <th className="pb-1.5 font-medium text-right">Τιμή</th>
+                          <th className="pb-1.5 font-medium text-right">Σύνολο</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-50">
+                        {offerPreviewData.validItems.map((item, idx) => (
+                          <tr key={idx}>
+                            <td className="py-1.5 text-zinc-800">{item.description}</td>
+                            <td className="py-1.5 text-right text-zinc-600">{item.quantity}</td>
+                            <td className="py-1.5 text-right text-zinc-600">{fmtEur(item.unitPrice)}</td>
+                            <td className="py-1.5 text-right text-zinc-800">{fmtEur(item.quantity * item.unitPrice)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="rounded-xl bg-zinc-50 px-3 py-2.5 text-sm space-y-1">
+                    <div className="flex justify-between text-zinc-500">
+                      <span>Καθαρή αξία</span>
+                      <span>{fmtEur(offerPreviewData.subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-zinc-500">
+                      <span>ΦΠΑ {offerPreviewData.vatRate}%</span>
+                      <span>{fmtEur(offerPreviewData.vatAmount)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-zinc-200 pt-1 font-semibold text-zinc-900">
+                      <span>Σύνολο</span>
+                      <span>{fmtEur(offerPreviewData.total)}</span>
+                    </div>
+                  </div>
+                  {result.params.offerNotes && (
+                    <p className="text-sm text-zinc-600"><span className="font-medium">Σημειώσεις:</span> {result.params.offerNotes}</p>
+                  )}
+                  {result.params.offerTerms && (
+                    <p className="text-sm text-zinc-600"><span className="font-medium">Όροι:</span> {result.params.offerTerms}</p>
+                  )}
+                  <div className="rounded-xl bg-amber-50 px-3 py-2 ring-1 ring-amber-200">
+                    <p className="text-xs text-amber-700">
+                      Θα δημιουργηθεί draft προσφοράς στο CRM. Δεν γίνεται αποστολή στον πελάτη.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveOffer}
+                    className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                  >
+                    Δημιουργία draft προσφοράς
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {result.intent === 'create_offer' && savedResult && (
+            <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-1.5">
+              <p className="text-sm font-medium text-green-700">Η draft προσφορά δημιουργήθηκε.</p>
+              <p className="text-xs text-zinc-600">Δημιουργήθηκε και task για έλεγχο και αποστολή.</p>
+              <Link href="/offers" className="inline-block text-xs text-indigo-600 hover:text-indigo-700">
+                Δες τις προσφορές →
               </Link>
             </div>
           )}
