@@ -202,6 +202,7 @@ export default function ProductionReadinessPage() {
             'Πρόγραμμα ραντεβού (/appointments): δημιουργία, επισκόπηση, ακύρωση ραντεβού (soft cancel, με inline επιβεβαίωση). Ακύρωση υπάρχει επίσης σε CustomerProfile και /cmd.',
             'Customer intake form (/customer-intake/[id]): δημόσια φόρμα συμπλήρωσης στοιχείων. Demo/localStorage μόνο. Λειτουργεί μόνο στον ίδιο browser όπου υπάρχουν τα CRM δεδομένα.',
             'Αντιγραφή intake link από CustomerProfile (clipboard copy). Demo link. Δεν γίνεται αυτόματη αποστολή.',
+            'Inline επιβεβαίωση για όλες τις καταστρεπτικές ενέργειες: διαγραφή πελάτη, διαγραφή προσφοράς, διαγραφή task, συγχώνευση duplicates, εισαγωγή CSV, ακύρωση guided demo. Μηδέν window.confirm ή alert() στον κώδικα (src/).',
           ].map((item) => (
             <div key={item} className="flex items-start gap-2 text-sm text-zinc-700">
               <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
@@ -497,6 +498,7 @@ export default function ProductionReadinessPage() {
               '"Demo κλήση" button shows disclaimer, not a fake connected/answered state.',
               'Native tel: link (if shown) labelled as "Άνοιγμα native κλήσης (συσκευή)", not in-app VoIP.',
               'Mobile bottom nav: 7 items (Αρχική, AI, Κλήσεις, Πελάτες, Ραντεβού, Tasks, Προσφορές).',
+              'No native dialogs: window.confirm, confirm(), window.alert, alert() return zero grep matches across src/. Destructive actions (delete, merge, CSV import, demo exit) use inline confirmation panels.',
             ].map((c) => (
               <p key={c} className="flex items-start gap-1.5 text-xs text-zinc-500">
                 <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-zinc-400" />
