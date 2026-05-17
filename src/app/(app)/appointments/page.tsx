@@ -57,7 +57,7 @@ export default function AppointmentsPage() {
   useEffect(() => {
     const state = loadState();
     const tasks = (state.tasks ?? [])
-      .filter((t) => t.type === 'book_appointment' && t.status === 'open')
+      .filter((t) => (t.type === 'book_appointment' || t.type === 'visit_customer') && t.status === 'open')
       .sort((a, b) => {
         if (a.dueDate !== b.dueDate) return a.dueDate.localeCompare(b.dueDate);
         const at = a.dueTime ?? 'zz';
@@ -114,7 +114,7 @@ export default function AppointmentsPage() {
       <div>
         <h1 className="text-lg font-semibold text-zinc-900">Ραντεβού</h1>
         <p className="mt-0.5 text-sm text-zinc-500">
-          Πρόγραμμα ραντεβού από αποδεκτές προσφορές.
+          Πρόγραμμα ραντεβού και επισκέψεων πελατών.
         </p>
       </div>
 
