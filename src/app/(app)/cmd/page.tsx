@@ -46,6 +46,13 @@ function fmtEur(n: number): string {
   return n.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
+const CMD_EXAMPLES = [
+  'Ποια ραντεβού έχω σήμερα;',
+  'Δημιούργησε task να καλέσω τον Δημητρίου αύριο',
+  'Κλείσε ραντεβού με τον Καραγιάννη αύριο στις 10',
+  'Ετοίμασε προσφορά για τον Αλεξάνδρου, υλικά 3500 ευρώ, εργατικά 500',
+];
+
 function filterByRange(tasks: Task[], range: string): Task[] {
   const today = todayStr();
   const tomorrow = addDaysStr(1);
@@ -404,6 +411,29 @@ export default function CmdPage() {
           <p className="min-h-[1.25rem] text-xs italic text-zinc-400">
             {interimText ? interimText + '...' : 'Ακούω...'}
           </p>
+        )}
+
+        {!cmdInput.trim() && !isListening && !isLoading && (
+          <div className="space-y-1.5">
+            <p className="text-xs text-zinc-400">Παραδείγματα:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {CMD_EXAMPLES.map((example) => (
+                <button
+                  key={example}
+                  type="button"
+                  onClick={() => {
+                    setCmdInput(example);
+                    setResult(null);
+                    setSavedResult(false);
+                    setCmdError('');
+                  }}
+                  className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-left text-xs text-zinc-600 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                >
+                  {example}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
         <div className="flex flex-wrap gap-2">
