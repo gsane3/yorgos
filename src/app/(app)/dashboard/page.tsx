@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { loadState, updateTask, updateOffer, addTask, updateCustomer, deleteCustomer, saveCustomers, advanceSmsIntakeStatuses, addCommunicationRecord } from '@/lib/storage';
+import { loadState, saveState, updateTask, updateOffer, addTask, updateCustomer, deleteCustomer, saveCustomers, advanceSmsIntakeStatuses, addCommunicationRecord } from '@/lib/storage';
+import { generateDemoTasks } from '@/lib/demo-data';
 import { getSmsPhone } from '@/lib/phone';
 import { getEffectiveStatus } from '@/lib/types';
 import type { Customer, Task, Offer, CallRecord, TaskBaseStatus, CommunicationRecord } from '@/lib/types';
@@ -87,9 +88,18 @@ export default function DashboardPage() {
       }
     });
 
+    let tasks: Task[];
+    if (state.tasks === undefined) {
+      const seeded = generateDemoTasks();
+      saveState({ tasks: seeded });
+      tasks = seeded;
+    } else {
+      tasks = state.tasks;
+    }
+
     const nextData: DashboardData = {
       customers: anyChanged ? advanced : rawCustomers,
-      tasks: state.tasks ?? [],
+      tasks,
       offers: state.offers ?? [],
       calls: state.calls,
       communications: [...(state.communications ?? []), ...reminderComms],
