@@ -327,7 +327,7 @@ export default function DashboardPage() {
 
       {/* Call-first value line */}
       <p className="text-sm text-zinc-400">
-        Κάθε κλήση μπορεί να γίνει CRM σημείωση, task ή follow-up.
+        Η περίληψη κάθε κλήσης καταχωρείται αυτόματα στο CRM μόλις ολοκληρωθεί η κλήση.
       </p>
 
       {/* 6-card control center */}

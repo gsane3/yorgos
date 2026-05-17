@@ -145,7 +145,7 @@ export default function OnboardingPage() {
       },
     });
 
-    router.push('/dashboard');
+    router.push('/demo');
   }
 
   const profileFormValue: BusinessProfileData = {
