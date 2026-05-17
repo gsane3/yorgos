@@ -2,6 +2,7 @@ export type CmdIntent =
   | 'query_appointments'
   | 'create_task'
   | 'create_appointment'
+  | 'create_offer'
   | 'unknown';
 
 export interface CmdReviewResult {
@@ -16,6 +17,9 @@ export interface CmdReviewResult {
     priority?: 'low' | 'normal' | 'high';
     appointmentType?: 'book_appointment' | 'visit_customer';
     dateRange?: 'today' | 'tomorrow' | 'week' | 'all';
+    offerItems?: Array<{ description: string; quantity: number; unitPrice: number }>;
+    offerNotes?: string;
+    offerTerms?: string;
   };
 }
 
@@ -23,6 +27,7 @@ const SUPPORTED_INTENTS: CmdIntent[] = [
   'query_appointments',
   'create_task',
   'create_appointment',
+  'create_offer',
   'unknown',
 ];
 
@@ -115,6 +120,29 @@ export function parseCmdResponse(raw: string): CmdReviewResult {
 
   if (intent === 'query_appointments') {
     params.dateRange = isValidDateRange(rawParams.dateRange) ? rawParams.dateRange : 'today';
+  }
+
+  if (intent === 'create_offer') {
+    const rawItems = Array.isArray(rawParams.offerItems) ? rawParams.offerItems : [];
+    const offerItems = rawItems
+      .slice(0, 8)
+      .map((item: unknown) => {
+        const i = (typeof item === 'object' && item !== null ? item : {}) as Record<string, unknown>;
+        const description = safeStr(i.description, 200);
+        const quantity = typeof i.quantity === 'number' && isFinite(i.quantity) && i.quantity > 0
+          ? i.quantity
+          : 1;
+        const unitPrice = typeof i.unitPrice === 'number' && isFinite(i.unitPrice) && i.unitPrice >= 0
+          ? i.unitPrice
+          : 0;
+        return { description, quantity, unitPrice };
+      })
+      .filter((i) => i.description.length > 0);
+    if (offerItems.length > 0) params.offerItems = offerItems;
+    const offerNotes = safeStr(rawParams.offerNotes, 500);
+    if (offerNotes) params.offerNotes = offerNotes;
+    const offerTerms = safeStr(rawParams.offerTerms, 500);
+    if (offerTerms) params.offerTerms = offerTerms;
   }
 
   return { intent, summary, params };

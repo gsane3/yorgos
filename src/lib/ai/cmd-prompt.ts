@@ -17,10 +17,12 @@ ${typeLine}
 Εντολή:
 "${input.inputText}"
 
-Επέστρεψε ΜΟΝΟ έγκυρο JSON (χωρίς markdown, χωρίς εξήγηση):
+Επέστρεψε ΜΟΝΟ έγκυρο JSON (χωρίς markdown, χωρίς εξήγηση).
+
+Για create_task, create_appointment, query_appointments:
 {
   "intent": "query_appointments | create_task | create_appointment | unknown",
-  "summary": "σύντομη περίληψη της εντολής στα Ελληνικά",
+  "summary": "σύντομη περίληψη στα Ελληνικά",
   "params": {
     "customerName": "string ή κενό",
     "title": "string ή κενό",
@@ -33,16 +35,35 @@ ${typeLine}
   }
 }
 
+Για create_offer:
+{
+  "intent": "create_offer",
+  "summary": "Προετοιμασία draft προσφοράς για τον πελάτη.",
+  "params": {
+    "customerName": "Καραγιάννης",
+    "offerItems": [
+      { "description": "Υλικά", "quantity": 1, "unitPrice": 3500 },
+      { "description": "Εργατικά", "quantity": 1, "unitPrice": 500 }
+    ],
+    "offerNotes": "",
+    "offerTerms": ""
+  }
+}
+
 Κανόνες:
-- Χρησιμοποίησε ΜΟΝΟ αυτά τα intents: query_appointments, create_task, create_appointment, unknown.
+- Χρησιμοποίησε ΜΟΝΟ αυτά τα intents: query_appointments, create_task, create_appointment, create_offer, unknown.
 - query_appointments: ο χρήστης ρωτάει ποια ραντεβού έχει (σήμερα, αύριο, εβδομάδα, κλπ.).
 - create_task: ο χρήστης θέλει να δημιουργήσει εσωτερικό task (κλήση, follow-up, υπενθύμιση, κλπ.).
 - create_appointment: ο χρήστης θέλει να κλείσει ραντεβού ή επίσκεψη με πελάτη.
+- create_offer: ο χρήστης θέλει να ετοιμαστεί draft προσφορά με τιμές και υπηρεσίες. Σημαίνει ΜΟΝΟ δημιουργία draft, όχι αποστολή.
 - unknown: οποιαδήποτε άλλη εντολή.
-- Αν ο χρήστης ζητά ακύρωση, διαγραφή, αποστολή email, αποστολή SMS, αποστολή προσφοράς ή οτιδήποτε εκτός των παραπάνω, επέστρεψε intent: "unknown" με σύντομο summary που εξηγεί ότι αυτή η ενέργεια χρειάζεται επιβεβαίωση και δεν υποστηρίζεται ακόμα.
-- Για create_task και create_appointment: εξήγαγε μόνο προσχέδιο παραμέτρων για έλεγχο. Μην ισχυριστείς ότι κάτι έγινε ή εστάλη.
+- Αν ο χρήστης ζητά μόνο αποστολή προσφοράς (χωρίς να ζητά ετοιμασία), επέστρεψε intent: "unknown". Η αποστολή απαιτεί ξεχωριστή ενέργεια του χρήστη αργότερα.
+- Αν ο χρήστης ζητά ακύρωση, διαγραφή, αποστολή email, αποστολή SMS ή οτιδήποτε άλλο εκτός των παραπάνω, επέστρεψε intent: "unknown" με σύντομο summary.
+- Για create_offer: εξήγαγε μόνο προσχέδιο παραμέτρων. Μην ισχυριστείς ότι η προσφορά στάλθηκε.
+- Για create_task και create_appointment: εξήγαγε μόνο προσχέδιο παραμέτρων για έλεγχο χρήστη.
 - dateRange χρειάζεται μόνο για query_appointments.
 - appointmentType χρειάζεται μόνο για create_appointment.
+- offerItems χρειάζεται μόνο για create_offer.
 - Όλα τα κείμενα στα Ελληνικά.
 - Μην επινοείς στοιχεία που δεν αναφέρονται στην εντολή.`;
 }
