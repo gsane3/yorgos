@@ -22,7 +22,7 @@ All variables below are server-only. They must never be prefixed with `NEXT_PUBL
 | `EMAIL_FROM` | `/api/email/send-offer` | Yes, for real sends | Sender address verified with Resend. Route returns 503 if missing. |
 | `EMAIL_REPLY_TO` | `/api/email/send-offer` | No | Optional reply-to header on outgoing email. |
 
-`RESEND_API_KEY` and `EMAIL_FROM` together enable real email delivery through the backend route. If either is missing, the route returns an error and no email is sent. The UI must not claim to send real email unless this route is intentionally wired to a UI action and tested end to end.
+`RESEND_API_KEY` and `EMAIL_FROM` together enable real email delivery through the backend route. If either is missing, the route returns an error and no email is sent. The email route is already wired to one UI surface (`src/components/offers/SendEmailSection.tsx`). Real email is sent only when those two env vars are present. Without them, the UI displays a "not configured" message and no email is sent.
 
 No real VoIP, no real call recording, and no real SMS sending are implemented in the current backend.
 
@@ -47,7 +47,21 @@ No real VoIP, no real call recording, and no real SMS sending are implemented in
 
 ## Later Vercel deployment
 
-Add each variable in Vercel Project Settings, under Environment Variables. Do not add them as `NEXT_PUBLIC_` variables. No other Vercel-specific setup is required for these routes beyond setting the variables.
+Add each variable in Vercel Project Settings, under Environment Variables. Do not add them as `NEXT_PUBLIC_` variables.
+
+### Email send modes for preview
+
+**Safe preview mode (recommended first).** Omit `RESEND_API_KEY` and `EMAIL_FROM` from Vercel env settings. The email route returns `missing_email_config` and the UI shows a "not configured" message. No real email can be sent.
+
+**Real email mode.** Add `RESEND_API_KEY` and `EMAIL_FROM` only if you accept that any visitor who reaches the UI can trigger real email sends, limited only by the in-memory rate limiter (5 requests per IP per 60 seconds, per serverless instance). There is no auth backend yet. Consider this only after auth is added or access is restricted.
+
+### AI route timeout on Vercel Hobby
+
+The AI route uses a 20-second `AbortController` timeout. Vercel Hobby serverless functions have a shorter default execution limit. If Vercel kills the function first, the response will be a Vercel error rather than the app's `ai_timeout` response. Before deploying, decide one of:
+
+- Lower `AI_PROVIDER_TIMEOUT_MS` to stay under the plan limit.
+- Add `export const maxDuration` to the route if the plan supports it.
+- Use a plan with a function duration that covers 20 seconds or more.
 
 ---
 
@@ -71,4 +85,4 @@ The following are not implemented and must not be added without a deliberate dec
 - No auth backend.
 - No VoIP provider or real call handling.
 - No SMS provider or real SMS sending.
-- No automatic email sending from the UI. The email route exists but is not wired to any UI action in the current MVP.
+- No automatic or background email sending. The email route is wired to one UI surface and sends only when triggered by a user action and only when provider env vars are set.
