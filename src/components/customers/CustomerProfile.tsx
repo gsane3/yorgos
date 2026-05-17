@@ -153,6 +153,9 @@ export default function CustomerProfile({ customerId }: Props) {
   const [offerHighlight, setOfferHighlight] = useState(false);
   // Focused appointment id from ?focusAppointment= query param
   const [focusedAppointmentId, setFocusedAppointmentId] = useState<string | null>(null);
+  // Appointment cancellation state
+  const [cancellingApptId, setCancellingApptId] = useState<string | null>(null);
+  const [lastCancelledApptTitle, setLastCancelledApptTitle] = useState<string | null>(null);
   // Email draft copy
   const [emailDraftCopied, setEmailDraftCopied] = useState(false);
 
@@ -441,6 +444,20 @@ export default function CustomerProfile({ customerId }: Props) {
     updateTask(undone);
     setCustomerTasks((prev) => prev.map((t) => (t.id === undone.id ? undone : t)));
     setLastCompletedTask(null);
+  }
+
+  function handleCancelAppointment(task: Task) {
+    const now = new Date().toISOString();
+    const label = new Date(now).toLocaleDateString('el-GR', {
+      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+    const noteAppend = `Ακύρωση ραντεβού: ${label}.`;
+    const updatedNote = task.note ? `${task.note}\n${noteAppend}` : noteAppend;
+    const updated = { ...task, status: 'cancelled' as const, updatedAt: now, note: updatedNote };
+    updateTask(updated);
+    setCustomerTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+    setLastCancelledApptTitle(task.title);
+    setCancellingApptId(null);
   }
 
   function handleSave(updated: Customer) {
@@ -1152,6 +1169,13 @@ export default function CustomerProfile({ customerId }: Props) {
             Διαχείριση →
           </Link>
         </div>
+        {lastCancelledApptTitle && (
+          <div className="mb-3 rounded-xl bg-zinc-50 px-3 py-2 ring-1 ring-zinc-200">
+            <p className="text-xs text-zinc-600">
+              Το ραντεβού ακυρώθηκε.
+            </p>
+          </div>
+        )}
         {appointmentTasks.length === 0 ? (
           <p className="text-sm text-zinc-400">Δεν υπάρχουν ανοιχτά ραντεβού.</p>
         ) : (
@@ -1173,7 +1197,7 @@ export default function CustomerProfile({ customerId }: Props) {
                 <li
                   key={task.id}
                   id={`appointment-${task.id}`}
-                  className={`flex items-start gap-2 rounded-xl p-3 text-sm ${
+                  className={`rounded-xl text-sm ${
                     isFocused
                       ? 'bg-indigo-50 ring-2 ring-indigo-300'
                       : isOverdue
@@ -1183,30 +1207,64 @@ export default function CustomerProfile({ customerId }: Props) {
                       : 'bg-zinc-50 ring-1 ring-zinc-100'
                   }`}
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className={`font-medium ${isFocused ? 'text-indigo-900' : isOverdue ? 'text-red-900' : 'text-zinc-800'}`}>
-                      {task.title}
-                    </p>
-                    <p className="mt-0.5 text-xs text-zinc-500">
-                      {task.dueDate}
-                      {task.dueTime ? ` ${task.dueTime}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${responseBadge.className}`}>
-                      {responseBadge.label}
-                    </span>
-                    {isOverdue && (
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                        Εκπρόθεσμο
-                      </span>
-                    )}
-                    {isToday && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                        Σήμερα
-                      </span>
-                    )}
-                  </div>
+                  {cancellingApptId === task.id ? (
+                    <div className="p-3 space-y-2">
+                      <p className="text-xs font-semibold text-zinc-800">Επιβεβαίωση ακύρωσης ραντεβού</p>
+                      <p className="text-xs text-zinc-600">
+                        {task.dueDate}{task.dueTime ? `, ${task.dueTime}` : ''}.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleCancelAppointment(task)}
+                          className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-800"
+                        >
+                          Ναι, ακύρωση
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCancellingApptId(null)}
+                          className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                        >
+                          Πίσω
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2 p-3">
+                      <div className="min-w-0 flex-1">
+                        <p className={`font-medium ${isFocused ? 'text-indigo-900' : isOverdue ? 'text-red-900' : 'text-zinc-800'}`}>
+                          {task.title}
+                        </p>
+                        <p className="mt-0.5 text-xs text-zinc-500">
+                          {task.dueDate}
+                          {task.dueTime ? ` ${task.dueTime}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${responseBadge.className}`}>
+                          {responseBadge.label}
+                        </span>
+                        {isOverdue && (
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                            Εκπρόθεσμο
+                          </span>
+                        )}
+                        {isToday && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                            Σήμερα
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => { setLastCancelledApptTitle(null); setCancellingApptId(task.id); }}
+                          className="mt-0.5 text-xs font-medium text-red-600 hover:text-red-700 transition"
+                        >
+                          Ακύρωση
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </li>
               );
             })}
