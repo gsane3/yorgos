@@ -36,10 +36,14 @@ function addDaysStr(n: number): string {
   return d.toISOString().split('T')[0];
 }
 
+function normalizeText(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
 function findCustomerCandidates(name: string | undefined, customers: Customer[]): Customer[] {
   if (!name?.trim()) return [];
-  const q = name.trim().toLowerCase();
-  return customers.filter((c) => c.name.toLowerCase().includes(q));
+  const q = normalizeText(name.trim());
+  return customers.filter((c) => normalizeText(c.name).includes(q));
 }
 
 function CustomerCandidatePicker({
