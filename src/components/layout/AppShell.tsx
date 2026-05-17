@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { loadState } from '@/lib/storage';
 import BottomNav from './BottomNav';
 import DesktopSidebar from './DesktopSidebar';
@@ -9,15 +9,16 @@ import GlobalGuideGuard from './GlobalGuideGuard';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     const state = loadState();
     if (!state.userProfile) {
-      router.replace('/login');
+      if (pathname !== '/demo') router.replace('/demo');
     } else if (!state.userProfile.onboardingCompleted) {
       router.replace('/onboarding');
     }
-  }, [router]);
+  }, [router, pathname]);
 
   return (
     <div className="flex min-h-full overflow-x-hidden">
