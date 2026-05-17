@@ -667,6 +667,9 @@ export default function PostCallScreen({
                 </div>
               </div>
             )}
+            <p className="text-xs text-zinc-400">
+              Ανοίγει την εφαρμογή SMS της συσκευής για χειροκίνητη αποστολή. Η demo απάντηση προσομοιώνει το μελλοντικό αυτόματο intake.
+            </p>
             <div className="flex gap-3">
               <button
                 type="button"
