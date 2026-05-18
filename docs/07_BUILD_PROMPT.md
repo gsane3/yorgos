@@ -2,6 +2,14 @@
 
 Use this prompt for the future coding agent.
 
+## Scope
+
+This prompt applies to the yorgos.ai localStorage MVP phase only.
+
+The constraints in this document, including no database, mock auth, and local storage only, are correct for MVP coding agents building the initial prototype.
+
+For backend v2 implementation, see `BACKEND_SPEC.md` at the project root. That document is the approved backend direction and supersedes the database and auth constraints below for v2 work.
+
 ## Role
 
 You are building yorgos.ai, a mobile-first AI assistant for Greek professionals who work on the road and need help turning calls and voice commands into CRM updates, tasks, offer drafts and communication drafts.
