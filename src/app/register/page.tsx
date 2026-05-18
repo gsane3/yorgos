@@ -13,8 +13,16 @@ export default function RegisterPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setSuccess(false);
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setError('Δεν μπορέσαμε να δημιουργήσουμε λογαριασμό. Έλεγξε τα στοιχεία και δοκίμασε ξανά.');
+      return;
+    }
+
+    setLoading(true);
 
     let supabase: ReturnType<typeof createBrowserSupabaseClient>;
     try {
@@ -25,7 +33,7 @@ export default function RegisterPage() {
       return;
     }
 
-    const { error: signUpError } = await supabase.auth.signUp({ email, password });
+    const { error: signUpError } = await supabase.auth.signUp({ email: trimmedEmail, password });
     setLoading(false);
 
     if (signUpError) {
@@ -98,10 +106,17 @@ export default function RegisterPage() {
           </form>
         )}
 
-        <div className="mt-6 text-center">
-          <Link href="/demo" className="text-sm text-indigo-600 hover:underline">
-            Πίσω στο demo MVP
-          </Link>
+        <div className="mt-6 space-y-2 text-center text-sm">
+          <p>
+            <Link href="/login/backend" className="text-indigo-600 hover:underline">
+              Έχεις ήδη backend λογαριασμό; Σύνδεση
+            </Link>
+          </p>
+          <p>
+            <Link href="/demo" className="text-zinc-500 hover:underline">
+              Πίσω στο demo MVP
+            </Link>
+          </p>
         </div>
       </div>
     </main>
