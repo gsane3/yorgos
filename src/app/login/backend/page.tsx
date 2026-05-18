@@ -10,6 +10,8 @@ export default function LoginBackendPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,6 +50,27 @@ export default function LoginBackendPage() {
     setSuccess(true);
   }
 
+  async function handleLogout() {
+    setLogoutLoading(true);
+    setLogoutError(null);
+    let supabase: ReturnType<typeof createBrowserSupabaseClient>;
+    try {
+      supabase = createBrowserSupabaseClient();
+    } catch {
+      setLogoutError('Δεν μπορέσαμε να κάνουμε αποσύνδεση. Δοκίμασε ξανά.');
+      setLogoutLoading(false);
+      return;
+    }
+    const { error: signOutError } = await supabase.auth.signOut();
+    setLogoutLoading(false);
+    if (signOutError) {
+      setLogoutError('Δεν μπορέσαμε να κάνουμε αποσύνδεση. Δοκίμασε ξανά.');
+      return;
+    }
+    setSuccess(false);
+    setPassword('');
+  }
+
   return (
     <main className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm ring-1 ring-zinc-100 p-8">
@@ -57,8 +80,23 @@ export default function LoginBackendPage() {
         </p>
 
         {success ? (
-          <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-green-800 text-sm">
-            Συνδέθηκες επιτυχώς στο backend auth.
+          <div className="space-y-3">
+            <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-green-800 text-sm">
+              Συνδέθηκες επιτυχώς στο backend auth.
+            </div>
+            {logoutError && (
+              <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-red-700 text-sm">
+                {logoutError}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={logoutLoading}
+              className="rounded-xl border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+            >
+              {logoutLoading ? 'Αποσύνδεση...' : 'Αποσύνδεση'}
+            </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">

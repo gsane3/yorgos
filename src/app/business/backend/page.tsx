@@ -49,6 +49,8 @@ export default function BusinessBackendPage() {
   const [state, setState] = useState<PageState>('loading');
   const [business, setBusiness] = useState<Business | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -106,6 +108,28 @@ export default function BusinessBackendPage() {
 
     load();
   }, []);
+
+  async function handleLogout() {
+    setLogoutLoading(true);
+    setLogoutError(null);
+    let supabase: ReturnType<typeof createBrowserSupabaseClient>;
+    try {
+      supabase = createBrowserSupabaseClient();
+    } catch {
+      setLogoutError('Δεν μπορέσαμε να κάνουμε αποσύνδεση. Δοκίμασε ξανά.');
+      setLogoutLoading(false);
+      return;
+    }
+    const { error: signOutError } = await supabase.auth.signOut();
+    setLogoutLoading(false);
+    if (signOutError) {
+      setLogoutError('Δεν μπορέσαμε να κάνουμε αποσύνδεση. Δοκίμασε ξανά.');
+      return;
+    }
+    setBusiness(null);
+    setUserEmail(null);
+    setState('no_session');
+  }
 
   return (
     <main className="min-h-screen bg-zinc-50 flex items-center justify-center px-4 py-10">
@@ -169,6 +193,21 @@ export default function BusinessBackendPage() {
               <Field label="Επαφή" value={business.preferred_contact_method ? (CONTACT_LABELS[business.preferred_contact_method] ?? business.preferred_contact_method) : null} />
               <Field label="ID" value={business.id} />
             </dl>
+            {logoutError && (
+              <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-3 text-red-700 text-sm">
+                {logoutError}
+              </div>
+            )}
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={logoutLoading}
+                className="rounded-xl border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+              >
+                {logoutLoading ? 'Αποσύνδεση...' : 'Αποσύνδεση'}
+              </button>
+            </div>
           </div>
         )}
 
