@@ -2,27 +2,30 @@
 
 ## Status
 
-- Not implemented yet (full voice pipeline and production Viber delivery).
+- Not implemented yet (full voice pipeline, PBX/WebRTC calling layer, and production Viber delivery).
 - Required for working private beta v1.
-- Backend foundation exists, but voice capture, recording, transcription, AI brief pipeline, CRM timeline, Viber intake link delivery, and provider integration are not implemented yet.
-- Voice provider strategy changed. See the Voice Provider Strategy section below.
+- Product target: managed business phone + CRM + AI assistant. Each business gets a Yorgos-managed phone number. Users receive and place calls through the app. In-app calling is the target product experience. Forwarding to a mobile phone is transitional or fallback, not the final product experience.
+- Backend foundation exists, but voice capture, recording, transcription, AI brief pipeline, CRM timeline, Viber intake link delivery, PBX/WebRTC calling layer, and provider integration are not implemented yet.
+- Voice provider strategy changed. See the Voice Provider Strategy and Calling Modes sections below.
 - Telnyx is paused as primary Greek number provider. Greek number purchase requires heavier verification and available numbers are limited.
-- Inter Telecom is now the primary Greek number/SIP candidate for v1. Inter Telecom integration is not implemented yet.
+- Inter Telecom SIP trunk feasibility is confirmed at the technical level. Inter Telecom integration is not implemented yet.
+- Inter Telecom multi-customer managed number model (where Yorgos manages numbers on behalf of multiple businesses through one SIP trunk) still needs explicit commercial and legal confirmation.
+- PBX/WebRTC/application calling layer is not implemented yet.
 - Apifon is the primary Viber/intake delivery provider for first implementation tests.
 - Apifon production sender ("Yorgos AI" or equivalent approved name) is not activated yet. Current access is account-provided test/free access with sender "Apifon Demo" and cap limit 20.
-- Provider availability, Greek numbers, Viber Business approval, SMS rules, pricing, DPA, and legal consent must be verified before production.
-- Viber intake link delivery is planned for v1 as the primary post-call messaging channel.
-- Viber provider approval, one-way mode, template/link rules, delivery reports, pricing, and DPA must be verified before production.
-- SMS is no longer the primary v1 intake channel. SMS is fallback/v1.1.
+- Viber is used only for customer intake link delivery. Viber is not a general messaging inbox in v1. Customer replies are not handled in v1.
+- Provider availability, Viber Business approval, SMS rules, pricing, DPA, and legal consent must be verified before production.
+- SMS is fallback/v1.1, not the primary v1 intake channel.
 
 ---
 
 ## v1 Product Requirement
 
-Business phone must feed the CRM automatically via automatic call transcription and AI brief. After a call brief, if required customer fields are missing, the system delivers a secure intake link via Viber. Manual call logging is not required for the core flow.
+Each business gets a Yorgos-managed phone number. Users receive and place calls through the Yorgos app. Calls feed the CRM automatically via automatic call transcription and AI brief. After a call brief, if required customer fields are missing, the system delivers a secure intake link via Viber. Manual call logging is not required for the core flow.
 
 Requirements:
-- Every business managed by yorgos.ai must be able to receive calls through a provider-managed number that routes to the CRM.
+- Each business managed by yorgos.ai receives a Yorgos-managed phone number provisioned through the platform.
+- Users should be able to receive incoming calls through the app and place outgoing calls from the app.
 - When a call ends, the system must retrieve the recording and transcribe it without manual action by the user.
 - The backend generates an AI brief from the transcript and saves it automatically as pending review.
 - No manual call summary is required for the core flow. The brief is ready for the user to review, edit, confirm, or dismiss.
@@ -40,10 +43,10 @@ Requirements:
 
 ## End-to-End Call-to-CRM Flow
 
-1. Business owner provisions or registers a provider-managed phone number for their account.
-2. An incoming call arrives on that number.
-3. A consent announcement plays before recording begins (required by applicable law).
-4. Call is connected to the business owner's device and recorded if consent rules allow it.
+1. Business owner receives a Yorgos-managed phone number provisioned through the platform (via Inter Telecom SIP trunk as the underlying number provider).
+2. An incoming call arrives on that number via the SIP trunk.
+3. The PBX/calling layer answers the call, plays the consent announcement, and routes to the user's app (Mode B: in-app calling target) or forwards to the professional's mobile phone (Mode A: transitional fallback).
+4. User answers in the app or on their mobile. Recording starts if consent rules allow.
 5. Call ends.
 6. Provider or PBX/SIP middleware sends a call completed event and a recording-ready event when the recording is available. The event source depends on the voice architecture mode (CPaaS programmable provider or SIP/PBX middleware layer).
 7. Backend receives the event and stores the raw provider event idempotently using the provider event ID.
@@ -111,6 +114,37 @@ Live transcription (Option 2) is v1.1 or later.
 
 ---
 
+## Product Direction: Managed Business Phone
+
+Yorgos is a managed business phone + CRM + AI assistant. It is not just a CRM with call notes.
+
+### What this means for each business
+
+- Each business gets a dedicated Yorgos-managed phone number provisioned through the platform.
+- Users receive incoming calls through the Yorgos app (target) or via forwarding to their mobile (transitional fallback).
+- Users place outgoing calls from within the Yorgos app.
+- Call history, recordings, AI briefs, tasks, and intake links all live in the CRM timeline automatically.
+- The user does not need to manually log calls or take notes.
+
+### Role of Viber in this product
+
+Viber in Yorgos is NOT a general messaging inbox or customer chat channel. There are no Viber conversations and no customer inbox.
+
+The only Viber use case in v1 is delivering a one-time secure intake link to a customer when the AI brief detects missing required fields. The customer clicks the link, fills in the form, and the CRM is updated automatically.
+
+### Role of SMS
+
+SMS is fallback/v1.1. It is not a primary v1 channel. If Viber fails or the customer does not have Viber, the intake link can be delivered via SMS in a later phase.
+
+### Provider roles
+
+- Inter Telecom: provides Greek phone numbers via SIP trunk.
+- Yorgos: owns and operates the PBX/WebRTC/calling layer. Routes calls. Records where legally allowed. Triggers post-call pipeline.
+- Apifon: delivers Viber intake-link messages.
+- Supabase: stores CRM data, calls, briefs, intake links, and message state.
+
+---
+
 ## Voice Provider Strategy: Inter Telecom First
 
 ### Reason for pivot from Telnyx
@@ -122,19 +156,26 @@ Telnyx offered Greek local numbers at $1/month and has good EU infrastructure. H
 
 Telnyx remains useful as a programmable voice test route and may be reconsidered for later phases or as a CPaaS fallback. The Telnyx webhook endpoint at `/api/webhooks/voice/telnyx` was implemented for provider testing and is kept for that purpose.
 
-### Inter Telecom expected role
+### Inter Telecom confirmed technical details
 
-Inter Telecom is a Greek telecoms provider the user already uses. This gives:
-- Easier access to Greek numbers (existing customer relationship).
-- More available Greek numbers.
-- Local support and local carrier knowledge.
-- Lower regulatory friction for a Greek-registered or Greek-operating business.
+Inter Telecom is a Greek telecoms provider. Technical confirmation received:
 
-Inter Telecom is expected to provide:
-- Greek phone number (local or mobile).
-- SIP trunk for our PBX layer to connect to.
+- SIP trunk is available. Our server registers with SIP trunk credentials.
+- Inbound SIP to our server is supported.
+- Outbound and forwarding to Greek mobile numbers is supported.
+- Caller ID limitation when forwarding: the professional sees our platform number, not the original caller's number. This is a known limitation of Mode A (forwarding). Mode B (in-app calling) resolves this by displaying caller details in the app UI.
+- Geographic number cost: 15 EUR/year.
+- Each geographic number includes 2 voice channels.
+- Multiple numbers on one trunk: 1 channel per number.
+- Extra channel cost: 1.5 EUR/month.
+- Inbound calls are free.
+- Recording on our own PBX server is allowed. Inter Telecom does not block recording beyond legal consent obligations. Recording is entirely our responsibility and depends on our PBX implementation.
+- Inter Telecom ePBX queue events API exists (ringing, answered, terminated) at 12 EUR/month.
+- Inter Telecom ePBX has a recording interface, but no recording API and no mass recording download capability.
+- Therefore, Inter Telecom ePBX is not suitable for our automated recording and transcription pipeline.
+- The correct architecture is Inter Telecom SIP trunk plus our own PBX/media layer.
 
-Inter Telecom does not appear to offer a CPaaS-style programmable webhook API based on public documentation. Confirm with Inter Telecom before implementing any API integration.
+Inter Telecom does not provide a CPaaS-style programmable webhook API. All call event handling and recording must go through our own PBX/SIP layer.
 
 ### Our system expected role (SIP/PBX middleware mode)
 
@@ -151,18 +192,19 @@ In this mode, our backend acts as a PBX layer between the SIP trunk and the prof
 PBX options being evaluated (not selected yet):
 - Asterisk or FreePBX (self-hosted, full control, significant ops burden).
 - FreeSWITCH (flexible, developer-friendly, self-hosted).
-- Managed PBX with API/webhook (reduces ops burden but may limit control).
+- Managed PBX with API/webhook: viable only if it supports recording file access via API. Inter Telecom ePBX is not suitable for automated recording pipeline (no recording API, no mass download).
 
-### What must be confirmed with Inter Telecom before implementation
+Do not build PBX infrastructure until the managed number model is confirmed with Inter Telecom.
 
-- SIP trunk availability and onboarding process.
-- Recording rights: does the SIP trunk allow our PBX to record audio?
-- Outbound forwarding: can the SIP trunk forward calls to external Greek mobile numbers?
-- Concurrent call limits for the SIP trunk.
-- Caller ID behavior when forwarding to professional mobile (does the caller's number pass through?).
+### What still needs confirmation with Inter Telecom
+
+Technical feasibility is confirmed. Remaining open items:
+
+- Managed number model: whether Yorgos managing numbers for multiple end businesses through a single SIP trunk requires additional commercial arrangements or regulatory approvals from Inter Telecom.
+- Whether each end business customer requires separate identity verification for a number assigned through our platform.
+- Concurrent call limits per number and per trunk for the managed model.
 - Data Processing Agreement (DPA) availability.
-- Per-minute and monthly costs.
-- Technical contact for SIP trunk configuration.
+- Technical onboarding process and timeline for SIP trunk setup and credential provisioning.
 
 ### PBX hosting and operational requirements
 
@@ -172,7 +214,42 @@ PBX options being evaluated (not selected yet):
 - PBX logs and events must be forwarded to the backend webhook endpoint.
 - Ops burden for PBX maintenance must be factored into v1 timeline.
 
-Do not build PBX infrastructure until Inter Telecom SIP trunk feasibility is confirmed.
+---
+
+## Calling Modes
+
+Two calling modes are defined. v1 implementation can start with Mode A for faster delivery, but Mode B is the target product experience.
+
+### Mode A: Forwarding Fallback (transitional)
+
+Simpler to implement. Can be used to start private beta sooner.
+
+- Inter Telecom SIP trunk provides the Greek number.
+- PBX receives the incoming call.
+- PBX plays consent announcement.
+- PBX forwards the call to the professional's mobile phone.
+- PBX records the call in parallel if legally allowed.
+- After call ends, PBX produces a call-completed event with recording file.
+- Backend runs transcription and AI brief pipeline.
+- CRM is updated automatically.
+
+Known limitation: when forwarding, the professional sees the Yorgos platform number on their mobile, not the original caller's number. This is a confirmed Inter Telecom behavior. The professional cannot identify the caller from caller ID alone. Use Mode A only as a transitional or fallback starting point, not as the intended long-term product experience.
+
+### Mode B: In-App Calling (target product experience)
+
+Not implemented yet. Requires PBX/WebRTC gateway implementation.
+
+- Inter Telecom SIP trunk provides the Greek number.
+- PBX/WebRTC gateway routes the incoming call to the Yorgos app on the user's device.
+- User receives the call with a notification in the app.
+- User sees caller information from the CRM in real time during the call.
+- User places outgoing calls from within the app using the Yorgos number as caller ID.
+- Recording is controlled by the app/PBX layer (consent, start, stop).
+- After call ends, PBX produces a call-completed event with recording file.
+- Backend runs transcription and AI brief pipeline.
+- CRM is updated automatically.
+
+Mode B eliminates the caller ID limitation of Mode A. The user sees CRM context in the app interface. Mode B requires WebRTC audio handling in the browser/app, push notifications for incoming calls, microphone permissions management, and background call handling on mobile.
 
 ---
 
@@ -494,7 +571,7 @@ The AI brief job receives the full transcript text from call_transcripts along w
 
 ## Viber Intake Link Delivery
 
-Viber is the primary v1 channel for delivering customer intake links after an AI call brief. Viber is not implemented yet. Provider approval and DPA are required before production.
+Viber is the primary v1 channel for delivering customer intake links after an AI call brief. Viber in yorgos.ai is NOT a general messaging inbox or customer chat channel. There are no Viber conversations, no customer inbox, and no customer reply handling in v1. The only Viber use case is delivering a one-time secure intake link to a customer when the AI brief detects missing required fields. Apifon is the primary Viber provider. Viber send and callback are confirmed working in testing. Production sender is not yet activated. Provider approval and DPA are required before production.
 
 ### Sender
 
@@ -805,11 +882,11 @@ These phases apply specifically to the voice/SMS architecture. They depend on an
 - Dependencies: Phase 2 (CRM schema and APIs).
 - Blockers: All AppShell Readiness Gate items listed in BACKEND_SPEC.md.
 
-### Phase 4: Voice provider and PBX/SIP feasibility
-- Deliverable: Inter Telecom SIP trunk feasibility confirmed (SIP trunk details, recording rights, forwarding rights, concurrent call limits, DPA, costs). PBX/SIP middleware mode vs CPaaS mode decision made. src/lib/phone/ module structure defined (types, interface, SIP/PBX adapter, normalize).
-- Dependencies: Direct contact with Inter Telecom technical team.
-- Blockers: Inter Telecom technical confirmation not received. Do not build more Telnyx-specific code or PBX infrastructure until this phase is resolved. The Telnyx test webhook endpoint is sufficient for CPaaS pattern testing in the meantime.
-- Next step: Contact Inter Telecom, confirm SIP trunk access, recording rights, and forwarding capabilities.
+### Phase 4: Voice provider confirmed, PBX/calling mode decision pending
+- Deliverable: Managed number model confirmed with Inter Telecom commercially and legally. Calling mode decision made (Mode A forwarding vs Mode B in-app WebRTC). PBX technology selected. src/lib/phone/ module structure defined (types, interface, SIP/PBX adapter, normalize).
+- Dependencies: Inter Telecom technical confirmation received (complete). Remaining: managed number model commercial/legal confirmation, calling mode decision, PBX selection.
+- Blockers: Multi-customer managed number model not yet confirmed with Inter Telecom. Do not build full PBX/WebRTC infrastructure until managed number model is confirmed. CRM schema (Phase 2) and Apifon persistence (Phase 9) can proceed in parallel independently.
+- Status note: Inter Telecom SIP trunk is confirmed at technical level. Pricing confirmed (15 EUR/year per number, 2 channels included, inbound free). Caller ID limitation on forwarding is confirmed (professional sees platform number). Remaining tasks are commercial/legal confirmation and PBX selection.
 
 ### Phase 5: Webhook simulation and provider event log
 - Deliverable: provider_webhook_events table. All voice/SMS webhook endpoints receiving and storing raw events. Signature verification active. Idempotency on event ID.
@@ -894,20 +971,27 @@ These phases apply specifically to the voice/SMS architecture. They depend on an
 - Recording consent announcement via PBX: the consent announcement must play before recording starts, driven by PBX logic. This must be designed before PBX implementation.
 - Apifon cap limit 20 for current test sender: "Apifon Demo" sender is limited to 20 messages on the current test access. Do not exhaust this for non-essential tests.
 - Apifon production sender activation: pending. Timeline is unknown. This blocks production Viber intake delivery.
+- Managed number model regulatory/commercial restrictions: providing managed phone numbers to multiple end businesses through a single SIP trunk may require specific commercial arrangements, licensing, or regulatory approvals in Greece. This must be confirmed before production.
+- Per-business verification requirement: Inter Telecom or Greek regulatory requirements may require each end business to verify their identity before a number is assigned through the platform. This would affect the onboarding flow and timeline.
+- Caller ID limitation in Mode A (forwarding): the professional sees the Yorgos platform number on their mobile, not the original caller's number. This is a confirmed limitation. If Mode A is used for private beta, user expectation must be managed clearly.
+- WebRTC in-app calling complexity: Mode B requires WebRTC audio handling in the browser and app, push notifications for incoming calls, OS-level microphone permissions, and background call handling on mobile. These are significant engineering and reliability challenges that require dedicated testing.
+- PBX ops burden: a self-managed PBX server requires 24/7 availability, security patching, SIP credential management, monitoring, and incident response. This operational burden must be factored into the private beta plan.
+- Emergency calling and telecom obligations: if Yorgos provides phone numbers to businesses as a managed service, there may be regulatory obligations around emergency calling, number portability, lawful intercept, and carrier licensing in Greece. Legal review is required before production commercial launch.
 
 ---
 
 ## Open Decisions
 
-- Voice provider/PBX architecture: Inter Telecom is the current primary candidate for Greek number/SIP. Telnyx is paused. A decision on Inter Telecom SIP trunk feasibility and PBX architecture (Asterisk/FreePBX/managed PBX/CPaaS) must be made before Phase 4. If Inter Telecom is not viable, revisit Telnyx or a managed PBX service with Greek number support.
-- PBX mode vs CPaaS mode: decide between self-managed SIP/PBX (more ops, more control) and CPaaS programmable voice (less ops, less control, higher per-minute cost). Decide after Inter Telecom feasibility is confirmed.
+- Calling mode for v1: decide whether v1 starts with Mode A (forwarding, simpler, caller ID limitation) or Mode B (in-app WebRTC, target experience, higher complexity). Both use the Inter Telecom SIP trunk. Decide before Phase 6 implementation.
+- PBX technology choice: Asterisk/FreePBX vs FreeSWITCH vs managed PBX with recording API. Inter Telecom ePBX is ruled out (no recording API or mass download). Decide before Phase 6.
+- Managed number model confirmation: confirm with Inter Telecom that Yorgos can manage phone numbers for multiple businesses through a single SIP trunk. Confirm any per-business verification requirements and commercial/legal terms. This is blocking Phase 6.
 - Recording after call vs live transcription: recommendation is recording after call for v1. Confirm this decision before Phase 6.
 - Transcription provider: OpenAI Whisper, provider-native, or a dedicated multilingual API. Decision needed before Phase 7.
 - AI model for brief: which Claude model or other model to use for AI brief generation. Cost per brief must be estimated. Decision needed before Phase 8.
 - Recording retention period: how long recordings are retained (for example 30, 90, or 365 days). Must be defined before Phase 12 and documented in the privacy policy.
 - Transcript retention period: may differ from recording retention. Define separately.
 - Whether outbound SMS is v1 or v1.1: default is v1.1. Revisit if provider and legal situation is resolved before v1 launch.
-- Whether provider number is new, forwarded, or ported: a new provider-assigned number keeps setup simple. Number forwarding or porting requires additional coordination. Decide before Phase 4.
+- Number provisioning model: Yorgos provisions new Inter Telecom numbers for each business through the platform. Number porting (bringing an existing business number into the platform) may be requested by some customers. Define whether porting is supported in v1.
 - Legal review owner: who is responsible for reviewing the consent announcement, privacy policy, DPAs, and GDPR compliance before production? Must be assigned before Phase 13.
 - Viber provider choice: Apifon is the current primary candidate (OAuth and test send confirmed). Yuboto is the backup (one-way confirmed, but dynamic link workaround required). Infobip is enterprise fallback. Confirm Apifon production sender activation, DPA, and pricing before committing to Apifon for v1 production.
 - Viber one-way only vs replies webhook: if the provider supports replies, decide whether to implement a webhook handler or ignore/bounce replies in v1.
