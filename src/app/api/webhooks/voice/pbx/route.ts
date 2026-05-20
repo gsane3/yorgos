@@ -31,6 +31,113 @@ function getNumber(value: unknown): number | null {
   return null;
 }
 
+function normalizePhone(raw: string | null): string | null {
+  if (!raw) return null;
+  const s = raw.trim().replace(/[\s\-().]/g, '');
+  if (!s) return null;
+  if (/^\+30\d{10}$/.test(s)) return s;
+  if (/^30\d{10}$/.test(s)) return '+' + s;
+  if (/^[26]\d{9}$/.test(s)) return '+30' + s;
+  return s;
+}
+
+type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
+
+async function getNextCrmNumber(
+  supabase: SupabaseClient,
+  businessId: string
+): Promise<string> {
+  const { data } = await supabase
+    .from('customers')
+    .select('crm_number')
+    .eq('business_id', businessId)
+    .not('crm_number', 'is', null);
+
+  const rows = (data ?? []) as unknown as Array<{ crm_number: string | null }>;
+  const nums = rows
+    .map((r) => {
+      const match = r.crm_number?.match(/(\d+)$/);
+      return match ? parseInt(match[1], 10) : 0;
+    })
+    .filter((n) => n > 0);
+
+  const max = nums.length > 0 ? Math.max(...nums) : 0;
+  return `#${max + 1}`;
+}
+
+async function findOrCreateCallCustomer(
+  supabase: SupabaseClient,
+  businessId: string,
+  rawPhone: string | null
+): Promise<{ customerId: string | null; customerCreated: boolean; customerMatched: boolean }> {
+  const phone = normalizePhone(rawPhone);
+  if (!phone) {
+    return { customerId: null, customerCreated: false, customerMatched: false };
+  }
+
+  const { data: existingCustomer, error: existingError } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('business_id', businessId)
+    .or(`phone.eq.${phone},mobile_phone.eq.${phone},landline_phone.eq.${phone}`)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(`customer_lookup_failed: ${existingError.message}`);
+  }
+
+  if (existingCustomer) {
+    const existing = existingCustomer as unknown as { id: string };
+
+    await supabase
+      .from('customers')
+      .update({ last_contact_at: new Date().toISOString() })
+      .eq('id', existing.id)
+      .eq('business_id', businessId);
+
+    return { customerId: existing.id, customerCreated: false, customerMatched: true };
+  }
+
+  const crmNumber = await getNextCrmNumber(supabase, businessId);
+  const now = new Date().toISOString();
+
+  const { data: newCustomer, error: createError } = await supabase
+    .from('customers')
+    .insert({
+      business_id: businessId,
+      crm_number: crmNumber,
+      name: null,
+      company_name: null,
+      phone,
+      mobile_phone: null,
+      landline_phone: null,
+      email: null,
+      address: null,
+      source: 'inbound_call',
+      status: 'new_lead',
+      opportunity_value: null,
+      needs_summary: null,
+      notes: 'Auto-created from inbound PBX call.',
+      preferred_contact_method: 'phone',
+      intake_status: 'none',
+      last_contact_at: now,
+    })
+    .select('id')
+    .single();
+
+  if (createError || !newCustomer) {
+    throw new Error(`customer_create_failed: ${createError?.message ?? 'unknown error'}`);
+  }
+
+  return {
+    customerId: (newCustomer as unknown as { id: string }).id,
+    customerCreated: true,
+    customerMatched: false,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/webhooks/voice/pbx -- health check
 // ---------------------------------------------------------------------------
@@ -95,7 +202,7 @@ export async function POST(request: NextRequest) {
   const consentAnnounced = getBoolean(parsed['consent_announced']);
 
   // Initialise Supabase service-role client.
-  let supabase: ReturnType<typeof createServerSupabaseClient>;
+  let supabase: SupabaseClient;
   try {
     supabase = createServerSupabaseClient();
   } catch (err) {
@@ -183,6 +290,22 @@ export async function POST(request: NextRequest) {
       webhookEventId = insertedWebhookEvent.id;
     }
 
+    let customerLink: Awaited<ReturnType<typeof findOrCreateCallCustomer>>;
+    try {
+      customerLink = await findOrCreateCallCustomer(supabase, businessId, callerNumber);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'customer_link_failed';
+
+      await supabase
+        .from('provider_webhook_events')
+        .update({
+          error_message: message,
+        })
+        .eq('id', webhookEventId);
+
+      return NextResponse.json({ ok: false, error: 'customer_link_failed' }, { status: 500 });
+    }
+
     const summaryParts = [
       'PBX inbound call completed.',
       uniqueId ? `uniqueid=${uniqueId}` : null,
@@ -191,6 +314,8 @@ export async function POST(request: NextRequest) {
       recordingSizeBytes !== null ? `recording_size_bytes=${recordingSizeBytes}` : null,
       recordingFallbackApplied !== null ? `recording_fallback_applied=${recordingFallbackApplied}` : null,
       consentAnnounced !== null ? `consent_announced=${consentAnnounced}` : null,
+      customerLink.customerCreated ? 'customer_created=true' : null,
+      customerLink.customerMatched ? 'customer_matched=true' : null,
       recordingPath ? `recording_path=${recordingPath}` : null,
     ].filter(Boolean).join(' ');
 
@@ -198,11 +323,11 @@ export async function POST(request: NextRequest) {
       .from('communications')
       .insert({
         business_id: businessId,
-        customer_id: null,
+        customer_id: customerLink.customerId,
         channel: 'call',
         direction: 'inbound',
         status: 'completed',
-        phone: callerNumber,
+        phone: normalizePhone(callerNumber),
         summary: summaryParts,
       });
 
@@ -226,7 +351,7 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', webhookEventId);
 
-    return NextResponse.json({ ok: true, received: true, communication_created: true });
+    return NextResponse.json({ ok: true, received: true, communication_created: true, customer_id: customerLink.customerId, customer_created: customerLink.customerCreated, customer_matched: customerLink.customerMatched });
   } catch {
     return NextResponse.json({ ok: false, error: 'webhook_store_failed' }, { status: 500 });
   }
