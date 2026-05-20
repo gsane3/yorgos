@@ -21,6 +21,16 @@ function getString(value: unknown): string | null {
   return null;
 }
 
+function getBoolean(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value;
+  return null;
+}
+
+function getNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/webhooks/voice/pbx -- health check
 // ---------------------------------------------------------------------------
@@ -68,7 +78,21 @@ export async function POST(request: NextRequest) {
     null;
 
   // event_type defaults to 'call.completed' if absent from payload.
-  const eventType = getString(parsed['event_type']) ?? 'call.completed';
+  const eventType = getString(parsed['event_type']) ?? getString(parsed['event']) ?? 'call.completed';
+
+  const businessId = getString(process.env.PBX_BUSINESS_ID);
+  if (!businessId) {
+    return NextResponse.json({ ok: false, error: 'missing_pbx_business_id' }, { status: 503 });
+  }
+
+  const callerNumber = getString(parsed['caller_number']);
+  const dialStatus = getString(parsed['dialstatus']);
+  const uniqueId = getString(parsed['uniqueid']) ?? eventId;
+  const recordingPath = getString(parsed['recording_path']);
+  const recordingExists = getBoolean(parsed['recording_exists']);
+  const recordingSizeBytes = getNumber(parsed['recording_size_bytes']);
+  const recordingFallbackApplied = getBoolean(parsed['recording_fallback_applied']);
+  const consentAnnounced = getBoolean(parsed['consent_announced']);
 
   // Initialise Supabase service-role client.
   let supabase: ReturnType<typeof createServerSupabaseClient>;
@@ -82,6 +106,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    let webhookEventId: string | null = null;
+
     // Idempotency check: if event_id is known, skip duplicate inserts.
     // The partial unique index (provider, event_id) WHERE event_id IS NOT NULL
     // also enforces this at the DB level, but a pre-check avoids a confusing
@@ -89,33 +115,120 @@ export async function POST(request: NextRequest) {
     if (eventId !== null) {
       const { data: existing } = await supabase
         .from('provider_webhook_events')
-        .select('id')
+        .select('id, processed')
         .eq('provider', 'pbx')
         .eq('event_id', eventId)
         .maybeSingle();
 
-      if (existing) {
+      if (existing?.processed) {
         return NextResponse.json({ ok: true, received: true, duplicate: true });
+      }
+
+      if (existing && !existing.processed) {
+        const existingCommunicationQuery = uniqueId
+          ? await supabase
+              .from('communications')
+              .select('id')
+              .eq('business_id', businessId)
+              .eq('channel', 'call')
+              .like('summary', `%uniqueid=${uniqueId}%`)
+              .limit(1)
+              .maybeSingle()
+          : { data: null, error: null };
+
+        if (existingCommunicationQuery.error) {
+          return NextResponse.json({ ok: false, error: 'communication_lookup_failed' }, { status: 500 });
+        }
+
+        if (existingCommunicationQuery.data) {
+          await supabase
+            .from('provider_webhook_events')
+            .update({
+              processed: true,
+              processed_at: new Date().toISOString(),
+              error_message: null,
+            })
+            .eq('id', existing.id);
+
+          return NextResponse.json({
+            ok: true,
+            received: true,
+            duplicate: true,
+            communication_already_exists: true,
+          });
+        }
+
+        webhookEventId = existing.id;
       }
     }
 
-    // Insert raw event. provider is always 'pbx' regardless of payload content.
-    const { error: insertError } = await supabase
-      .from('provider_webhook_events')
-      .insert({
-        provider: 'pbx',
-        event_id: eventId,
-        event_type: eventType,
-        payload: parsed,
-        processed: false,
-      });
+    // Insert raw event only when this is not an unprocessed duplicate.
+    if (!webhookEventId) {
+      const { data: insertedWebhookEvent, error: insertError } = await supabase
+        .from('provider_webhook_events')
+        .insert({
+          provider: 'pbx',
+          event_id: eventId,
+          event_type: eventType,
+          payload: parsed,
+          processed: false,
+        })
+        .select('id')
+        .single();
 
-    if (insertError) {
-      return NextResponse.json({ ok: false, error: 'webhook_store_failed' }, { status: 500 });
+      if (insertError || !insertedWebhookEvent) {
+        return NextResponse.json({ ok: false, error: 'webhook_store_failed' }, { status: 500 });
+      }
+
+      webhookEventId = insertedWebhookEvent.id;
     }
 
-    return NextResponse.json({ ok: true, received: true });
+    const summaryParts = [
+      'PBX inbound call completed.',
+      uniqueId ? `uniqueid=${uniqueId}` : null,
+      dialStatus ? `dialstatus=${dialStatus}` : null,
+      recordingExists !== null ? `recording_exists=${recordingExists}` : null,
+      recordingSizeBytes !== null ? `recording_size_bytes=${recordingSizeBytes}` : null,
+      recordingFallbackApplied !== null ? `recording_fallback_applied=${recordingFallbackApplied}` : null,
+      consentAnnounced !== null ? `consent_announced=${consentAnnounced}` : null,
+      recordingPath ? `recording_path=${recordingPath}` : null,
+    ].filter(Boolean).join(' ');
+
+    const { error: communicationError } = await supabase
+      .from('communications')
+      .insert({
+        business_id: businessId,
+        customer_id: null,
+        channel: 'call',
+        direction: 'inbound',
+        status: 'completed',
+        phone: callerNumber,
+        summary: summaryParts,
+      });
+
+    if (communicationError) {
+      await supabase
+        .from('provider_webhook_events')
+        .update({
+          error_message: communicationError.message,
+        })
+        .eq('id', webhookEventId);
+
+      return NextResponse.json({ ok: false, error: 'communication_store_failed' }, { status: 500 });
+    }
+
+    await supabase
+      .from('provider_webhook_events')
+      .update({
+        processed: true,
+        processed_at: new Date().toISOString(),
+        error_message: null,
+      })
+      .eq('id', webhookEventId);
+
+    return NextResponse.json({ ok: true, received: true, communication_created: true });
   } catch {
     return NextResponse.json({ ok: false, error: 'webhook_store_failed' }, { status: 500 });
   }
 }
+
