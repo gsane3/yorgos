@@ -35,6 +35,16 @@ interface CommunicationRow {
   created_at: string;
 }
 
+interface CommunicationCustomerRow {
+  id: string;
+  crm_number: string | null;
+  name: string | null;
+  company_name: string | null;
+  phone: string | null;
+  source: string | null;
+  status: string | null;
+}
+
 function getBearerToken(request: NextRequest): string | null {
   const h = request.headers.get('authorization');
   if (!h || !h.startsWith('Bearer ')) return null;
@@ -65,7 +75,7 @@ function asCommunicationRow(value: unknown): CommunicationRow {
   return value as CommunicationRow;
 }
 
-function dbToCommunication(row: CommunicationRow) {
+function dbToCommunication(row: CommunicationRow, customer: CommunicationCustomerRow | null) {
   return {
     id: row.id,
     customerId: row.customer_id,
@@ -75,6 +85,17 @@ function dbToCommunication(row: CommunicationRow) {
     phone: row.phone,
     summary: row.summary,
     createdAt: row.created_at,
+    customer: customer
+      ? {
+          id: customer.id,
+          crmNumber: customer.crm_number,
+          name: customer.name,
+          companyName: customer.company_name,
+          phone: customer.phone,
+          source: customer.source,
+          status: customer.status,
+        }
+      : null,
   };
 }
 
@@ -152,8 +173,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'communications_query_failed' }, { status: 500 });
     }
 
-    const communications = ((data ?? []) as unknown[])
-      .map((row) => dbToCommunication(asCommunicationRow(row)));
+    const rows = ((data ?? []) as unknown[]).map((row) => asCommunicationRow(row));
+    const customerIds = Array.from(
+      new Set(
+        rows
+          .map((row) => row.customer_id)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      )
+    );
+
+    const customersById = new Map<string, CommunicationCustomerRow>();
+
+    if (customerIds.length > 0) {
+      const { data: customerRows, error: customerError } = await supabase
+        .from('customers')
+        .select('id, crm_number, name, company_name, phone, source, status')
+        .eq('business_id', businessId)
+        .in('id', customerIds);
+
+      if (customerError) {
+        return NextResponse.json({ ok: false, error: 'customer_lookup_failed' }, { status: 500 });
+      }
+
+      for (const customer of (customerRows ?? []) as unknown[]) {
+        const row = customer as CommunicationCustomerRow;
+        customersById.set(row.id, row);
+      }
+    }
+
+    const communications = rows.map((row) =>
+      dbToCommunication(row, row.customer_id ? customersById.get(row.customer_id) ?? null : null)
+    );
 
     return NextResponse.json({ ok: true, communications, count: communications.length });
   } catch {

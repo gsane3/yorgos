@@ -3,6 +3,16 @@
 import { useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
+interface CustomerDto {
+  id: string;
+  crmNumber: string | null;
+  name: string | null;
+  companyName: string | null;
+  phone: string | null;
+  source: string | null;
+  status: string | null;
+}
+
 interface CommunicationDto {
   id: string;
   customerId: string | null;
@@ -12,6 +22,7 @@ interface CommunicationDto {
   phone: string | null;
   summary: string | null;
   createdAt: string;
+  customer: CustomerDto | null;
 }
 
 interface ApiResponse {
@@ -38,6 +49,11 @@ function formatDate(value: string): string {
   } catch {
     return value;
   }
+}
+
+function customerTitle(customer: CustomerDto | null): string {
+  if (!customer) return 'No linked customer';
+  return customer.name ?? customer.companyName ?? customer.crmNumber ?? 'Linked customer';
 }
 
 export default function CommunicationsBackendPage() {
@@ -129,6 +145,14 @@ export default function CommunicationsBackendPage() {
                 <p className="text-xs text-zinc-500">
                   {item.channel} · {item.direction} · {item.status}
                 </p>
+                <p className="text-xs text-zinc-500">
+                  Customer: {customerTitle(item.customer)}
+                </p>
+                {item.customer ? (
+                  <p className="text-xs text-zinc-400">
+                    {item.customer.crmNumber ?? 'No CRM number'} | {item.customer.source ?? 'no source'} | {item.customer.status ?? 'no status'}
+                  </p>
+                ) : null}
                 {item.summary ? (
                   <p className="break-words text-xs text-zinc-400">{item.summary}</p>
                 ) : null}
