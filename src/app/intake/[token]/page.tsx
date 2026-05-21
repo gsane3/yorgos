@@ -108,10 +108,26 @@ async function getInitialCustomer(token: string): Promise<{
 
 export default async function IntakePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams?: Promise<{ submitted?: string }>;
 }) {
   const { token } = await params;
+  const query = searchParams ? await searchParams : {};
+  const initialSubmitted = query.submitted === '1';
+
+  if (initialSubmitted) {
+    return (
+      <IntakeFormClient
+        token={token}
+        initialCustomer={null}
+        initialError={null}
+        initialSubmitted
+      />
+    );
+  }
+
   const initial = await getInitialCustomer(token);
 
   return (

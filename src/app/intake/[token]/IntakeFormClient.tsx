@@ -23,12 +23,14 @@ interface IntakeFormClientProps {
   token: string;
   initialCustomer?: IntakeCustomer | null;
   initialError?: string | null;
+  initialSubmitted?: boolean;
 }
 
 export default function IntakeFormClient({
   token,
   initialCustomer = null,
   initialError = null,
+  initialSubmitted = false,
 }: IntakeFormClientProps) {
   const [customer, setCustomer] = useState<IntakeCustomer | null>(initialCustomer);
   const [firstName, setFirstName] = useState('');
@@ -36,18 +38,20 @@ export default function IntakeFormClient({
   const [email, setEmail] = useState(initialCustomer?.email ?? '');
   const [address, setAddress] = useState(initialCustomer?.address ?? '');
   const [comments, setComments] = useState('');
-  const [loading, setLoading] = useState(!initialCustomer && !initialError);
+  const [loading, setLoading] = useState(!initialSubmitted && !initialCustomer && !initialError);
   const [saving, setSaving] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState(initialSubmitted);
   const [message, setMessage] = useState(
-    initialError ??
-      (initialCustomer
-        ? 'Συμπληρώστε τα στοιχεία σας για να ολοκληρώσουμε την καρτέλα.'
-        : 'Φορτώνουμε τη φόρμα...')
+    initialSubmitted
+      ? 'Ευχαριστούμε. Τα στοιχεία σας καταχωρήθηκαν.'
+      : initialError ??
+          (initialCustomer
+            ? 'Συμπληρώστε τα στοιχεία σας για να ολοκληρώσουμε την καρτέλα.'
+            : 'Φορτώνουμε τη φόρμα...')
   );
 
   useEffect(() => {
-    if (initialCustomer || initialError) return;
+    if (initialSubmitted || initialCustomer || initialError) return;
 
     let cancelled = false;
 
@@ -86,7 +90,7 @@ export default function IntakeFormClient({
     return () => {
       cancelled = true;
     };
-  }, [token, initialCustomer, initialError]);
+  }, [token, initialSubmitted, initialCustomer, initialError]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -159,6 +163,8 @@ export default function IntakeFormClient({
                   </p>
                 ) : null}
               </div>
+            ) : submitted ? (
+              <p>Η φόρμα υποβλήθηκε.</p>
             ) : (
               <p>Δεν βρέθηκε ενεργή φόρμα.</p>
             )}
@@ -169,11 +175,12 @@ export default function IntakeFormClient({
           </p>
 
           {customer && !submitted ? (
-            <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+            <form action={`/api/intake/${encodeURIComponent(token)}`} method="post" onSubmit={handleSubmit} className="mt-5 space-y-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className="block">
                   <span className="text-sm font-medium text-zinc-700">Όνομα</span>
                   <input
+                    name="firstName"
                     value={firstName}
                     onChange={(event) => setFirstName(event.target.value)}
                     className="mt-1 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-indigo-400"
@@ -184,6 +191,7 @@ export default function IntakeFormClient({
                 <label className="block">
                   <span className="text-sm font-medium text-zinc-700">Επώνυμο</span>
                   <input
+                    name="lastName"
                     value={lastName}
                     onChange={(event) => setLastName(event.target.value)}
                     className="mt-1 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-indigo-400"
@@ -195,6 +203,7 @@ export default function IntakeFormClient({
               <label className="block">
                 <span className="text-sm font-medium text-zinc-700">Email</span>
                 <input
+                  name="email"
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
@@ -206,6 +215,7 @@ export default function IntakeFormClient({
               <label className="block">
                 <span className="text-sm font-medium text-zinc-700">Διεύθυνση</span>
                 <input
+                  name="address"
                   value={address}
                   onChange={(event) => setAddress(event.target.value)}
                   className="mt-1 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-indigo-400"
@@ -216,6 +226,7 @@ export default function IntakeFormClient({
               <label className="block">
                 <span className="text-sm font-medium text-zinc-700">Σχόλια</span>
                 <textarea
+                  name="comments"
                   value={comments}
                   onChange={(event) => setComments(event.target.value)}
                   className="mt-1 min-h-28 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-indigo-400"
