@@ -36,7 +36,7 @@ export default function CustomerCard({ customer }: Props) {
 
   return (
     <Link
-      href={`/customers/${customer.id}`}
+      href={`/customers/backend/${customer.id}`}
       className="block rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 transition hover:ring-indigo-200 active:bg-zinc-50"
     >
       {/* Row 1: Name + CRM chip */}

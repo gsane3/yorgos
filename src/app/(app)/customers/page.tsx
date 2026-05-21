@@ -2,57 +2,173 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import { loadState, saveState, addCustomer, ensureCustomerCrmNumbers, getNextCrmNumber, mergeCustomers } from '@/lib/storage';
-import { demoCustomers } from '@/lib/demo-data';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { Customer, CustomerStatus, CustomerSource } from '@/lib/types';
 import { norm } from '@/lib/search';
 import CustomerCard from '@/components/customers/CustomerCard';
-import CustomerForm from '@/components/customers/CustomerForm';
-import DuplicateCustomersPanel from '@/components/customers/DuplicateCustomersPanel';
-import CustomerDataQualityPanel, { isIncompleteCustomer } from '@/components/customers/CustomerDataQualityPanel';
 import { STATUS_LABELS } from '@/components/customers/CustomerStatusBadge';
 import { SOURCE_LABELS } from '@/components/customers/CustomerCard';
 
 const selCls =
   'rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm text-zinc-700 outline-none focus:border-indigo-400';
 
+// ---------------------------------------------------------------------------
+// API response types
+// ---------------------------------------------------------------------------
+
+interface CustomerDto {
+  id: string;
+  crmNumber: string | null;
+  name: string | null;
+  companyName: string | null;
+  phone: string | null;
+  mobilePhone: string | null;
+  landlinePhone: string | null;
+  email: string | null;
+  address: string | null;
+  source: string | null;
+  status: string;
+  needsSummary: string | null;
+  preferredContactMethod: string;
+  intakeStatus: string;
+  lastContactAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Mapping helpers
+// ---------------------------------------------------------------------------
+
+const VALID_SOURCES: readonly CustomerSource[] = [
+  'facebook_ads', 'google_ads', 'website_form', 'referral',
+  'inbound_call', 'missed_call', 'manual_entry', 'other',
+];
+
+const VALID_STATUSES: readonly CustomerStatus[] = [
+  'new_lead', 'contacted', 'follow_up_needed', 'offer_drafted',
+  'offer_sent', 'won', 'lost',
+];
+
+const VALID_CONTACT_METHODS = ['viber', 'email', 'phone'] as const;
+
+function mapIntakeStatus(
+  raw: string
+): 'none' | 'waiting_sms' | 'completed' {
+  if (raw === 'submitted') return 'completed';
+  if (raw === 'pending' || raw === 'sent' || raw === 'opened') return 'waiting_sms';
+  return 'none';
+}
+
+function mapCustomer(dto: CustomerDto): Customer {
+  return {
+    id: dto.id,
+    name: dto.name ?? dto.companyName ?? dto.crmNumber ?? 'Νέος πελάτης',
+    companyName: dto.companyName ?? '',
+    phone: dto.phone ?? '',
+    mobilePhone: dto.mobilePhone ?? undefined,
+    landlinePhone: dto.landlinePhone ?? undefined,
+    email: dto.email ?? '',
+    address: dto.address ?? '',
+    source: VALID_SOURCES.includes(dto.source as CustomerSource)
+      ? (dto.source as CustomerSource)
+      : 'manual_entry',
+    status: VALID_STATUSES.includes(dto.status as CustomerStatus)
+      ? (dto.status as CustomerStatus)
+      : 'new_lead',
+    preferredContactMethod: VALID_CONTACT_METHODS.includes(
+      dto.preferredContactMethod as (typeof VALID_CONTACT_METHODS)[number]
+    )
+      ? (dto.preferredContactMethod as 'viber' | 'email' | 'phone')
+      : 'phone',
+    needsSummary: dto.needsSummary ?? '',
+    notes: '',
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
+    lastContactAt: dto.lastContactAt ?? undefined,
+    crmNumber: dto.crmNumber ?? undefined,
+    intakeStatus: mapIntakeStatus(dto.intakeStatus),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
+
+type PageMessage = 'no_session' | 'fetch_error' | null;
+
 export default function CustomersPage() {
-  // Start with [] so server render and first client render match.
   const [hydrated, setHydrated] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<PageMessage>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
   const [sourceFilter, setSourceFilter] = useState<CustomerSource | ''>('');
-  const [incompleteOnly, setIncompleteOnly] = useState(false);
-  const [showForm, setShowForm] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
 
-  // Load localStorage after mount to avoid hydration mismatch.
-  // Preserves seeding rule: undefined = seed demo, [] = user cleared intentionally.
-  // setState calls are deferred into a timer so they are not synchronous in the effect body.
   useEffect(() => {
-    const state = loadState();
-    let nextCustomers: Customer[];
-    if (state.customers === undefined) {
-      nextCustomers = demoCustomers;
-    } else {
-      nextCustomers = state.customers;
-    }
-    // Assign CRM numbers to any customer that is missing one (migration + demo seed).
-    const numbered = ensureCustomerCrmNumbers(nextCustomers);
-    const needsSave =
-      state.customers === undefined ||
-      numbered.some((c, i) => c.crmNumber !== nextCustomers[i].crmNumber);
-    if (needsSave) {
-      saveState({ customers: numbered });
-    }
-    const timer = window.setTimeout(() => {
-      setCustomers(numbered);
-      setHydrated(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
+    let cancelled = false;
 
-  const hasFilter = search.trim() !== '' || statusFilter !== '' || sourceFilter !== '' || incompleteOnly;
+    async function load() {
+      setLoading(true);
+
+      let supabase: ReturnType<typeof createBrowserSupabaseClient>;
+      try {
+        supabase = createBrowserSupabaseClient();
+      } catch {
+        if (!cancelled) {
+          setMessage('fetch_error');
+          setHydrated(true);
+          setLoading(false);
+        }
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        if (!cancelled) {
+          setMessage('no_session');
+          setCustomers([]);
+          setHydrated(true);
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/customers?limit=100', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const json = await res.json() as { ok?: boolean; customers?: CustomerDto[]; error?: string };
+
+        if (!cancelled) {
+          if (json.ok && Array.isArray(json.customers)) {
+            setCustomers(json.customers.map(mapCustomer));
+            setMessage(null);
+          } else {
+            setCustomers([]);
+            setMessage('fetch_error');
+          }
+          setHydrated(true);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setCustomers([]);
+          setMessage('fetch_error');
+          setHydrated(true);
+          setLoading(false);
+        }
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, [refreshTick]);
+
+  const hasFilter = search.trim() !== '' || statusFilter !== '' || sourceFilter !== '';
 
   const filtered = useMemo(() => {
     const q = norm(search.trim());
@@ -63,7 +179,6 @@ export default function CustomersPage() {
           norm(c.companyName).includes(q) ||
           norm(c.phone).includes(q) ||
           norm(c.email).includes(q) ||
-          norm(c.notes).includes(q) ||
           norm(c.needsSummary).includes(q) ||
           norm(c.crmNumber ?? '').includes(q) ||
           norm(c.mobilePhone ?? '').includes(q) ||
@@ -72,59 +187,35 @@ export default function CustomersPage() {
       }
       if (statusFilter && c.status !== statusFilter) return false;
       if (sourceFilter && c.source !== sourceFilter) return false;
-      if (incompleteOnly && !isIncompleteCustomer(c)) return false;
       return true;
     });
-  }, [customers, search, statusFilter, sourceFilter, incompleteOnly]);
+  }, [customers, search, statusFilter, sourceFilter]);
 
   function clearFilters() {
     setSearch('');
     setStatusFilter('');
     setSourceFilter('');
-    setIncompleteOnly(false);
   }
 
-  function handleMergeCustomers(primaryId: string, duplicateId: string) {
-    mergeCustomers(primaryId, duplicateId);
-    const freshCustomers = ensureCustomerCrmNumbers(loadState().customers ?? []);
-    setCustomers(freshCustomers);
-  }
-
-  function handleCreate(customer: Customer) {
-    const crmNumber = customer.crmNumber ?? getNextCrmNumber(customers);
-    const withCrm = { ...customer, crmNumber };
-    addCustomer(withCrm);
-    setCustomers((prev) => [...prev, withCrm]);
-    setShowForm(false);
-  }
-
-  // Stable loading shell — identical on server and first client render.
+  // ---------------------------------------------------------------------------
+  // Loading shell (server render + first client render)
+  // ---------------------------------------------------------------------------
   if (!hydrated) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h1 className="text-lg font-semibold text-zinc-900">Πελάτες</h1>
-          <button
-            type="button"
-            className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white"
-          >
-            + Νέος πελάτης
-          </button>
         </div>
         <div className="mb-4 space-y-2">
           <input
             type="search"
             disabled
-            placeholder="Αναζήτηση ονόματος, εταιρείας, τηλεφώνου, email, σημειώσεων..."
+            placeholder="Αναζήτηση ονόματος, εταιρείας, τηλεφώνου, email..."
             className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none"
           />
           <div className="flex flex-wrap gap-2">
-            <select disabled className={selCls}>
-              <option>Όλα τα status</option>
-            </select>
-            <select disabled className={selCls}>
-              <option>Όλες οι πηγές</option>
-            </select>
+            <select disabled className={selCls}><option>Όλα τα status</option></select>
+            <select disabled className={selCls}><option>Όλες οι πηγές</option></select>
           </div>
         </div>
         <p className="py-10 text-center text-sm text-zinc-400">Φόρτωση πελατών...</p>
@@ -132,6 +223,54 @@ export default function CustomersPage() {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // No session
+  // ---------------------------------------------------------------------------
+  if (message === 'no_session') {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-5">
+        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Πελάτες</h1>
+        <div className="rounded-2xl bg-zinc-50 px-6 py-10 text-center ring-1 ring-zinc-100">
+          <p className="text-sm font-medium text-zinc-600">
+            Συνδέσου για να δεις τους πελάτες του CRM.
+          </p>
+          <Link
+            href="/login/backend"
+            className="mt-4 inline-block rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          >
+            Σύνδεση
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fetch error
+  // ---------------------------------------------------------------------------
+  if (message === 'fetch_error') {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-5">
+        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Πελάτες</h1>
+        <div className="rounded-2xl bg-red-50 px-6 py-8 text-center ring-1 ring-red-100">
+          <p className="text-sm font-medium text-red-700">
+            Αδυναμία φόρτωσης πελατών. Έλεγξε τη σύνδεση ή ανανέωσε τη σελίδα.
+          </p>
+          <button
+            type="button"
+            onClick={() => setRefreshTick((t) => t + 1)}
+            className="mt-4 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+          >
+            Δοκίμασε ξανά
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Main view
+  // ---------------------------------------------------------------------------
   return (
     <div className="mx-auto max-w-2xl px-4 py-5">
       {/* Header */}
@@ -144,29 +283,13 @@ export default function CustomersPage() {
         </div>
         <button
           type="button"
-          onClick={() => setShowForm((v) => !v)}
-          className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
-            showForm
-              ? 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
-              : 'bg-indigo-600 text-white hover:bg-indigo-700'
-          }`}
+          onClick={() => setRefreshTick((t) => t + 1)}
+          disabled={loading}
+          className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50 disabled:opacity-50"
         >
-          {showForm ? 'Ακύρωση' : '+ Νέος πελάτης'}
+          {loading ? 'Φόρτωση...' : 'Ανανέωση'}
         </button>
       </div>
-
-      {/* New customer form */}
-      {showForm && (
-        <div className="mb-5">
-          <CustomerForm onSave={handleCreate} onCancel={() => setShowForm(false)} />
-        </div>
-      )}
-
-      {/* Duplicate detection panel */}
-      <DuplicateCustomersPanel customers={customers} onMerge={handleMergeCustomers} />
-
-      {/* Data quality panel */}
-      <CustomerDataQualityPanel customers={customers} />
 
       {/* Search + filters */}
       <div className="mb-4 space-y-2">
@@ -174,7 +297,7 @@ export default function CustomersPage() {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Αναζήτηση ονόματος, εταιρείας, τηλεφώνου, email, σημειώσεων..."
+          placeholder="Αναζήτηση ονόματος, εταιρείας, τηλεφώνου, email..."
           className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
         />
         <div className="flex flex-wrap gap-2">
@@ -198,17 +321,6 @@ export default function CustomersPage() {
               <option key={v} value={v}>{l}</option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={() => setIncompleteOnly((v) => !v)}
-            className={`rounded-xl border px-3 py-2 text-xs font-medium transition ${
-              incompleteOnly
-                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
-            }`}
-          >
-            Ελλιπείς
-          </button>
           {hasFilter && (
             <button
               type="button"
@@ -223,28 +335,13 @@ export default function CustomersPage() {
 
       {/* Customer list */}
       {customers.length === 0 ? (
-        <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100 space-y-4">
-          <div>
-            <p className="text-sm font-medium text-zinc-500">Δεν έχεις πελάτες ακόμα.</p>
-            <p className="mt-1 text-sm text-zinc-400">
-              Πρόσθεσε έναν πελάτη ή φόρτωσε demo δεδομένα για να δοκιμάσεις.
-            </p>
-          </div>
-          <div className="flex flex-wrap justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowForm(true)}
-              className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-            >
-              + Νέος πελάτης
-            </button>
-            <Link
-              href="/settings"
-              className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
-            >
-              Φόρτωση demo δεδομένων
-            </Link>
-          </div>
+        <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100">
+          <p className="text-sm font-medium text-zinc-500">
+            Δεν υπάρχουν ακόμα πελάτες.
+          </p>
+          <p className="mt-1 text-sm text-zinc-400">
+            Όταν ολοκληρωθεί η πρώτη κλήση, ο νέος πελάτης θα εμφανιστεί εδώ.
+          </p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100">
