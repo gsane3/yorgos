@@ -657,6 +657,8 @@ Apifon is the primary Viber/intake delivery provider for first implementation te
 ### Confirmed test results (manual testing)
 
 - OAuth client credentials flow: works.
+- Env mapping: `APIFON_CLIENT_ID` is the Apifon API Token / Client ID.
+- Env mapping: `APIFON_API_KEY` is the Apifon API Key / Client Secret.
 - `POST https://ars.apifon.com/services/api/v1/im/send`: works.
 - Sender used in test: "Apifon Demo".
 - Access type: account-provided free/test access. Cap limit: 20 messages.
