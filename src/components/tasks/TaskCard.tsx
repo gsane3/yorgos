@@ -72,15 +72,15 @@ function buildActions(task: Task): TaskActions {
     type === 'other'
   ) {
     if (customerId) {
-      main = { label: 'Άνοιγμα πελάτη', href: `/customers/${customerId}` };
+      main = { label: 'Άνοιγμα πελάτη', href: `/customers/backend/${customerId}` };
       mainOpensCustomer = true;
     }
   }
 
-  // Secondary links — shown only when they add context beyond the main action.
+  // Secondary links. shown only when they add context beyond the main action.
   const secondaryCustomer: ActionLink | null =
     !mainOpensCustomer && customerId
-      ? { label: 'Άνοιγμα πελάτη', href: `/customers/${customerId}` }
+      ? { label: 'Άνοιγμα πελάτη', href: `/customers/backend/${customerId}` }
       : null;
 
   const secondaryOffer: ActionLink | null =
@@ -135,6 +135,11 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
           <div className="flex flex-wrap items-start gap-2">
             <p className={`text-sm font-semibold ${titleColor}`}>{task.title}</p>
             <TaskStatusBadge task={task} />
+            {(task.status as string) === 'ai_draft' && (
+              <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600">
+                AI πρόταση
+              </span>
+            )}
           </div>
 
           <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-zinc-500">
@@ -152,7 +157,7 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
 
       {effective !== 'completed' && effective !== 'cancelled' && (
         <div className="mt-3 space-y-2">
-          {/* Primary row — always visible */}
+          {/* Primary row. always visible */}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -193,14 +198,14 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
             </button>
           </div>
 
-          {/* Secondary row — shown when expanded */}
+          {/* Secondary row. shown when expanded */}
           {showMore && (
             <div className="flex flex-wrap gap-2 pt-1 border-t border-zinc-100">
               {confirmingDelete ? (
                 <>
                   <div className="w-full space-y-0.5">
                     <p className="text-xs font-medium text-zinc-700">Να διαγραφεί αυτό το task;</p>
-                    <p className="text-xs text-zinc-400">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
+                    <p className="text-xs text-zinc-400">Το task θα ακυρωθεί.</p>
                   </div>
                   <button
                     type="button"

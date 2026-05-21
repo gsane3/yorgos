@@ -1,18 +1,15 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { loadState, saveState, addTask, updateTask, deleteTask } from '@/lib/storage';
-import { generateDemoTasks } from '@/lib/demo-data';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { Task, Customer, TaskBaseStatus, TaskType, TaskPriority } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
 import { norm } from '@/lib/search';
 import TaskCard from '@/components/tasks/TaskCard';
 import TaskForm from '@/components/tasks/TaskForm';
-import DuplicateTasksPanel from '@/components/tasks/DuplicateTasksPanel';
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/components/tasks/TaskStatusBadge';
 import PageHelp from '@/components/common/PageHelp';
-import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
-import DemoStepBanner from '@/components/common/DemoStepBanner';
 
 type TabId = 'due_today' | 'upcoming' | 'overdue' | 'completed';
 
@@ -35,62 +32,159 @@ const EMPTY_STATES: Record<TabId, string> = {
 const selCls =
   'rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm text-zinc-700 outline-none focus:border-indigo-400';
 
+// DTO shapes from backend API
+interface TaskDto {
+  id: string;
+  customerId?: string | null;
+  offerId?: string | null;
+  title: string;
+  type: string;
+  status: string;
+  priority: string;
+  dueDate: string;
+  dueTime?: string | null;
+  note?: string | null;
+  createdFromAi?: boolean | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CustomerDto {
+  id: string;
+  crmNumber?: string | null;
+  name?: string | null;
+  companyName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  source?: string | null;
+  status?: string | null;
+  preferredContactMethod?: string | null;
+  needsSummary?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function mapTask(dto: TaskDto): Task {
+  return {
+    id: dto.id,
+    customerId: dto.customerId ?? undefined,
+    offerId: dto.offerId ?? undefined,
+    title: dto.title,
+    type: (dto.type as TaskType) ?? 'other',
+    // ai_draft is not in TaskBaseStatus but is cast safely. getEffectiveStatus falls through
+    // to date-based logic for any unrecognised status, which is the correct behaviour.
+    status: dto.status as TaskBaseStatus,
+    priority: (dto.priority as TaskPriority) ?? 'normal',
+    dueDate: dto.dueDate ?? new Date().toISOString().split('T')[0],
+    dueTime: dto.dueTime ?? undefined,
+    note: dto.note ?? '',
+    createdFromAi: dto.createdFromAi ?? false,
+    completedAt: dto.completedAt ?? undefined,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
+  };
+}
+
+function mapCustomer(dto: CustomerDto): Customer {
+  const now = new Date().toISOString();
+  return {
+    id: dto.id,
+    name: dto.name ?? dto.companyName ?? dto.crmNumber ?? 'Πελάτης',
+    companyName: dto.companyName ?? '',
+    phone: dto.phone ?? '',
+    email: dto.email ?? '',
+    address: '',
+    source: (dto.source as Customer['source']) ?? 'manual_entry',
+    status: (dto.status as Customer['status']) ?? 'new_lead',
+    preferredContactMethod:
+      (dto.preferredContactMethod as Customer['preferredContactMethod']) ?? 'phone',
+    needsSummary: dto.needsSummary ?? '',
+    notes: dto.notes ?? '',
+    createdAt: dto.createdAt ?? now,
+    updatedAt: dto.updatedAt ?? now,
+    crmNumber: dto.crmNumber ?? undefined,
+  };
+}
+
+// Prevent sending ai_draft (or any unknown status) to write endpoints.
+function sanitizeWriteStatus(status: string): 'open' | 'completed' | 'cancelled' {
+  if (status === 'completed' || status === 'cancelled') return status;
+  return 'open';
+}
+
 export default function TasksPage() {
-  // Start with empty arrays so server render and first client render match.
   const [hydrated, setHydrated] = useState(false);
+  const [noSession, setNoSession] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [activeTab, setActiveTab] = useState<TabId>('due_today');
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
+  const tokenRef = useRef<string | null>(null);
 
-  // Search + filter state (does not affect tab counts)
   const [taskSearch, setTaskSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | ''>('');
   const [typeFilter, setTypeFilter] = useState<TaskType | ''>('');
 
-  // Load localStorage after mount to avoid hydration mismatch.
-  // If taskId URL param is present and found, switch to correct tab and clear filters.
-  // setState calls are deferred into a timer so they are not synchronous in the effect body.
-  useEffect(() => {
-    const state = loadState();
-    let nextTasks: Task[];
-    const nextCustomers: Customer[] = state.customers ?? [];
-    if (state.tasks === undefined) {
-      const seeded = generateDemoTasks();
-      saveState({ tasks: seeded });
-      nextTasks = seeded;
-    } else {
-      nextTasks = state.tasks;
-    }
-    // Appointment and customer-visit tasks belong to /appointments, not /tasks.
-    nextTasks = nextTasks.filter((t) => t.type !== 'book_appointment' && t.type !== 'visit_customer');
+  const loadData = useCallback(async (token: string) => {
+    setFetchError(null);
+    try {
+      const headers: HeadersInit = { Authorization: `Bearer ${token}` };
+      const [tasksResp, customersResp] = await Promise.all([
+        fetch('/api/tasks?limit=100', { headers }),
+        fetch('/api/customers?limit=100', { headers }),
+      ]);
 
-    // Determine if we should focus a specific task from the URL param.
-    const pid =
-      typeof window !== 'undefined'
-        ? new URLSearchParams(window.location.search).get('taskId')
-        : null;
-    let tabOverride: TabId | null = null;
-    let foundTaskId: string | null = null;
-    if (pid) {
-      const found = nextTasks.find((t) => t.id === pid);
-      if (found) {
-        foundTaskId = found.id;
-        const eff = getEffectiveStatus(found);
-        tabOverride =
-          eff === 'completed' || eff === 'cancelled'
-            ? 'completed'
-            : eff === 'overdue'
-            ? 'overdue'
-            : eff === 'due_today'
-            ? 'due_today'
-            : 'upcoming';
+      if (!tasksResp.ok || !customersResp.ok) {
+        setFetchError('Αποτυχία φόρτωσης. Δοκίμασε ξανά.');
+        setHydrated(true);
+        return;
       }
-    }
 
-    const timer = window.setTimeout(() => {
+      const tasksData = await tasksResp.json();
+      const customersData = await customersResp.json();
+
+      const rawTasks: TaskDto[] = Array.isArray(tasksData)
+        ? tasksData
+        : (tasksData.tasks ?? []);
+      const rawCustomers: CustomerDto[] = Array.isArray(customersData)
+        ? customersData
+        : (customersData.customers ?? []);
+
+      // Appointment/visit types belong to /appointments, not /tasks.
+      const nextTasks = rawTasks
+        .map(mapTask)
+        .filter((t) => t.type !== 'book_appointment' && t.type !== 'visit_customer');
+
+      const nextCustomers = rawCustomers.map(mapCustomer);
+
+      // taskId URL param - switch to correct tab and highlight after load.
+      const pid =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('taskId')
+          : null;
+      let tabOverride: TabId | null = null;
+      let foundTaskId: string | null = null;
+      if (pid) {
+        const found = nextTasks.find((t) => t.id === pid);
+        if (found) {
+          foundTaskId = found.id;
+          const eff = getEffectiveStatus(found);
+          tabOverride =
+            eff === 'completed' || eff === 'cancelled'
+              ? 'completed'
+              : eff === 'overdue'
+              ? 'overdue'
+              : eff === 'due_today'
+              ? 'due_today'
+              : 'upcoming';
+        }
+      }
+
       setTasks(nextTasks);
       setCustomers(nextCustomers);
       if (tabOverride) {
@@ -101,11 +195,35 @@ export default function TasksPage() {
       }
       if (foundTaskId) setFocusedTaskId(foundTaskId);
       setHydrated(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
+    } catch {
+      setFetchError('Αποτυχία φόρτωσης. Δοκίμασε ξανά.');
+      setHydrated(true);
+    }
   }, []);
 
-  // After hydration, scroll to the focused task.
+  useEffect(() => {
+    async function init() {
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          setNoSession(true);
+          setHydrated(true);
+          return;
+        }
+        tokenRef.current = session.access_token;
+        await loadData(session.access_token);
+      } catch {
+        setFetchError('Αποτυχία σύνδεσης. Δοκίμασε ξανά.');
+        setHydrated(true);
+      }
+    }
+    init();
+  }, [loadData]);
+
+  // Scroll to focused task after hydration.
   useEffect(() => {
     if (!hydrated || !focusedTaskId) return;
     const timer = setTimeout(() => {
@@ -115,18 +233,7 @@ export default function TasksPage() {
     return () => clearTimeout(timer);
   }, [hydrated, focusedTaskId]);
 
-  const hasTaskFilter = taskSearch.trim() !== '' || priorityFilter !== '' || typeFilter !== '';
-
-  // Clear focused task highlight and remove taskId from URL.
-  function clearFocusedTask() {
-    setFocusedTaskId(null);
-    if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', '/tasks');
-    }
-  }
-
-  // Clear focus when the focused task is completed or deleted.
-  // setState is deferred into a timer to avoid react-hooks/set-state-in-effect.
+  // Clear focus when the focused task disappears from the list.
   useEffect(() => {
     if (!hydrated || !focusedTaskId) return;
     const found = tasks.find((t) => t.id === focusedTaskId);
@@ -139,6 +246,15 @@ export default function TasksPage() {
     }
   }, [tasks, focusedTaskId, hydrated]);
 
+  const hasTaskFilter = taskSearch.trim() !== '' || priorityFilter !== '' || typeFilter !== '';
+
+  function clearFocusedTask() {
+    setFocusedTaskId(null);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', '/tasks');
+    }
+  }
+
   const focusedTask = focusedTaskId ? tasks.find((t) => t.id === focusedTaskId) ?? null : null;
 
   const customerMap = useMemo(
@@ -146,7 +262,6 @@ export default function TasksPage() {
     [customers]
   );
 
-  // Tab counts — based on ALL tasks, unaffected by search/filter
   const tabCounts = useMemo(() => {
     const counts: Record<TabId, number> = { due_today: 0, upcoming: 0, overdue: 0, completed: 0 };
     for (const t of tasks) {
@@ -159,7 +274,6 @@ export default function TasksPage() {
     return counts;
   }, [tasks]);
 
-  // Filtered list — tab first, then search+filter within tab
   const filteredTasks = useMemo(() => {
     const q = norm(taskSearch.trim());
     return tasks.filter((t) => {
@@ -192,25 +306,33 @@ export default function TasksPage() {
     setTypeFilter('');
   }
 
-  function handleComplete(id: string) {
-    const now = new Date().toISOString();
-    const task = tasks.find((t) => t.id === id);
-    if (!task) return;
-    const completed = { ...task, status: 'completed' as TaskBaseStatus, completedAt: now, updatedAt: now };
-    updateTask(completed);
-    setTasks((prev) => prev.map((t) => (t.id === id ? completed : t)));
-  }
-
-  function handleDelete(id: string) {
-    deleteTask(id);
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-  }
-
-  function handleDeleteManyTasks(taskIds: string[]) {
-    for (const id of taskIds) {
-      deleteTask(id);
+  async function handleComplete(id: string) {
+    const token = tokenRef.current;
+    if (!token) return;
+    const resp = await fetch(`/api/tasks/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'completed' }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      setTasks((prev) => prev.map((t) => (t.id === id ? mapTask(data.task) : t)));
     }
-    setTasks((prev) => prev.filter((t) => !taskIds.includes(t.id)));
+  }
+
+  // "Delete" patches status to cancelled - no hard-delete endpoint exists yet.
+  async function handleDelete(id: string) {
+    const token = tokenRef.current;
+    if (!token) return;
+    const resp = await fetch(`/api/tasks/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'cancelled' }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      setTasks((prev) => prev.map((t) => (t.id === id ? mapTask(data.task) : t)));
+    }
   }
 
   function handleEdit(task: Task) {
@@ -218,26 +340,68 @@ export default function TasksPage() {
     setShowForm(true);
   }
 
-  function handleSave(task: Task) {
+  async function handleSave(task: Task) {
+    const token = tokenRef.current;
+    if (!token) return;
+
+    // TaskForm preserves ai_draft status; sanitize before sending to the write endpoint.
+    const safeStatus = sanitizeWriteStatus(task.status as string);
+
+    const body = {
+      title: task.title,
+      type: task.type,
+      status: safeStatus,
+      priority: task.priority,
+      dueDate: task.dueDate,
+      dueTime: task.dueTime ?? null,
+      note: task.note,
+      customerId: task.customerId ?? null,
+      offerId: task.offerId ?? null,
+    };
+
     if (editingTask) {
-      updateTask(task);
-      setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
+      const resp = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setTasks((prev) => prev.map((t) => (t.id === task.id ? mapTask(data.task) : t)));
+      }
     } else {
-      addTask(task);
-      setTasks((prev) => [...prev, task]);
+      const resp = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const created = mapTask(data.task);
+        if (created.type !== 'book_appointment' && created.type !== 'visit_customer') {
+          setTasks((prev) => [...prev, created]);
+        }
+      }
     }
+
     setShowForm(false);
     setEditingTask(null);
   }
 
-  function handleSnooze(id: string, newDueDate: string) {
+  async function handleSnooze(id: string, newDueDate: string) {
+    const token = tokenRef.current;
+    if (!token) return;
     const task = tasks.find((t) => t.id === id);
-    if (!task) return;
-    // Only snooze open tasks — completed/cancelled tasks cannot be snoozed.
-    if (task.status !== 'open') return;
-    const snoozed = { ...task, dueDate: newDueDate, updatedAt: new Date().toISOString() };
-    updateTask(snoozed);
-    setTasks((prev) => prev.map((t) => (t.id === id ? snoozed : t)));
+    if (!task || task.status !== 'open') return;
+    const resp = await fetch(`/api/tasks/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dueDate: newDueDate }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      setTasks((prev) => prev.map((t) => (t.id === id ? mapTask(data.task) : t)));
+    }
   }
 
   function handleCancelForm() {
@@ -250,7 +414,7 @@ export default function TasksPage() {
     setShowForm(true);
   }
 
-  // Stable shell shown on server and first client render — no localStorage-derived content.
+  // Skeleton shown during initial load - no data-derived content to avoid hydration mismatch.
   if (!hydrated) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-5">
@@ -283,26 +447,49 @@ export default function TasksPage() {
     );
   }
 
+  if (noSession) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-5">
+        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Tasks</h1>
+        <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
+          <p className="mb-4 text-sm text-zinc-600">Συνδέσου για να δεις τα tasks.</p>
+          <Link
+            href="/login/backend"
+            className="inline-block rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          >
+            Σύνδεση
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-5">
+        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Tasks</h1>
+        <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
+          <p className="mb-4 text-sm text-red-600">{fetchError}</p>
+          <button
+            type="button"
+            onClick={() => {
+              const token = tokenRef.current;
+              if (token) {
+                setHydrated(false);
+                loadData(token);
+              }
+            }}
+            className="inline-block rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          >
+            Δοκίμασε ξανά
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-5">
-      <DemoStepBanner
-        step="tasks"
-        stepNum={4}
-        title="Tasks -- εκκρεμείς εργασίες"
-        body="Κοίτα τα ανοιχτά tasks, τις κατηγορίες και τα εκπρόθεσμα. Τα ραντεβού έχουν δική τους ενότητα."
-        watchLabel="Tasks δημιουργούνται από AI review ή χειροκίνητα."
-        actionLabel="Επόμενο: Ραντεβού"
-        actionHref="/appointments?demoStep=appointments"
-      />
-      <GuidedDemoBanner
-        step="tasks"
-        stepNum={4}
-        title="Οργάνωσε τα tasks"
-        whatYouSee="Εκκρεμή tasks: κλήσεις, αποστολές προσφορών και follow-ups. Τα ραντεβού έχουν δική τους ενότητα."
-        whatToDo="Κοίτα τις κατηγορίες και άλλαξε status σε ένα task αν θέλεις."
-        whyItMatters="Τα tasks είναι η εσωτερική γραμμή εργασίας μετά από κάθε κλήση ή AI review."
-        canManualComplete={true}
-      />
       <div className="mb-4">
         <PageHelp title="Τι βλέπω εδώ;">
           <p className="text-sm text-zinc-600">
@@ -311,8 +498,8 @@ export default function TasksPage() {
           <ul className="space-y-1 mt-1">
             {[
               'Πάτα «Ολοκλήρωση» για να κλείσεις ένα task.',
-              'Πάτα «Περισσότερα» για αναβολή, επεξεργασία ή διαγραφή.',
-              'Δεν χαλάς τίποτα — μπορείς να επαναφέρεις οποτεδήποτε.',
+              'Πάτα «Περισσότερα» για αναβολή, επεξεργασία ή ακύρωση.',
+              'Τα tasks από AI εμφανίζονται αυτόματα μετά από κάθε κλήση.',
             ].map((t) => (
               <li key={t} className="flex items-start gap-2 text-xs text-zinc-500">
                 <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
@@ -339,7 +526,7 @@ export default function TasksPage() {
         </button>
       </div>
 
-      {/* Form */}
+      {/* Create / edit form */}
       {showForm && (
         <div className="mb-5">
           <TaskForm
@@ -351,12 +538,9 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Duplicate follow-up task cleanup panel */}
-      <DuplicateTasksPanel tasks={tasks} onDeleteMany={handleDeleteManyTasks} />
-
-      {/* Focus banner — shown when arriving from dashboard with a taskId param */}
+      {/* Focus banner - shown when arriving from dashboard with a taskId param */}
       {focusedTask && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl bg-indigo-50 px-4 py-3 ring-1 ring-indigo-200">
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl bg-indigo-50 px-4 py-3 ring-1 ring-indigo-200">
           <div className="min-w-0">
             <p className="text-xs font-medium text-indigo-600">Άνοιξες task από το dashboard</p>
             <p className="truncate text-sm font-semibold text-indigo-900">{focusedTask.title}</p>
@@ -371,7 +555,7 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Tabs — counts are total per tab, unaffected by search/filter */}
+      {/* Tabs - counts based on all tasks, unaffected by search/filter */}
       <div className="mb-3 -mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
         {TAB_ORDER.map((tab) => {
           const count = tabCounts[tab];
@@ -452,9 +636,13 @@ export default function TasksPage() {
       {filteredTasks.length === 0 ? (
         <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100">
           <p className="text-sm font-medium text-zinc-500">
-            {hasTaskFilter ? 'Δεν βρέθηκαν αποτελέσματα για αυτά τα φίλτρα.' : EMPTY_STATES[activeTab]}
+            {hasTaskFilter
+              ? 'Δεν βρέθηκαν αποτελέσματα για αυτά τα φίλτρα.'
+              : tasks.length === 0
+              ? 'Δεν υπάρχουν ακόμα tasks. Όταν ολοκληρωθεί η πρώτη κλήση, τα προτεινόμενα tasks θα εμφανιστούν εδώ.'
+              : EMPTY_STATES[activeTab]}
           </p>
-          {!hasTaskFilter && activeTab !== 'completed' && (
+          {!hasTaskFilter && activeTab !== 'completed' && tasks.length > 0 && (
             <p className="mt-1 text-sm text-zinc-400">
               Πρόσθεσε task με το κουμπί + παραπάνω.
             </p>
