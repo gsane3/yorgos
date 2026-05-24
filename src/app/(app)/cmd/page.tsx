@@ -328,6 +328,9 @@ export default function CmdPage() {
   const [backendContextState, setBackendContextState] = useState<'loading' | 'ready' | 'no_session' | 'error'>('loading');
   const [backendContextError, setBackendContextError] = useState<string | null>(null);
 
+  const [isSavingTask, setIsSavingTask] = useState(false);
+  const [taskSaveError, setTaskSaveError] = useState<string | null>(null);
+
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');
@@ -527,6 +530,8 @@ export default function CmdPage() {
     setCmdError('');
     setResult(null);
     setSavedResult(false);
+    setIsSavingTask(false);
+    setTaskSaveError(null);
     setQueryAppointments([]);
     setMatchedCustomer(null);
     setNoCustomerMatch(false);
@@ -628,27 +633,48 @@ export default function CmdPage() {
     }
   }
 
-  function handleSaveTask() {
+  async function handleSaveTask() {
     if (!result) return;
     if (customerCandidates.length > 1 && !customerMatchResolved) return;
-    const now = new Date().toISOString();
-    const today = todayStr();
-    const task: Task = {
-      id: crypto.randomUUID(),
-      customerId: matchedCustomer?.id,
-      title: result.params.title?.trim() || 'Νέο task',
-      type: 'other' as TaskType,
-      status: 'open',
-      priority: (result.params.priority ?? 'normal') as TaskPriority,
-      dueDate: result.params.dueDate || today,
-      dueTime: result.params.dueTime || undefined,
-      note: result.params.note || '',
-      createdFromAi: true,
-      createdAt: now,
-      updatedAt: now,
-    };
-    addTask(task);
-    setSavedResult(true);
+    setIsSavingTask(true);
+    setTaskSaveError(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setTaskSaveError('Δεν υπάρχει ενεργή σύνδεση. Δοκίμασε ξανά.');
+        return;
+      }
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          customerId: matchedCustomer?.id ?? null,
+          title: result.params.title?.trim() || 'Νέο task',
+          type: 'other',
+          status: 'open',
+          priority: result.params.priority ?? 'normal',
+          dueDate: result.params.dueDate || todayStr(),
+          dueTime: result.params.dueTime || null,
+          note: result.params.note || null,
+        }),
+      });
+      const json = await res.json() as { ok?: boolean; task?: BackendTaskDto; error?: string };
+      if (res.ok && json.ok && json.task) {
+        setBackendTasks((prev) => [...prev, mapBackendTask(json.task!)]);
+        setTaskSaveError(null);
+        setSavedResult(true);
+      } else {
+        setTaskSaveError('Δεν αποθηκεύτηκε το task. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setTaskSaveError('Δεν αποθηκεύτηκε το task. Δοκίμασε ξανά.');
+    } finally {
+      setIsSavingTask(false);
+    }
   }
 
   function handleSaveAppointment() {
@@ -769,6 +795,8 @@ export default function CmdPage() {
     setConfirmingCancelApptId(null);
     setCancelApptSuccess(false);
     setOfferPreviewData(null);
+    setIsSavingTask(false);
+    setTaskSaveError(null);
   }
 
   if (!hydrated) {
@@ -978,13 +1006,16 @@ export default function CmdPage() {
               {customerCandidates.length > 1 && !customerMatchResolved && (
                 <p className="text-xs text-zinc-400">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
               )}
+              {taskSaveError && (
+                <p className="text-xs text-red-600">{taskSaveError}</p>
+              )}
               <button
                 type="button"
-                onClick={handleSaveTask}
-                disabled={customerCandidates.length > 1 && !customerMatchResolved}
+                onClick={() => { void handleSaveTask(); }}
+                disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingTask}
                 className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
               >
-                Δημιουργία task
+                {isSavingTask ? 'Αποθήκευση...' : 'Δημιουργία task'}
               </button>
             </div>
           )}
