@@ -58,7 +58,10 @@ function buildActions(task: Task): TaskActions {
   let mainOpensOffer = false;
 
   if (type === 'call_back') {
-    main = { label: 'Άνοιγμα κλήσης', href: '/call/mock' };
+    main = customerId
+      ? { label: 'Άνοιγμα πελάτη', href: `/customers/${customerId}` }
+      : { label: 'Άνοιγμα κλήσεων', href: '/calls' };
+    mainOpensCustomer = !!customerId;
   } else if (type === 'send_offer' || type === 'follow_up_offer') {
     main = offerId
       ? { label: 'Άνοιγμα προσφοράς', href: `/offers/${offerId}` }

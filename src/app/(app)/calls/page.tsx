@@ -199,19 +199,6 @@ function KeypadTab() {
         </button>
       )}
 
-      {/* Demo call button */}
-      <Link
-        href="/call/mock"
-        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-600 py-4 text-base font-semibold text-white transition hover:bg-green-700 active:bg-green-800"
-      >
-        <PhoneIcon className="h-5 w-5" />
-        Demo κλήση
-      </Link>
-
-      {/* Honest disclaimer */}
-      <p className="text-center text-xs text-zinc-400">
-        Δεν γίνεται πραγματική τηλεφωνική κλήση. Πατώντας ανοίγει το demo περιβάλλον κλήσης.
-      </p>
     </div>
   );
 }
@@ -238,12 +225,6 @@ function RecentTab({
         <p className="text-sm font-medium text-zinc-600">Δεν έχουν καταγραφεί ακόμα πραγματικές PBX κλήσεις.</p>
         <p className="mt-1 text-sm text-zinc-400">
           Οι κλήσεις εμφανίζονται εδώ αφού καταγραφούν από το PBX.
-        </p>
-        <p className="mt-3 text-xs text-zinc-400">
-          <Link href="/call/mock" className="text-indigo-500 hover:underline">
-            Demo κλήση
-          </Link>
-          {' '}για δοκιμή του AI review flow.
         </p>
       </div>
     );
@@ -299,13 +280,6 @@ function RecentTab({
                   Άνοιγμα πελάτη
                 </Link>
               )}
-              <Link
-                href="/call/mock"
-                className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[32px] flex items-center"
-                title="Demo κλήση"
-              >
-                Demo κλήση
-              </Link>
               <button
                 type="button"
                 onClick={onSwitchToSms}
@@ -382,13 +356,6 @@ function CustomersTab({
                 </p>
               </div>
               <div className="flex shrink-0 gap-1.5">
-                <Link
-                  href="/call/mock"
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-green-50 text-green-600 ring-1 ring-green-200 transition hover:bg-green-100"
-                  title="Demo κλήση"
-                >
-                  <PhoneIcon className="h-3.5 w-3.5" />
-                </Link>
                 <button
                   type="button"
                   onClick={() => onSwitchToSms(c)}

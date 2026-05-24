@@ -59,7 +59,9 @@ function getTaskQuickAction(
   offers: Offer[]
 ): { quickHref: string; quickLabel: string } | null {
   if (CALL_TASK_TYPES.has(task.type)) {
-    return { quickHref: '/call/mock', quickLabel: 'Κλήση' };
+    return task.customerId
+      ? { quickHref: `/customers/${task.customerId}`, quickLabel: 'Άνοιγμα πελάτη' }
+      : { quickHref: '/calls', quickLabel: 'Άνοιγμα κλήσεων' };
   }
   if (OFFER_TASK_TYPES.has(task.type) && task.customerId) {
     const draft = offers.find(
@@ -90,7 +92,7 @@ function buildActions(
       .map((t) => t.customerId as string)
   );
 
-  // 1. Overdue open tasks — sorted high > normal > low priority.
+  // 1. Overdue open tasks - sorted high > normal > low priority.
   const overdueTasks = tasks
     .filter((t) => t.status === 'open' && getEffectiveStatus(t) === 'overdue')
     .sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1));
@@ -109,7 +111,7 @@ function buildActions(
     });
   }
 
-  // 2. Open tasks due today — sorted by priority.
+  // 2. Open tasks due today - sorted by priority.
   const todayTasks = tasks
     .filter((t) => t.status === 'open' && getEffectiveStatus(t) === 'due_today')
     .sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1));
@@ -128,7 +130,7 @@ function buildActions(
     });
   }
 
-  // 3. Offers ready to send — newest first.
+  // 3. Offers ready to send - newest first.
   const readyOffers = offers
     .filter((o) => o.status === 'ready_to_send')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -137,7 +139,7 @@ function buildActions(
       id: offer.id,
       category: 'offer_ready',
       tone: 'indigo',
-      title: `Προσφορά ${offer.offerNumber} — έτοιμη για αποστολή`,
+      title: `Προσφορά ${offer.offerNumber}, έτοιμη για αποστολή`,
       detail: fmtEur(offer.total),
       customerName: offer.customerId ? customerMap[offer.customerId] : undefined,
       href: `/offers/${offer.id}`,
@@ -145,7 +147,7 @@ function buildActions(
     });
   }
 
-  // 4. Sent offers — suggest follow-up, newest first.
+  // 4. Sent offers - suggest follow-up, newest first.
   const sentOffers = offers
     .filter((o) => o.status === 'sent_manually')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -174,7 +176,7 @@ function buildActions(
     });
   }
 
-  // 5. Customers with follow_up_needed but no open task — newest first.
+  // 5. Customers with follow_up_needed but no open task - newest first.
   const followUpCustomers = customers
     .filter((c) => c.status === 'follow_up_needed' && !customerIdsWithOpenTask.has(c.id))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -275,7 +277,7 @@ export default function NextActionsSection({
         )}
       </div>
 
-      {/* Filter chips — horizontally scrollable on narrow screens */}
+      {/* Filter chips - horizontally scrollable on narrow screens */}
       <div className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
         {FILTER_DEFS.map((f) => {
           const count = filterItems(f.id).length;
@@ -310,7 +312,7 @@ export default function NextActionsSection({
         })}
       </div>
 
-      {/* Undo banner — shown after completing a task */}
+      {/* Undo banner - shown after completing a task */}
       {lastCompletedTaskTitle && onUndoCompleteTask && (
         <div className="flex items-center justify-between gap-3 rounded-xl bg-green-50 px-3 py-2 ring-1 ring-green-200">
           <div className="min-w-0">
@@ -389,7 +391,7 @@ export default function NextActionsSection({
                     )}
                     {item.category === 'offer_followup' && item.offerId && (
                       !item.customerName ? (
-                        // Offer has no linked customer — cannot create a customer-linked task.
+                        // Offer has no linked customer - cannot create a customer-linked task.
                         <span className="text-[10px] text-zinc-300">Χωρίς πελάτη</span>
                       ) : item.hasExistingTask || createdFollowUpOfferIds.has(item.offerId) ? (
                         // Task already exists (persistent check takes priority over session state).

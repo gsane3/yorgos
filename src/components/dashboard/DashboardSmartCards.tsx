@@ -132,7 +132,7 @@ export default function DashboardSmartCards({
           <DashboardCard
             id="missed"
             title="Χαμένες κλήσεις"
-            count={calls === undefined ? '—' : missedCalls.length}
+            count={calls === undefined ? '-' : missedCalls.length}
             hint="Κλήσεις χωρίς απάντηση"
             urgent={missedCalls.length > 0}
             onOpen={setActiveSheet}
@@ -158,7 +158,7 @@ export default function DashboardSmartCards({
           <DashboardCard
             id={null}
             title="Κλήσεις"
-            count={calls === undefined ? '—' : calls.length}
+            count={calls === undefined ? '-' : calls.length}
             hint="Ιστορικό & ενέργειες"
             href="/calls"
             active={(calls?.length ?? 0) > 0}
@@ -309,13 +309,8 @@ export default function DashboardSmartCards({
         {calls === undefined ? (
           <div className="space-y-3 py-2">
             <p className="text-sm text-zinc-500">
-              Οι χαμένες κλήσεις εμφανίζονται εδώ όταν συνδεθεί VoIP provider στο τελικό προϊόν.
+              Οι χαμένες κλήσεις εμφανίζονται εδώ όταν καταγραφούν από το συνδεδεμένο τηλεφωνικό σύστημα.
             </p>
-            <p className="text-xs text-zinc-400">Στο MVP δεν υπάρχει πραγματικό VoIP ή ηχογράφηση.</p>
-            <Link href="/call/mock" onClick={close}
-              className="inline-block rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100">
-              Demo κλήση →
-            </Link>
           </div>
         ) : missedCalls.length === 0 ? (
           <p className="py-4 text-center text-sm text-zinc-500">Δεν υπάρχουν χαμένες κλήσεις τώρα.</p>
