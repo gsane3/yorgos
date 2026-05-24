@@ -205,6 +205,29 @@ function resolveChannel(sentChannel: AppointmentResponseTokenRow['sent_channel']
   return 'sms';
 }
 
+function parseTaskDateTime(date: string, time: string): Date | null {
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const timeMatch = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!dateMatch || !timeMatch) return null;
+  return new Date(Date.UTC(
+    Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]),
+    Number(timeMatch[1]), Number(timeMatch[2]), 0, 0
+  ));
+}
+
+function formatDateUTC(d: Date): string {
+  const y = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${mo}-${day}`;
+}
+
+function formatTimeUTC(d: Date): string {
+  const h = String(d.getUTCHours()).padStart(2, '0');
+  const min = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${h}:${min}`;
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/appointment-response/[token]
 // ---------------------------------------------------------------------------
@@ -503,6 +526,45 @@ export async function POST(
       { ok: false, error: 'appointment_expired' },
       { status: 409 }
     );
+  }
+
+  // For non-time-change responses: discard any requestedDueDate/requestedDueTime
+  if (response !== 'time_change_requested') {
+    requestedDueDate = null;
+    requestedDueTime = null;
+  }
+
+  // For time_change_requested: require due_date + due_time and validate exact ±60 min
+  if (response === 'time_change_requested') {
+    if (!task.due_date || !task.due_time) {
+      return NextResponse.json(
+        { ok: false, error: 'invalid_requested_time_change' },
+        { status: 400 }
+      );
+    }
+    const base = parseTaskDateTime(task.due_date, task.due_time);
+    if (!base) {
+      return NextResponse.json(
+        { ok: false, error: 'invalid_requested_time_change' },
+        { status: 400 }
+      );
+    }
+    const ONE_HOUR = 60 * 60 * 1000;
+    const earlier = new Date(base.getTime() - ONE_HOUR);
+    const later = new Date(base.getTime() + ONE_HOUR);
+    const allowedPairs = [
+      { date: formatDateUTC(earlier), time: formatTimeUTC(earlier) },
+      { date: formatDateUTC(later), time: formatTimeUTC(later) },
+    ];
+    const isAllowed = allowedPairs.some(
+      (p) => p.date === requestedDueDate && p.time === requestedDueTime
+    );
+    if (!isAllowed) {
+      return NextResponse.json(
+        { ok: false, error: 'invalid_requested_time_change' },
+        { status: 400 }
+      );
+    }
   }
 
   const now = new Date();

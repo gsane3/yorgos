@@ -125,6 +125,43 @@ function computeInitialAction(data: ApiPayload): ResponseAction {
   return 'idle';
 }
 
+function parseAppointmentDateTime(date: string, time: string): Date | null {
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const timeMatch = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!dateMatch || !timeMatch) return null;
+  return new Date(Date.UTC(
+    Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]),
+    Number(timeMatch[1]), Number(timeMatch[2]), 0, 0
+  ));
+}
+
+function formatDateInput(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatTimeInput(d: Date): string {
+  const h = String(d.getUTCHours()).padStart(2, '0');
+  const min = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${h}:${min}`;
+}
+
+function buildTimeChangeOption(
+  appt: AppointmentData,
+  choice: 'earlier' | 'later'
+): { requestedDueDate: string; requestedDueTime: string; label: string } | null {
+  if (!appt.dueDate || !appt.dueTime) return null;
+  const base = parseAppointmentDateTime(appt.dueDate, appt.dueTime);
+  if (!base) return null;
+  const shifted = new Date(base.getTime() + (choice === 'earlier' ? -1 : 1) * 60 * 60 * 1000);
+  const requestedDueDate = formatDateInput(shifted);
+  const requestedDueTime = formatTimeInput(shifted);
+  const dateLabel = requestedDueDate !== appt.dueDate ? `${requestedDueDate} ` : '';
+  return { requestedDueDate, requestedDueTime, label: `${dateLabel}${requestedDueTime}` };
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -139,8 +176,7 @@ export default function AppointmentResponseClient({ token }: Props) {
   const [payload, setPayload] = useState<ApiPayload | null>(null);
   const [action, setAction] = useState<ResponseAction>('idle');
   const [comment, setComment] = useState('');
-  const [requestedDueDate, setRequestedDueDate] = useState('');
-  const [requestedDueTime, setRequestedDueTime] = useState('');
+  const [timeChangeChoice, setTimeChangeChoice] = useState<'earlier' | 'later' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -189,8 +225,25 @@ export default function AppointmentResponseClient({ token }: Props) {
     }
 
     if (response === 'time_change_requested') {
-      if (requestedDueDate) body.requestedDueDate = requestedDueDate;
-      if (requestedDueTime) body.requestedDueTime = requestedDueTime;
+      if (!timeChangeChoice) {
+        setSubmitError('Επιλέξτε 1 ώρα νωρίτερα ή 1 ώρα αργότερα.');
+        setIsSubmitting(false);
+        return;
+      }
+      const appt = payload?.appointment;
+      if (!appt) {
+        setSubmitError('Δεν μπορέσαμε να καταγράψουμε την απάντηση. Δοκιμάστε ξανά.');
+        setIsSubmitting(false);
+        return;
+      }
+      const option = buildTimeChangeOption(appt, timeChangeChoice);
+      if (!option) {
+        setSubmitError('Δεν είναι διαθέσιμη αλλαγή ώρας για αυτό το ραντεβού.');
+        setIsSubmitting(false);
+        return;
+      }
+      body.requestedDueDate = option.requestedDueDate;
+      body.requestedDueTime = option.requestedDueTime;
       const trimmed = comment.trim();
       if (trimmed) body.comment = trimmed;
     }
@@ -541,65 +594,61 @@ export default function AppointmentResponseClient({ token }: Props) {
             {action === 'confirming_time_change' && (
               <div className="rounded-xl bg-indigo-50 p-4 ring-1 ring-indigo-200 space-y-3">
                 <p className="text-sm font-semibold text-indigo-800">Αίτημα αλλαγής ώρας</p>
-                <p className="text-sm text-indigo-700">
-                  Συμπληρώστε την ώρα ή ημερομηνία που σας εξυπηρετεί. Όλα τα πεδία είναι προαιρετικά.
-                </p>
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <label
-                      htmlFor="tc-date"
-                      className="block text-xs font-medium text-indigo-700"
-                    >
-                      Νέα προτεινόμενη ημερομηνία (προαιρετικό)
-                    </label>
-                    <input
-                      id="tc-date"
-                      type="date"
-                      value={requestedDueDate}
-                      onChange={(e) => setRequestedDueDate(e.target.value)}
-                      disabled={isSubmitting}
-                      className="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm text-zinc-700 focus:border-indigo-400 focus:outline-none disabled:opacity-50"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label
-                      htmlFor="tc-time"
-                      className="block text-xs font-medium text-indigo-700"
-                    >
-                      Νέα προτεινόμενη ώρα (προαιρετικό)
-                    </label>
-                    <input
-                      id="tc-time"
-                      type="time"
-                      value={requestedDueTime}
-                      onChange={(e) => setRequestedDueTime(e.target.value)}
-                      disabled={isSubmitting}
-                      className="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm text-zinc-700 focus:border-indigo-400 focus:outline-none disabled:opacity-50"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label
-                      htmlFor="tc-comment"
-                      className="block text-xs font-medium text-indigo-700"
-                    >
-                      Σχόλιο (προαιρετικό)
-                    </label>
-                    <textarea
-                      id="tc-comment"
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      maxLength={1000}
-                      rows={3}
-                      placeholder="π.χ. μπορώ μόνο το πρωί"
-                      disabled={isSubmitting}
-                      className="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm text-zinc-700 placeholder-zinc-300 focus:border-indigo-400 focus:outline-none disabled:opacity-50"
-                    />
-                  </div>
+                {appointment.dueDate && appointment.dueTime ? (
+                  <>
+                    <p className="text-sm text-indigo-700">
+                      Επιλέξτε νέα ώρα. Η αλλαγή ισχύει για ±1 ώρα από την προγραμματισμένη ώρα.
+                    </p>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      {(['earlier', 'later'] as const).map((choice) => {
+                        const opt = buildTimeChangeOption(appointment, choice);
+                        if (!opt) return null;
+                        return (
+                          <button
+                            key={choice}
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => setTimeChangeChoice(choice)}
+                            className={`flex-1 rounded-xl border px-4 py-3 text-sm font-semibold transition disabled:opacity-50 ${
+                              timeChangeChoice === choice
+                                ? 'border-indigo-600 bg-indigo-600 text-white'
+                                : 'border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50'
+                            }`}
+                          >
+                            {choice === 'earlier' ? '1 ώρα νωρίτερα' : '1 ώρα αργότερα'}
+                            <span className="block text-xs font-normal opacity-80">{opt.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-indigo-700">
+                    Δεν υπάρχει διαθέσιμη ώρα για αλλαγή.
+                  </p>
+                )}
+                <div className="space-y-1">
+                  <label
+                    htmlFor="tc-comment"
+                    className="block text-xs font-medium text-indigo-700"
+                  >
+                    Σχόλιο (προαιρετικό)
+                  </label>
+                  <textarea
+                    id="tc-comment"
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    maxLength={1000}
+                    rows={3}
+                    placeholder="π.χ. μπορώ μόνο το πρωί"
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm text-zinc-700 placeholder-zinc-300 focus:border-indigo-400 focus:outline-none disabled:opacity-50"
+                  />
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <button
                     type="button"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !timeChangeChoice || !appointment.dueDate || !appointment.dueTime}
                     onClick={() => void handleSubmit('time_change_requested')}
                     className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
                   >
