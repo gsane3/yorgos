@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { updateTask } from '@/lib/storage';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import {
   isSpeechSupported,
@@ -310,6 +309,8 @@ export default function CmdPage() {
   const [appointmentCandidates, setAppointmentCandidates] = useState<(Task & { customerName?: string })[]>([]);
   const [confirmingCancelApptId, setConfirmingCancelApptId] = useState<string | null>(null);
   const [cancelApptSuccess, setCancelApptSuccess] = useState(false);
+  const [cancellingAppointmentId, setCancellingAppointmentId] = useState<string | null>(null);
+  const [cancelAppointmentError, setCancelAppointmentError] = useState<string | null>(null);
 
   const [offerPreviewData, setOfferPreviewData] = useState<{
     validItems: { description: string; quantity: number; unitPrice: number }[];
@@ -552,6 +553,8 @@ export default function CmdPage() {
     setAppointmentCandidates([]);
     setConfirmingCancelApptId(null);
     setCancelApptSuccess(false);
+    setCancellingAppointmentId(null);
+    setCancelAppointmentError(null);
     setOfferPreviewData(null);
 
     try {
@@ -811,18 +814,72 @@ export default function CmdPage() {
     }
   }
 
-  function handleConfirmCancelAppt(appt: Task & { customerName?: string }) {
+  async function handleConfirmCancelAppt(appt: Task & { customerName?: string }) {
     const now = new Date().toISOString();
     const label = new Date(now).toLocaleDateString('el-GR', {
       day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
     const noteAppend = `Ακύρωση ραντεβού: ${label}.`;
     const updatedNote = appt.note ? `${appt.note}\n${noteAppend}` : noteAppend;
-    const updated: Task = { ...appt, status: 'cancelled' as Task['status'], updatedAt: now, note: updatedNote };
-    updateTask(updated);
-    setAppointmentCandidates((prev) => prev.filter((t) => t.id !== appt.id));
-    setConfirmingCancelApptId(null);
-    setCancelApptSuccess(true);
+
+    setCancellingAppointmentId(appt.id);
+    setCancelAppointmentError(null);
+
+    try {
+      let token: string | null = null;
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const { data } = await supabase.auth.getSession();
+        token = data?.session?.access_token ?? null;
+      } catch {
+        // client creation failure treated as no session
+      }
+
+      if (!token) {
+        setCancelAppointmentError('Δεν υπάρχει ενεργή σύνδεση. Δοκίμασε ξανά.');
+        return;
+      }
+
+      let res: Response;
+      try {
+        res = await fetch(`/api/tasks/${appt.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ status: 'cancelled', note: updatedNote }),
+        });
+      } catch {
+        setCancelAppointmentError('Δεν ακυρώθηκε το ραντεβού. Δοκίμασε ξανά.');
+        return;
+      }
+
+      if (!res.ok) {
+        setCancelAppointmentError('Δεν ακυρώθηκε το ραντεβού. Δοκίμασε ξανά.');
+        return;
+      }
+
+      let returnedTask: BackendTaskDto | null = null;
+      try {
+        const json = (await res.json()) as { ok?: boolean; task?: BackendTaskDto; error?: string };
+        returnedTask = json.task ?? null;
+      } catch {
+        // JSON parse failure is non-fatal; state update falls back to optimistic
+      }
+
+      setBackendTasks((prev) => {
+        if (!returnedTask) return prev;
+        const mapped = mapBackendTask(returnedTask) as unknown as Task;
+        return prev.map((t) => (t.id === appt.id ? mapped : t));
+      });
+      setAppointmentCandidates((prev) => prev.filter((t) => t.id !== appt.id));
+      setConfirmingCancelApptId(null);
+      setCancelAppointmentError(null);
+      setCancelApptSuccess(true);
+    } finally {
+      setCancellingAppointmentId(null);
+    }
   }
 
   function reset() {
@@ -838,6 +895,8 @@ export default function CmdPage() {
     setAppointmentCandidates([]);
     setConfirmingCancelApptId(null);
     setCancelApptSuccess(false);
+    setCancellingAppointmentId(null);
+    setCancelAppointmentError(null);
     setOfferPreviewData(null);
     setIsSavingTask(false);
     setTaskSaveError(null);
@@ -1331,13 +1390,17 @@ export default function CmdPage() {
                                 <p className="text-xs text-zinc-500">
                                   {appt.dueDate}{appt.dueTime ? ` ${appt.dueTime}` : ''}
                                 </p>
+                                {cancelAppointmentError && (
+                                  <p className="text-xs text-red-600">{cancelAppointmentError}</p>
+                                )}
                                 <div className="flex flex-wrap gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => handleConfirmCancelAppt(appt)}
-                                    className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-800"
+                                    disabled={cancellingAppointmentId === appt.id}
+                                    onClick={() => { void handleConfirmCancelAppt(appt); }}
+                                    className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-60"
                                   >
-                                    Ναι, ακύρωση
+                                    {cancellingAppointmentId === appt.id ? 'Ακύρωση...' : 'Ναι, ακύρωση'}
                                   </button>
                                   <button
                                     type="button"
@@ -1358,7 +1421,7 @@ export default function CmdPage() {
                                 <p className="text-xs text-zinc-400">{APPT_TYPE_LABELS[appt.type] ?? appt.type}</p>
                                 <button
                                   type="button"
-                                  onClick={() => { setCancelApptSuccess(false); setConfirmingCancelApptId(appt.id); }}
+                                  onClick={() => { setCancelApptSuccess(false); setCancelAppointmentError(null); setConfirmingCancelApptId(appt.id); }}
                                   className="mt-2 text-xs font-medium text-red-600 hover:text-red-700 transition"
                                 >
                                   Ακύρωση ραντεβού
