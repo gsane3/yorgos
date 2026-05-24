@@ -3,9 +3,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { loadState, addCustomer, updateCustomer, addTask, addOffer } from '@/lib/storage';
-import DemoStepBanner from '@/components/common/DemoStepBanner';
-import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
+import { loadState } from '@/lib/storage';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { generateDemoAiResult } from '@/lib/demo-data';
 import { calculateTotals, fmtEur } from '@/lib/offer-calculations';
 import type {
@@ -14,9 +13,6 @@ import type {
   TaskType,
   TaskPriority,
   PreferredContactMethod,
-  Customer,
-  Task,
-  Offer,
   BusinessProfile,
 } from '@/lib/types';
 import type { AiReviewResult } from '@/lib/ai/schema';
@@ -141,7 +137,7 @@ export default function AiReviewPage() {
   const [aiError, setAiError] = useState('');
   const [resultSource, setResultSource] = useState<'demo' | 'ai'>('demo');
 
-  // Speech state — start false so server render and first client render match.
+  // Speech state  -  start false so server render and first client render match.
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');
@@ -156,6 +152,7 @@ export default function AiReviewPage() {
   const [phase, setPhase] = useState<'review' | 'saved'>('review');
   const [savedCustomerId, setSavedCustomerId] = useState('');
   const [saveError, setSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   const vatRate = businessProfile?.defaultVatRate ?? 24;
@@ -201,7 +198,7 @@ export default function AiReviewPage() {
     return () => window.clearTimeout(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Ensure recognition stops on unmount — refs prevent restart in onend
+  // Ensure recognition stops on unmount  -  refs prevent restart in onend
   useEffect(() => {
     return () => {
       shouldKeepListeningRef.current = false;
@@ -312,7 +309,7 @@ export default function AiReviewPage() {
     setCreateOffer(result.offer.shouldCreate);
     setOfferItems(result.offer.items.map((i) => ({ ...i, _id: crypto.randomUUID() })));
     setOfferNotes(result.offer.notes);
-    // offerTerms intentionally not overwritten — keeps business default
+    // offerTerms intentionally not overwritten  -  keeps business default
   }
 
   function handleResetToDemo() {
@@ -358,176 +355,195 @@ export default function AiReviewPage() {
     }
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!customerName.trim()) {
       setSaveError('Το όνομα πελάτη είναι υποχρεωτικό.');
       return;
     }
     setSaveError('');
+    setIsSaving(true);
 
-    const state = loadState();
-    const now = new Date().toISOString();
-    const todayStr = now.split('T')[0];
-
-    // ── Find or create customer (phone first, then exact normalized name) ──
-    const phone = customerPhone.trim();
-    const normalizedName = customerName.trim().toLowerCase().replace(/\s+/g, ' ');
-
-    let existing: Customer | undefined;
-    if (phone) {
-      existing = (state.customers ?? []).find((c) => c.phone === phone);
-    }
-    if (!existing && normalizedName) {
-      existing = (state.customers ?? []).find(
-        (c) => c.name.trim().toLowerCase().replace(/\s+/g, ' ') === normalizedName
-      );
-    }
-
-    let customerId: string;
-
-    if (existing) {
-      const updated: Customer = {
-        ...existing,
-        name: customerName.trim(),
-        phone,
-        email: customerEmail.trim(),
-        source: customerSource,
-        opportunityValue: opportunityValue ? Number(opportunityValue) : existing.opportunityValue,
-        preferredContactMethod: preferredContact,
-        status: statusUpdate,
-        needsSummary: summary.trim(),
-        notes: customerNeeds.trim(),
-        updatedAt: now,
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setSaveError('Πρέπει να συνδεθείς στο backend πριν αποθηκεύσεις.');
+        return;
+      }
+      const token = session.access_token;
+      const authHeaders = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
       };
-      updateCustomer(updated);
-      customerId = existing.id;
-    } else {
-      const newCustomer: Customer = {
-        id: crypto.randomUUID(),
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      // Fetch existing customers and match by phone first, then normalized name
+      const phone = customerPhone.trim();
+      const normalizedName = customerName.trim().toLowerCase().replace(/\s+/g, ' ');
+
+      const customersRes = await fetch('/api/customers?limit=100', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!customersRes.ok) {
+        setSaveError('Αποτυχία φόρτωσης πελατών. Δοκίμασε ξανά.');
+        return;
+      }
+      const customersData = (await customersRes.json()) as {
+        customers?: Array<{ id: string; name: string; phone?: string }>;
+      };
+      const allCustomers = customersData.customers ?? [];
+
+      let existingCustomer: { id: string } | undefined;
+      if (phone) {
+        existingCustomer = allCustomers.find((c) => c.phone === phone);
+      }
+      if (!existingCustomer && normalizedName) {
+        existingCustomer = allCustomers.find(
+          (c) => c.name.trim().toLowerCase().replace(/\s+/g, ' ') === normalizedName
+        );
+      }
+
+      const customerPayload = {
         name: customerName.trim(),
-        companyName: '',
         phone,
         email: customerEmail.trim(),
-        address: '',
         source: customerSource,
         opportunityValue: opportunityValue ? Number(opportunityValue) : undefined,
-        status: statusUpdate,
         preferredContactMethod: preferredContact,
+        status: statusUpdate,
         needsSummary: summary.trim(),
         notes: customerNeeds.trim(),
-        createdAt: now,
-        updatedAt: now,
       };
-      addCustomer(newCustomer);
-      customerId = newCustomer.id;
-    }
 
-    // ── Create tasks ──
-    for (const t of tasks) {
-      if (!t.title.trim()) continue;
-      const task: Task = {
-        id: crypto.randomUUID(),
-        customerId,
-        title: t.title.trim(),
-        type: t.type,
-        status: 'open',
-        priority: t.priority,
-        dueDate: t.dueDate || todayStr,
-        dueTime: t.dueTime || undefined,
-        note: t.note.trim(),
-        createdFromAi: true,
-        createdAt: now,
-        updatedAt: now,
-      };
-      addTask(task);
-    }
+      let customerId: string;
 
-    // ── Create offer if toggled on ──
-    if (createOffer) {
-      const validItems = offerItems.filter(
-        (i) => i.description.trim() && i.unitPrice > 0
-      );
-      if (validItems.length > 0) {
-        const freshState = loadState();
-        const existing = freshState.offers ?? [];
-        const maxNum =
-          existing.length === 0
-            ? 0
-            : Math.max(
-                ...existing.map((o) => {
-                  const match = o.offerNumber.match(/(\d+)$/);
-                  return match ? parseInt(match[1]) : 0;
-                })
-              );
-        const offerNumber = `#${String(maxNum + 1).padStart(3, '0')}`;
-        const in30days = new Date();
-        in30days.setDate(in30days.getDate() + 30);
+      if (existingCustomer) {
+        const patchRes = await fetch(`/api/customers/${existingCustomer.id}`, {
+          method: 'PATCH',
+          headers: authHeaders,
+          body: JSON.stringify(customerPayload),
+        });
+        if (!patchRes.ok) {
+          setSaveError('Αποτυχία ενημέρωσης πελάτη. Δοκίμασε ξανά.');
+          return;
+        }
+        customerId = existingCustomer.id;
+      } else {
+        const postRes = await fetch('/api/customers', {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify(customerPayload),
+        });
+        if (!postRes.ok) {
+          setSaveError('Αποτυχία δημιουργίας πελάτη. Δοκίμασε ξανά.');
+          return;
+        }
+        const postData = (await postRes.json()) as { customer?: { id: string } };
+        if (!postData.customer?.id) {
+          setSaveError('Σφάλμα κατά τη δημιουργία πελάτη.');
+          return;
+        }
+        customerId = postData.customer.id;
+      }
 
-        const { subtotal, vatAmount, total } = calculateTotals(
-          validItems.map((i) => ({
-            id: i._id,
-            description: i.description,
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-          })),
-          vatRate
-        );
-
-        const offer: Offer = {
-          id: crypto.randomUUID(),
-          customerId,
-          offerNumber,
-          status: 'draft',
-          offerDate: todayStr,
-          validUntil: in30days.toISOString().split('T')[0],
-          items: validItems.map((i) => ({
-            id: i._id,
-            description: i.description,
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-          })),
-          subtotal,
-          vatRate,
-          vatAmount,
-          total,
-          notes: offerNotes.trim(),
-          terms: offerTerms || freshState.businessProfile?.defaultOfferTerms || '',
-          acceptanceText:
-            freshState.businessProfile?.defaultAcceptanceText ??
-            'Αποδέχομαι τους παραπάνω όρους.',
-          createdFromAi: true,
-          createdAt: now,
-          updatedAt: now,
-        };
-        addOffer(offer);
-        // Auto-create a follow-up task to review and send this offer,
-        // unless the AI result already includes a send_offer task.
-        const hasSendOfferTask = tasks.some((t) => t.type === 'send_offer');
-        if (!hasSendOfferTask) {
-          const offerFollowUpTask: Task = {
-            id: crypto.randomUUID(),
+      // Create tasks
+      for (const t of tasks) {
+        if (!t.title.trim()) continue;
+        const taskRes = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({
             customerId,
-            offerId: offer.id,
-            title: 'Έλεγχος και αποστολή προσφοράς',
-            type: 'send_offer',
+            title: t.title.trim(),
+            type: t.type,
             status: 'open',
-            priority: 'normal',
-            dueDate: todayStr,
-            note: 'Δημιουργήθηκε αυτόματα επειδή το AI brief περιλαμβάνει προσφορά. Έλεγξε την προσφορά πριν τη στείλεις.',
-            createdFromAi: true,
-            createdAt: now,
-            updatedAt: now,
-          };
-          addTask(offerFollowUpTask);
+            priority: t.priority,
+            dueDate: t.dueDate || todayStr,
+            dueTime: t.dueTime || undefined,
+            note: t.note.trim(),
+          }),
+        });
+        if (!taskRes.ok) {
+          setSaveError('Αποτυχία δημιουργίας task. Ο πελάτης αποθηκεύτηκε.');
+          return;
         }
       }
-    }
 
-    setSavedCustomerId(customerId);
-    setPhase('saved');
+      // Create offer if toggled on and there are valid items
+      if (createOffer) {
+        const validItems = offerItems.filter(
+          (i) => i.description.trim() && i.unitPrice > 0
+        );
+        if (validItems.length > 0) {
+          const in30days = new Date();
+          in30days.setDate(in30days.getDate() + 30);
+
+          const offerRes = await fetch('/api/offers', {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({
+              customerId,
+              status: 'draft',
+              offerDate: todayStr,
+              validUntil: in30days.toISOString().split('T')[0],
+              items: validItems.map((i) => ({
+                description: i.description,
+                quantity: i.quantity,
+                unitPrice: i.unitPrice,
+              })),
+              vatRate,
+              notes: offerNotes.trim(),
+              terms: offerTerms || businessProfile?.defaultOfferTerms || '',
+              acceptanceText:
+                businessProfile?.defaultAcceptanceText ?? 'Αποδέχομαι τους παραπάνω όρους.',
+            }),
+          });
+          if (!offerRes.ok) {
+            setSaveError('Αποτυχία δημιουργίας προσφοράς. Πελάτης και tasks αποθηκεύτηκαν.');
+            return;
+          }
+          const offerData = (await offerRes.json()) as { offer?: { id: string } };
+          const offerId = offerData.offer?.id;
+          if (!offerId) {
+            setSaveError('Αποτυχία επιβεβαίωσης προσφοράς. Πελάτης και tasks αποθηκεύτηκαν.');
+            return;
+          }
+
+          // Auto-create a follow-up task unless the AI already proposed a send_offer task
+          const hasSendOfferTask = tasks.some((t) => t.type === 'send_offer');
+          if (!hasSendOfferTask) {
+            const followUpRes = await fetch('/api/tasks', {
+              method: 'POST',
+              headers: authHeaders,
+              body: JSON.stringify({
+                customerId,
+                offerId,
+                title: 'Έλεγχος και αποστολή προσφοράς',
+                type: 'send_offer',
+                status: 'open',
+                priority: 'normal',
+                dueDate: todayStr,
+                note: 'Δημιουργήθηκε αυτόματα. Έλεγξε την προσφορά πριν τη στείλεις.',
+              }),
+            });
+            if (!followUpRes.ok) {
+              setSaveError('Αποτυχία δημιουργίας follow-up task για την προσφορά.');
+              return;
+            }
+          }
+        }
+      }
+
+      setSavedCustomerId(customerId);
+      setPhase('saved');
+    } catch {
+      setSaveError('Αποτυχία αποθήκευσης. Έλεγξε τη σύνδεση και δοκίμασε ξανά.');
+    } finally {
+      setIsSaving(false);
+    }
   }
 
-  // Stable loading shell — identical on server and first client render.
+  // Stable loading shell  -  identical on server and first client render.
   if (!hydrated) {
     return (
       <div className="mx-auto max-w-2xl px-4 pt-5 pb-10">
@@ -556,14 +572,14 @@ export default function AiReviewPage() {
         <div>
           <h1 className="text-xl font-bold text-zinc-900">Αποθηκεύτηκε στο CRM</h1>
           <p className="mt-2 text-sm text-zinc-500">
-            Η περίληψη, τα tasks και οι αλλαγές αποθηκεύτηκαν τοπικά στον browser.
-            Δεν στάλθηκαν σε κανέναν.
+            Η περίληψη, τα tasks και οι αλλαγές αποθηκεύτηκαν στο CRM.
+            Δεν στάλθηκε τίποτα αυτόματα.
           </p>
         </div>
         <div className="flex flex-col gap-2">
           {savedCustomerId && (
             <Link
-              href={`/customers/${savedCustomerId}`}
+              href={`/customers/backend/${savedCustomerId}`}
               className="flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700"
             >
               Άνοιγμα πελάτη
@@ -586,25 +602,6 @@ export default function AiReviewPage() {
   // ── Review screen ─────────────────────────────────────────────────────────
   return (
     <div className="mx-auto max-w-2xl px-4 pt-5 pb-10 space-y-4">
-      {/* Step 165: Demo mission banner */}
-      <DemoStepBanner
-        step="review"
-        stepNum={2}
-        title="AI review -- δημιουργία στοιχείων από AI"
-        body="Επέλεξε ένα παράδειγμα υπαγόρευσης ή γράψε δικό σου κείμενο. Πάτα 'Δημιούργησε με AI'."
-        watchLabel="Το AI προτείνει -- εσύ αποφασίζεις τι αποθηκεύεται."
-        actionLabel="Επόμενο: Καρτέλα πελάτη"
-        actionHref="/customers/demo-karagiannis?demoStep=customer"
-      />
-      <GuidedDemoBanner
-        step="review"
-        stepNum={2}
-        title="AI Review — brief μετά από κλήση"
-        whatYouSee="Επεξεργαστής υπαγόρευσης και editable fields: πελάτης, tasks, προσφορά."
-        whatToDo="Επέλεξε παράδειγμα, πάτα 'Δημιούργησε με AI', κοίτα τα editable fields και αποθήκευσε αν θες."
-        whyItMatters="Στο τελικό προϊόν, μετά κάθε κλήση το AI θα ετοιμάζει αυτόματα brief για CRM. Στο MVP: demo κείμενα — δεν αποθηκεύεται τίποτα χωρίς επιβεβαίωση σου."
-        canManualComplete={true}
-      />
       {/* Header */}
       <div>
         <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -638,7 +635,7 @@ export default function AiReviewPage() {
           className={`${inputCls} resize-none disabled:bg-zinc-50`}
         />
 
-        {/* Example prompts by business type — shown when input is empty and not listening */}
+        {/* Example prompts by business type  -  shown when input is empty and not listening */}
         {!aiInputText && !isListening && (
           <div className="mt-2 space-y-1.5">
             <p className="text-xs text-zinc-400">Παραδείγματα:</p>
@@ -657,7 +654,7 @@ export default function AiReviewPage() {
           </div>
         )}
 
-        {/* Interim speech preview — shown while listening, not stored */}
+        {/* Interim speech preview  -  shown while listening, not stored */}
         {isListening && (
           <p className="mt-1 min-h-[1.25rem] text-xs italic text-zinc-400">
             {interimText ? interimText + '...' : 'Ακούω... μίλησε τώρα'}
@@ -665,7 +662,7 @@ export default function AiReviewPage() {
         )}
 
         <div className="mt-2 flex flex-wrap gap-2">
-          {/* Mic button — only shown if speech is supported */}
+          {/* Mic button  -  only shown if speech is supported */}
           {speechSupported && (
             <button
               type="button"
@@ -1010,7 +1007,7 @@ export default function AiReviewPage() {
 
       {/* Next best action */}
       <SectionCard title="Προτεινόμενη επόμενη ενέργεια">
-        <p className="text-sm italic text-zinc-600">{nextBestAction || '—'}</p>
+        <p className="text-sm italic text-zinc-600">{nextBestAction || ''}</p>
       </SectionCard>
 
       {/* Error */}
@@ -1027,10 +1024,11 @@ export default function AiReviewPage() {
         </button>
         <button
           type="button"
-          onClick={handleSave}
-          className="flex-1 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          onClick={() => { void handleSave(); }}
+          disabled={isSaving}
+          className="flex-1 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Αποθήκευση στο CRM
+          {isSaving ? 'Αποθήκευση...' : 'Αποθήκευση στο CRM'}
         </button>
       </div>
     </div>
