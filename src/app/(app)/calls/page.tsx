@@ -293,7 +293,7 @@ function RecentTab({
             <div className="flex flex-wrap gap-2">
               {call.customerId && (
                 <Link
-                  href={`/customers/backend/${call.customerId}`}
+                  href={`/customers/${call.customerId}`}
                   className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 min-h-[32px] flex items-center"
                 >
                   Άνοιγμα πελάτη
@@ -366,7 +366,7 @@ function CustomersTab({
             {search.trim() ? 'Δεν βρέθηκαν αποτελέσματα.' : 'Δεν υπάρχουν πελάτες ακόμα.'}
           </p>
           {!search.trim() && (
-            <Link href="/customers/backend" className="mt-3 inline-block text-sm text-indigo-600 hover:underline">
+            <Link href="/customers" className="mt-3 inline-block text-sm text-indigo-600 hover:underline">
               Πήγαινε στους Πελάτες →
             </Link>
           )}
@@ -400,7 +400,7 @@ function CustomersTab({
                   </svg>
                 </button>
                 <Link
-                  href={`/customers/backend/${c.id}`}
+                  href={`/customers/${c.id}`}
                   className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-50 text-zinc-600 ring-1 ring-zinc-200 transition hover:bg-zinc-100"
                   title="Άνοιγμα"
                 >

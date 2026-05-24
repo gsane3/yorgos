@@ -36,7 +36,7 @@ export default function CustomerCard({ customer }: Props) {
 
   return (
     <Link
-      href={`/customers/backend/${customer.id}`}
+      href={`/customers/${customer.id}`}
       className="block rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 transition hover:ring-indigo-200 active:bg-zinc-50"
     >
       {/* Row 1: Name + CRM chip */}
@@ -64,7 +64,7 @@ export default function CustomerCard({ customer }: Props) {
         <CustomerStatusBadge status={customer.status} />
       </div>
 
-      {/* Row 4: Value + phone — muted */}
+      {/* Row 4: Value + phone  -  muted */}
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-zinc-500">
         {customer.opportunityValue && (
           <span className="font-semibold text-zinc-700">
@@ -92,7 +92,7 @@ export default function CustomerCard({ customer }: Props) {
         )}
       </div>
 
-      {/* Row 5: Last contact — very muted */}
+      {/* Row 5: Last contact  -  very muted */}
       {customer.lastContactAt && (
         <p className="mt-1 text-xs text-zinc-400">
           Τελευταία επικοινωνία: {formatDate(customer.lastContactAt)}

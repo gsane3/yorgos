@@ -72,7 +72,7 @@ function buildActions(task: Task): TaskActions {
     type === 'other'
   ) {
     if (customerId) {
-      main = { label: 'Άνοιγμα πελάτη', href: `/customers/backend/${customerId}` };
+      main = { label: 'Άνοιγμα πελάτη', href: `/customers/${customerId}` };
       mainOpensCustomer = true;
     }
   }
@@ -80,7 +80,7 @@ function buildActions(task: Task): TaskActions {
   // Secondary links. shown only when they add context beyond the main action.
   const secondaryCustomer: ActionLink | null =
     !mainOpensCustomer && customerId
-      ? { label: 'Άνοιγμα πελάτη', href: `/customers/backend/${customerId}` }
+      ? { label: 'Άνοιγμα πελάτη', href: `/customers/${customerId}` }
       : null;
 
   const secondaryOffer: ActionLink | null =
