@@ -31,9 +31,7 @@ function getResponseStatus(note: string): { label: string; cls: string } {
   return { label: 'Αναμονή απάντησης', cls: 'bg-zinc-100 text-zinc-500' };
 }
 
-function buildProposalEmailText(customer: Customer, date: string, time: string, taskId: string): string {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const responseLink = `${origin}/appointment-response/${taskId}`;
+function buildProposalEmailText(customer: Customer, date: string, time: string, responseLink: string): string {
   return [
     `Αγαπητέ/ή ${customer.name},`,
     '',
@@ -243,6 +241,9 @@ export default function AppointmentsPage() {
   const [cancelEmailManualVisible, setCancelEmailManualVisible] = useState(false);
 
   const [selectedAppointment, setSelectedAppointment] = useState<Task | null>(null);
+  const [appointmentResponseLinks, setAppointmentResponseLinks] = useState<Record<string, string>>({});
+  const [appointmentResponseLinkStates, setAppointmentResponseLinkStates] = useState<Record<string, 'idle' | 'creating' | 'ready' | 'copied' | 'error'>>({});
+  const [appointmentResponseLinkErrors, setAppointmentResponseLinkErrors] = useState<Record<string, string | null>>({});
 
   const customerMap = useMemo(
     () => Object.fromEntries(customers.map((c) => [c.id, c.name])),
@@ -381,8 +382,21 @@ export default function AppointmentsPage() {
   async function handleSendProposalEmail() {
     if (!proposalCustomer?.email || !proposalTaskId) return;
     setProposalEmailState('sending');
+
+    const task = appointments.find((t) => t.id === proposalTaskId);
+    if (!task) {
+      setProposalEmailState('error');
+      return;
+    }
+
+    const responseUrl = await createAppointmentResponseLink(task, 'email');
+    if (!responseUrl) {
+      setProposalEmailState('error');
+      return;
+    }
+
     const subject = 'Πρόταση ραντεβού';
-    const text = buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, proposalTaskId);
+    const text = buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, responseUrl);
     try {
       const res = await fetch('/api/email/send-offer', {
         method: 'POST',
@@ -402,9 +416,19 @@ export default function AppointmentsPage() {
     }
   }
 
-  function handleCopyProposalEmail() {
+  async function handleCopyProposalEmail() {
     if (!proposalTaskId || !proposalCustomer) return;
-    const text = buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, proposalTaskId);
+
+    const task = appointments.find((t) => t.id === proposalTaskId);
+    if (!task) return;
+
+    let responseUrl = appointmentResponseLinks[proposalTaskId];
+    if (!responseUrl) {
+      responseUrl = (await createAppointmentResponseLink(task, 'manual')) ?? '';
+      if (!responseUrl) return;
+    }
+
+    const text = buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, responseUrl);
     if (navigator.clipboard) {
       navigator.clipboard.writeText(text).then(
         () => { setProposalEmailCopied(true); setTimeout(() => setProposalEmailCopied(false), 2500); },
@@ -485,6 +509,84 @@ export default function AppointmentsPage() {
   function getAppointmentCustomer(task: Task): Customer | null {
     if (!task.customerId) return null;
     return customers.find((c) => c.id === task.customerId) ?? null;
+  }
+
+  async function createAppointmentResponseLink(
+    task: Task,
+    sentChannel: 'manual' | 'email' = 'manual'
+  ): Promise<string | null> {
+    const token = tokenRef.current;
+    if (!token) {
+      setAppointmentResponseLinkErrors((prev) => ({
+        ...prev,
+        [task.id]: 'Δεν υπάρχει ενεργή σύνδεση. Δοκίμασε ξανά.',
+      }));
+      return null;
+    }
+
+    setAppointmentResponseLinkStates((prev) => ({ ...prev, [task.id]: 'creating' }));
+    setAppointmentResponseLinkErrors((prev) => ({ ...prev, [task.id]: null }));
+
+    const customer = sentChannel === 'email' ? getAppointmentCustomer(task) : null;
+    const sentTo = sentChannel === 'email' && customer?.email ? customer.email : null;
+
+    try {
+      const res = await fetch('/api/appointment-response-links', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ taskId: task.id, sentChannel, sentTo }),
+      });
+
+      let data: { ok?: boolean; responseUrl?: string; error?: string };
+      try {
+        data = (await res.json()) as { ok?: boolean; responseUrl?: string; error?: string };
+      } catch {
+        throw new Error('invalid_json');
+      }
+
+      if (!res.ok || !data.ok || typeof data.responseUrl !== 'string' || !data.responseUrl) {
+        throw new Error('link_create_failed');
+      }
+
+      const responseUrl = data.responseUrl;
+      setAppointmentResponseLinks((prev) => ({ ...prev, [task.id]: responseUrl }));
+      setAppointmentResponseLinkStates((prev) => ({ ...prev, [task.id]: 'ready' }));
+      return responseUrl;
+    } catch {
+      setAppointmentResponseLinkErrors((prev) => ({
+        ...prev,
+        [task.id]: 'Δεν δημιουργήθηκε link απάντησης. Δοκίμασε ξανά.',
+      }));
+      setAppointmentResponseLinkStates((prev) => ({ ...prev, [task.id]: 'error' }));
+      return null;
+    }
+  }
+
+  async function handleCopyAppointmentResponseLink(task: Task) {
+    let url = appointmentResponseLinks[task.id];
+    if (!url) {
+      url = (await createAppointmentResponseLink(task, 'manual')) ?? '';
+      if (!url) return;
+    }
+
+    setAppointmentResponseLinkStates((prev) => ({ ...prev, [task.id]: 'copied' }));
+
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {
+        // Clipboard unavailable; URL already visible in read-only field
+      }
+      setTimeout(() => {
+        setAppointmentResponseLinkStates((prev) => {
+          if (prev[task.id] === 'copied') return { ...prev, [task.id]: 'ready' };
+          return prev;
+        });
+      }, 2500);
+    }
   }
 
   function openForm() {
@@ -619,6 +721,41 @@ export default function AppointmentsPage() {
             </div>
           )}
         </div>
+        {/* Appointment response link */}
+        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
+          <p className="text-sm font-semibold text-zinc-800">Απάντηση πελάτη</p>
+          <p className="text-xs text-zinc-500">
+            Δημιουργεί ασφαλές link ώστε ο πελάτης να αποδεχτεί, να απορρίψει ή να ζητήσει αλλαγή ώρας. Δεν αποστέλλεται τίποτα αυτόματα.
+          </p>
+          {appointmentResponseLinks[selectedAppointment.id] && (
+            <input
+              type="text"
+              readOnly
+              value={appointmentResponseLinks[selectedAppointment.id]}
+              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-xs text-zinc-600"
+            />
+          )}
+          {appointmentResponseLinkErrors[selectedAppointment.id] && (
+            <p className="text-xs text-red-600">{appointmentResponseLinkErrors[selectedAppointment.id]}</p>
+          )}
+          <button
+            type="button"
+            disabled={appointmentResponseLinkStates[selectedAppointment.id] === 'creating'}
+            onClick={() => { void handleCopyAppointmentResponseLink(selectedAppointment); }}
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition disabled:opacity-60 ${
+              appointmentResponseLinkStates[selectedAppointment.id] === 'copied'
+                ? 'bg-green-100 text-green-700'
+                : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+            }`}
+          >
+            {appointmentResponseLinkStates[selectedAppointment.id] === 'creating'
+              ? 'Δημιουργία...'
+              : appointmentResponseLinkStates[selectedAppointment.id] === 'copied'
+              ? 'Αντιγράφηκε'
+              : 'Δημιουργία / αντιγραφή link'}
+          </button>
+        </div>
+
         {selectedAppointment.customerId && (
           <Link
             href={`/customers/${selectedAppointment.customerId}`}
@@ -772,7 +909,7 @@ export default function AppointmentsPage() {
                 <textarea
                   readOnly
                   rows={6}
-                  value={buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, proposalTaskId)}
+                  value={buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, appointmentResponseLinks[proposalTaskId] ?? '')}
                   className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
                 />
                 <button
@@ -795,7 +932,7 @@ export default function AppointmentsPage() {
                 <textarea
                   readOnly
                   rows={6}
-                  value={buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, proposalTaskId)}
+                  value={buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, appointmentResponseLinks[proposalTaskId] ?? '')}
                   className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
                 />
                 <button
@@ -832,7 +969,7 @@ export default function AppointmentsPage() {
                   <textarea
                     readOnly
                     rows={6}
-                    value={buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, proposalTaskId)}
+                    value={buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, appointmentResponseLinks[proposalTaskId] ?? '')}
                     className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
                   />
                 )}
