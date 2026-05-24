@@ -122,6 +122,11 @@ function tomorrowDateStr(): string {
 
 const inputCls = 'rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
 
+const APPT_TYPE_LABELS: Record<string, string> = {
+  book_appointment: 'Ραντεβού',
+  visit_customer: 'Επίσκεψη πελάτη',
+};
+
 // ---------------------------------------------------------------------------
 // DTO types and mapping
 // ---------------------------------------------------------------------------
@@ -236,6 +241,8 @@ export default function AppointmentsPage() {
   const [cancelEmailState, setCancelEmailState] = useState<'idle' | 'sending' | 'sent' | 'missing_config' | 'error'>('idle');
   const [cancelEmailCopied, setCancelEmailCopied] = useState(false);
   const [cancelEmailManualVisible, setCancelEmailManualVisible] = useState(false);
+
+  const [selectedAppointment, setSelectedAppointment] = useState<Task | null>(null);
 
   const customerMap = useMemo(
     () => Object.fromEntries(customers.map((c) => [c.id, c.name])),
@@ -473,6 +480,11 @@ export default function AppointmentsPage() {
     } else {
       setCancelEmailManualVisible(true);
     }
+  }
+
+  function getAppointmentCustomer(task: Task): Customer | null {
+    if (!task.customerId) return null;
+    return customers.find((c) => c.id === task.customerId) ?? null;
   }
 
   function openForm() {
@@ -896,9 +908,6 @@ export default function AppointmentsPage() {
             <ul className="space-y-2">
               {group.map((task) => {
                 const customerName = task.customerId ? customerMap[task.customerId] : undefined;
-                const primaryHref = task.customerId
-                  ? `/customers/${task.customerId}?focusAppointment=${task.id}`
-                  : `/tasks?taskId=${task.id}`;
                 const status = getResponseStatus(task.note);
 
                 return (
@@ -931,7 +940,11 @@ export default function AppointmentsPage() {
                       </div>
                     ) : (
                       <>
-                        <Link href={primaryHref} className="flex min-w-0 flex-1 flex-col gap-1 p-4">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAppointment(task)}
+                          className="flex min-w-0 w-full flex-col gap-1 p-4 text-left"
+                        >
                           <div className="flex flex-wrap items-center gap-2">
                             <p className={`text-xs font-semibold ${key === 'overdue' ? 'text-red-700' : 'text-indigo-700'}`}>
                               {formatDate(task.dueDate)}
@@ -945,16 +958,28 @@ export default function AppointmentsPage() {
                           {customerName && (
                             <p className="text-xs text-zinc-500 truncate">{customerName}</p>
                           )}
-                        </Link>
+                        </button>
                         <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 px-4 py-2">
-                          <Link href={`/tasks?taskId=${task.id}`} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition">
-                            Άνοιγμα task →
-                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAppointment(task)}
+                            className="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition"
+                          >
+                            Προβολή ραντεβού
+                          </button>
+                          {task.customerId && (
+                            <Link href={`/customers/${task.customerId}`} className="text-xs font-medium text-zinc-500 hover:text-zinc-700 transition">
+                              Πελάτης
+                            </Link>
+                          )}
                           {task.offerId && (
                             <Link href={`/offers/${task.offerId}`} className="text-xs font-medium text-zinc-500 hover:text-zinc-700 transition">
                               Προσφορά →
                             </Link>
                           )}
+                          <Link href={`/tasks?taskId=${task.id}`} className="text-xs text-zinc-400 hover:text-zinc-500 transition">
+                            Task record
+                          </Link>
                           <button
                             type="button"
                             onClick={() => { setCancelResult(null); setCancellingTaskId(task.id); }}
@@ -972,6 +997,70 @@ export default function AppointmentsPage() {
           </section>
         );
       })}
+
+      {/* Appointment detail panel */}
+      {selectedAppointment && (() => {
+        const selCustomer = getAppointmentCustomer(selectedAppointment);
+        return (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/30"
+              onClick={() => setSelectedAppointment(null)}
+            />
+            <div className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white px-5 py-6 shadow-xl space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-base font-semibold text-zinc-900">Στοιχεία ραντεβού</p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAppointment(null)}
+                  className="shrink-0 text-sm text-zinc-400 transition hover:text-zinc-600"
+                >
+                  Κλείσιμο
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-sm font-semibold text-zinc-900">{selectedAppointment.title}</p>
+                <p className="text-sm text-zinc-600">
+                  {formatDate(selectedAppointment.dueDate)}
+                  {selectedAppointment.dueTime && <span className="ml-1.5">{selectedAppointment.dueTime}</span>}
+                </p>
+                <p className="text-xs text-zinc-500">
+                  {APPT_TYPE_LABELS[selectedAppointment.type] ?? selectedAppointment.type}
+                </p>
+                {selCustomer && (
+                  <p className="text-xs text-zinc-500">Πελάτης: {selCustomer.name}</p>
+                )}
+                {selectedAppointment.note && (
+                  <p className="text-xs text-zinc-500 whitespace-pre-wrap">{selectedAppointment.note}</p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-3 border-t border-zinc-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setSelectedAppointment(null)}
+                  className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                >
+                  Κλείσιμο
+                </button>
+                {selectedAppointment.customerId && (
+                  <Link
+                    href={`/customers/${selectedAppointment.customerId}`}
+                    className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                  >
+                    Προφίλ πελάτη
+                  </Link>
+                )}
+                <Link
+                  href={`/tasks?taskId=${selectedAppointment.id}`}
+                  className="self-center text-xs text-zinc-400 transition hover:text-zinc-500"
+                >
+                  Άνοιγμα task record
+                </Link>
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
