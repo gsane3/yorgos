@@ -19,7 +19,7 @@ function formatDate(dateStr: string): string {
 }
 
 type AppointmentResponseInfo = {
-  kind: 'accepted' | 'declined' | 'time_change_requested' | null;
+  kind: 'accepted' | 'declined' | 'time_change_requested' | 'time_change_approved' | null;
   label: string;
   cls: string;
   requestedDueDate: string | null;
@@ -28,6 +28,7 @@ type AppointmentResponseInfo = {
 };
 
 function getAppointmentResponseInfo(note: string): AppointmentResponseInfo {
+  const isTimeChangeApproved = note.includes('Αποδοχή αλλαγής ώρας από επαγγελματία:');
   const isAccepted =
     note.includes('Αποδοχή ραντεβού από πελάτη:') ||
     note.includes('Απάντηση μέσω δημόσιου link: Αποδοχή ραντεβού');
@@ -42,7 +43,11 @@ function getAppointmentResponseInfo(note: string): AppointmentResponseInfo {
   let label = 'Αναμονή απάντησης';
   let cls = 'bg-zinc-100 text-zinc-500';
 
-  if (isAccepted) {
+  if (isTimeChangeApproved) {
+    kind = 'time_change_approved';
+    label = 'Αλλαγή εγκρίθηκε';
+    cls = 'bg-green-100 text-green-700';
+  } else if (isAccepted) {
     kind = 'accepted';
     label = 'Αποδεκτό';
     cls = 'bg-green-100 text-green-700';
@@ -294,6 +299,11 @@ export default function AppointmentsPage() {
   const [appointmentResponseLinks, setAppointmentResponseLinks] = useState<Record<string, string>>({});
   const [appointmentResponseLinkStates, setAppointmentResponseLinkStates] = useState<Record<string, 'idle' | 'creating' | 'ready' | 'copied' | 'error'>>({});
   const [appointmentResponseLinkErrors, setAppointmentResponseLinkErrors] = useState<Record<string, string | null>>({});
+
+  // Time-change approval state
+  const [approvingTimeChangeId, setApprovingTimeChangeId] = useState<string | null>(null);
+  const [approveTimeChangeError, setApproveTimeChangeError] = useState<string | null>(null);
+  const [approveTimeChangeSuccess, setApproveTimeChangeSuccess] = useState<string | null>(null);
 
   const customerMap = useMemo(
     () => Object.fromEntries(customers.map((c) => [c.id, c.name])),
@@ -561,6 +571,55 @@ export default function AppointmentsPage() {
     return customers.find((c) => c.id === task.customerId) ?? null;
   }
 
+  async function handleApproveTimeChange(task: Task, info: AppointmentResponseInfo) {
+    if (!info.requestedDueDate || !info.requestedDueTime) return;
+    const token = tokenRef.current;
+    if (!token) {
+      setApproveTimeChangeError('Δεν υπάρχει ενεργή σύνδεση. Δοκίμασε ξανά.');
+      return;
+    }
+
+    setApprovingTimeChangeId(task.id);
+    setApproveTimeChangeError(null);
+    setApproveTimeChangeSuccess(null);
+
+    const noteAppend = `Αποδοχή αλλαγής ώρας από επαγγελματία: ${info.requestedDueDate} ${info.requestedDueTime}.`;
+    const updatedNote = task.note ? `${task.note}\n${noteAppend}` : noteAppend;
+
+    try {
+      const resp = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dueDate: info.requestedDueDate,
+          dueTime: info.requestedDueTime,
+          note: updatedNote,
+        }),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        const updatedTask: Task = data.task
+          ? mapTask(data.task as Parameters<typeof mapTask>[0])
+          : {
+              ...task,
+              dueDate: info.requestedDueDate,
+              dueTime: info.requestedDueTime,
+              note: updatedNote,
+            };
+        setAppointments((prev) => sortAppointments(prev.map((t) => (t.id === task.id ? updatedTask : t))));
+        setSelectedAppointment(updatedTask);
+        setApproveTimeChangeSuccess('Η νέα ώρα αποθηκεύτηκε.');
+      } else {
+        setApproveTimeChangeError('Δεν αποθηκεύτηκε η νέα ώρα. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setApproveTimeChangeError('Δεν αποθηκεύτηκε η νέα ώρα. Δοκίμασε ξανά.');
+    } finally {
+      setApprovingTimeChangeId(null);
+    }
+  }
+
   async function createAppointmentResponseLink(
     task: Task,
     sentChannel: 'manual' | 'email' = 'manual'
@@ -790,7 +849,7 @@ export default function AppointmentsPage() {
             <p className="text-xs text-zinc-700">Ο πελάτης δήλωσε ότι δεν μπορεί να παρευρεθεί.</p>
           )}
           {selRespInfo.kind === 'time_change_requested' && (
-            <div className="space-y-1">
+            <div className="space-y-2">
               <p className="text-xs text-zinc-700">Ο πελάτης ζήτησε αλλαγή ώρας.</p>
               {selRespInfo.requestedDueDate && selRespInfo.requestedDueTime && (
                 <p className="text-xs text-zinc-600">
@@ -800,7 +859,27 @@ export default function AppointmentsPage() {
               {selRespInfo.comment && (
                 <p className="text-xs text-zinc-600">Σχόλιο πελάτη: {selRespInfo.comment}</p>
               )}
+              {selRespInfo.requestedDueDate && selRespInfo.requestedDueTime && (
+                <div className="space-y-1 pt-1">
+                  {approveTimeChangeError && (
+                    <p className="text-xs text-red-600">{approveTimeChangeError}</p>
+                  )}
+                  <button
+                    type="button"
+                    disabled={approvingTimeChangeId === selectedAppointment.id}
+                    onClick={() => { void handleApproveTimeChange(selectedAppointment, selRespInfo); }}
+                    className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                  >
+                    {approvingTimeChangeId === selectedAppointment.id ? 'Αποθήκευση...' : 'Αποδοχή νέας ώρας'}
+                  </button>
+                </div>
+              )}
             </div>
+          )}
+          {selRespInfo.kind === 'time_change_approved' && (
+            <p className="text-xs text-zinc-700">
+              {approveTimeChangeSuccess ?? 'Η νέα ώρα έχει εγκριθεί και αποθηκευτεί.'}
+            </p>
           )}
         </div>
         {/* Appointment response link */}
