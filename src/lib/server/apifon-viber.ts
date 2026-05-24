@@ -326,3 +326,121 @@ export async function sendIntakeViberMessage(
     };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Generic Viber text message (appointment notifications and other non-intake uses)
+// ---------------------------------------------------------------------------
+
+export interface SendViberMessageParams {
+  phone: string | null;
+  text: string;
+  customerId?: string | null;
+  referenceId?: string | null;
+}
+
+export type SendViberMessageResult =
+  | {
+      ok: true;
+      skipped: false;
+      responseStatus: number;
+      requestId: string | null;
+      messageId: string | null;
+    }
+  | {
+      ok: false;
+      skipped: true;
+      reason: 'missing_apifon_config' | 'missing_or_invalid_phone';
+    }
+  | {
+      ok: false;
+      skipped: false;
+      responseStatus: number | null;
+      error: string;
+    };
+
+export async function sendViberMessage(
+  params: SendViberMessageParams
+): Promise<SendViberMessageResult> {
+  const config = getApifonConfig();
+  if (!config) {
+    return { ok: false, skipped: true, reason: 'missing_apifon_config' };
+  }
+
+  const msisdn = normalizeApifonMsisdn(params.phone);
+  if (!msisdn) {
+    return { ok: false, skipped: true, reason: 'missing_or_invalid_phone' };
+  }
+
+  let refId: string | undefined;
+  if (params.referenceId?.trim()) {
+    refId = params.referenceId.trim().slice(0, 255);
+  } else if (params.customerId) {
+    refId = `appt:${params.customerId}`.slice(0, 255);
+  }
+
+  const subscriber: ApifonSubscriber = { number: msisdn };
+  if (params.customerId) {
+    subscriber.custom_id = params.customerId;
+  }
+
+  const requestBody: ApifonImSendRequest = {
+    subscribers: [subscriber],
+    im_channels: [
+      {
+        sender_id: config.senderId,
+        text: params.text,
+        ttl: DEFAULT_VIBER_TTL_SECONDS,
+      },
+    ],
+  };
+
+  if (refId) {
+    requestBody.reference_id = refId;
+  }
+
+  const callbackUrl = buildApifonStatusCallbackUrl();
+  if (callbackUrl) {
+    requestBody.callback_url = callbackUrl;
+  }
+
+  const endpoint = `${config.baseUrl}${APIFON_IM_SEND_PATH}`;
+
+  try {
+    const accessToken = await getApifonAccessToken(config);
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json; charset=utf-8',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const responseBody = await parseResponseBody(response);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        skipped: false,
+        responseStatus: response.status,
+        error: 'apifon_send_failed',
+      };
+    }
+
+    return {
+      ok: true,
+      skipped: false,
+      responseStatus: response.status,
+      requestId: extractRequestId(responseBody),
+      messageId: extractMessageId(responseBody),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      skipped: false,
+      responseStatus: null,
+      error: err instanceof Error ? err.message : 'apifon_send_failed',
+    };
+  }
+}
