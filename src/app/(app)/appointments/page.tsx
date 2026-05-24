@@ -584,6 +584,53 @@ export default function AppointmentsPage() {
   const hasAny = appointments.length > 0;
   const canSave = !!selectedCustomer && !!apptDate && !!apptTime && !creating;
 
+  if (selectedAppointment) {
+    const selCustomer = getAppointmentCustomer(selectedAppointment);
+    return (
+      <div className="mx-auto max-w-2xl space-y-5 px-4 py-5">
+        <div>
+          <button
+            type="button"
+            onClick={() => setSelectedAppointment(null)}
+            className="mb-3 text-sm font-medium text-indigo-600 transition hover:text-indigo-700"
+          >
+            ← Πίσω στα ραντεβού
+          </button>
+          <h1 className="text-lg font-semibold text-zinc-900">Στοιχεία ραντεβού</h1>
+        </div>
+        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
+          <p className="text-base font-semibold text-zinc-900">{selectedAppointment.title}</p>
+          <div className="space-y-1">
+            <p className="text-sm text-zinc-600">
+              {formatDate(selectedAppointment.dueDate)}
+              {selectedAppointment.dueTime && <span className="ml-1.5">{selectedAppointment.dueTime}</span>}
+            </p>
+            <p className="text-xs text-zinc-500">
+              {APPT_TYPE_LABELS[selectedAppointment.type] ?? selectedAppointment.type}
+            </p>
+            {selCustomer && (
+              <p className="text-xs text-zinc-500">Πελάτης: {selCustomer.name}</p>
+            )}
+          </div>
+          {selectedAppointment.note && (
+            <div className="border-t border-zinc-100 pt-3">
+              <p className="mb-1 text-xs font-medium text-zinc-500">Σημείωση</p>
+              <p className="text-sm text-zinc-700 whitespace-pre-wrap">{selectedAppointment.note}</p>
+            </div>
+          )}
+        </div>
+        {selectedAppointment.customerId && (
+          <Link
+            href={`/customers/${selectedAppointment.customerId}`}
+            className="inline-block rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          >
+            Προφίλ πελάτη
+          </Link>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-5 px-4 py-5">
       {/* Header */}
@@ -995,63 +1042,6 @@ export default function AppointmentsPage() {
         );
       })}
 
-      {/* Appointment detail panel */}
-      {selectedAppointment && (() => {
-        const selCustomer = getAppointmentCustomer(selectedAppointment);
-        return (
-          <>
-            <div
-              className="fixed inset-0 z-40 bg-black/30"
-              onClick={() => setSelectedAppointment(null)}
-            />
-            <div className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-white px-5 py-6 shadow-xl space-y-4">
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-base font-semibold text-zinc-900">Στοιχεία ραντεβού</p>
-                <button
-                  type="button"
-                  onClick={() => setSelectedAppointment(null)}
-                  className="shrink-0 text-sm text-zinc-400 transition hover:text-zinc-600"
-                >
-                  Κλείσιμο
-                </button>
-              </div>
-              <div className="space-y-1.5">
-                <p className="text-sm font-semibold text-zinc-900">{selectedAppointment.title}</p>
-                <p className="text-sm text-zinc-600">
-                  {formatDate(selectedAppointment.dueDate)}
-                  {selectedAppointment.dueTime && <span className="ml-1.5">{selectedAppointment.dueTime}</span>}
-                </p>
-                <p className="text-xs text-zinc-500">
-                  {APPT_TYPE_LABELS[selectedAppointment.type] ?? selectedAppointment.type}
-                </p>
-                {selCustomer && (
-                  <p className="text-xs text-zinc-500">Πελάτης: {selCustomer.name}</p>
-                )}
-                {selectedAppointment.note && (
-                  <p className="text-xs text-zinc-500 whitespace-pre-wrap">{selectedAppointment.note}</p>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-3 border-t border-zinc-100 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setSelectedAppointment(null)}
-                  className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
-                >
-                  Κλείσιμο
-                </button>
-                {selectedAppointment.customerId && (
-                  <Link
-                    href={`/customers/${selectedAppointment.customerId}`}
-                    className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-                  >
-                    Προφίλ πελάτη
-                  </Link>
-                )}
-              </div>
-            </div>
-          </>
-        );
-      })()}
     </div>
   );
 }
