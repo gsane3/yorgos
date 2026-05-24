@@ -5,6 +5,6 @@ export default async function OfferResponsePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
-  return <OfferResponseClient offerId={id} />;
+  const token = (await params).id;
+  return <OfferResponseClient token={token} />;
 }
