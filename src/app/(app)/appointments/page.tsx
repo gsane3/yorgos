@@ -280,6 +280,11 @@ export default function AppointmentsPage() {
   const [deliveryDraftCopied, setDeliveryDraftCopied] = useState(false);
   const [deliveryDraftManualVisible, setDeliveryDraftManualVisible] = useState(false);
 
+  // Response refresh state
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [refreshSuccess, setRefreshSuccess] = useState(false);
+
   const customerMap = useMemo(
     () => Object.fromEntries(customers.map((c) => [c.id, c.name])),
     [customers]
@@ -329,6 +334,68 @@ export default function AppointmentsPage() {
       setHydrated(true);
     }
   }, []);
+
+  const refreshKeepingSelection = useCallback(async (keepId: string) => {
+    const token = tokenRef.current;
+    if (!token) return;
+    setRefreshing(true);
+    setRefreshError(null);
+    setRefreshSuccess(false);
+    try {
+      const headers: HeadersInit = { Authorization: `Bearer ${token}` };
+      const [tasksResp, customersResp] = await Promise.all([
+        fetch('/api/tasks?limit=100', { headers }),
+        fetch('/api/customers?limit=100', { headers }),
+      ]);
+      if (!tasksResp.ok || !customersResp.ok) {
+        setRefreshError('Δεν έγινε ανανέωση. Δοκίμασε ξανά.');
+        return;
+      }
+      const tasksData = await tasksResp.json();
+      const customersData = await customersResp.json();
+      const rawTasks: TaskDto[] = Array.isArray(tasksData)
+        ? tasksData
+        : (tasksData.tasks ?? []);
+      const rawCustomers: CustomerDto[] = Array.isArray(customersData)
+        ? customersData
+        : (customersData.customers ?? []);
+      const appts = sortAppointments(
+        rawTasks
+          .map(mapTask)
+          .filter(
+            (t) =>
+              (t.type === 'book_appointment' || t.type === 'visit_customer') &&
+              t.status === 'open'
+          )
+      );
+      setAppointments(appts);
+      setCustomers(rawCustomers.map(mapCustomer));
+      const freshTask = appts.find((t) => t.id === keepId) ?? null;
+      if (freshTask) {
+        setSelectedAppointment(freshTask);
+        setRefreshSuccess(true);
+        setTimeout(() => setRefreshSuccess(false), 2500);
+      } else {
+        // Appointment cancelled/completed externally: close detail.
+        setSelectedAppointment(null);
+      }
+    } catch {
+      setRefreshError('Δεν έγινε ανανέωση. Δοκίμασε ξανά.');
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const selectedId = selectedAppointment?.id;
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible' && selectedId) {
+        void refreshKeepingSelection(selectedId);
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [selectedAppointment?.id, refreshKeepingSelection]);
 
   useEffect(() => {
     async function init() {
@@ -699,7 +766,20 @@ export default function AppointmentsPage() {
           >
             ← Πίσω στα ραντεβού
           </button>
-          <h1 className="text-lg font-semibold text-zinc-900">Στοιχεία ραντεβού</h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-lg font-semibold text-zinc-900">Στοιχεία ραντεβού</h1>
+            <button
+              type="button"
+              disabled={refreshing}
+              onClick={() => { void refreshKeepingSelection(selectedAppointment.id); }}
+              className="shrink-0 rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+            >
+              {refreshing ? 'Ανανέωση...' : refreshSuccess ? 'Ενημερώθηκε' : 'Ανανέωση απαντήσεων'}
+            </button>
+          </div>
+          {refreshError && (
+            <p className="mt-1 text-xs text-red-600">{refreshError}</p>
+          )}
         </div>
         <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
           <p className="text-base font-semibold text-zinc-900">{selectedAppointment.title}</p>
