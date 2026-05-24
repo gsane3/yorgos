@@ -1072,9 +1072,9 @@ export default function CmdPage() {
           {result.intent === 'create_task' && savedResult && (
             <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-1">
               <p className="text-sm font-medium text-green-700">Το task δημιουργήθηκε.</p>
-              <Link href="/tasks" className="inline-block text-xs text-indigo-600 hover:text-indigo-700">
+              <button type="button" onClick={() => window.location.assign('/tasks')} className="inline-block text-left text-xs text-indigo-600 hover:text-indigo-700">
                 Δες τα tasks →
-              </Link>
+              </button>
             </div>
           )}
 
@@ -1155,9 +1155,9 @@ export default function CmdPage() {
                   Το ραντεβού αποθηκεύεται μόνο στο εσωτερικό CRM. Δεν γίνεται αποστολή σε εξωτερικό calendar.
                 </p>
               </div>
-              <Link href="/appointments" className="inline-block text-xs text-indigo-600 hover:text-indigo-700">
+              <button type="button" onClick={() => window.location.assign('/appointments')} className="inline-block text-left text-xs text-indigo-600 hover:text-indigo-700">
                 Δες τα ραντεβού →
-              </Link>
+              </button>
             </div>
           )}
 
@@ -1269,9 +1269,9 @@ export default function CmdPage() {
               {offerSaveWarning && (
                 <p className="text-xs text-amber-600">{offerSaveWarning}</p>
               )}
-              <Link href="/offers" className="inline-block text-xs text-indigo-600 hover:text-indigo-700">
+              <button type="button" onClick={() => window.location.assign('/offers')} className="inline-block text-left text-xs text-indigo-600 hover:text-indigo-700">
                 Δες τις προσφορές →
-              </Link>
+              </button>
             </div>
           )}
 
