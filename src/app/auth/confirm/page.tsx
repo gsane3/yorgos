@@ -99,8 +99,8 @@ export default function AuthConfirmPage() {
             </Link>
           </p>
           <p>
-            <Link href="/demo" className="text-zinc-500 hover:underline">
-              Πίσω στο demo MVP
+            <Link href="/login/backend" className="text-zinc-500 hover:underline">
+              Πίσω στη σύνδεση
             </Link>
           </p>
         </div>

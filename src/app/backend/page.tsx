@@ -65,11 +65,11 @@ export default function BackendHubPage() {
           ))}
 
           <Link
-            href="/demo"
+            href="/dashboard"
             className="block bg-zinc-100 rounded-2xl px-6 py-4 hover:bg-zinc-200 transition-colors"
           >
-            <p className="text-sm font-semibold text-zinc-700">Πίσω στο demo MVP</p>
-            <p className="text-xs text-zinc-500 mt-0.5">Το υπάρχον localStorage demo παραμένει ξεχωριστό.</p>
+            <p className="text-sm font-semibold text-zinc-700">Πίσω στο dashboard</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Συνέχισε στο live workspace.</p>
           </Link>
         </div>
       </div>

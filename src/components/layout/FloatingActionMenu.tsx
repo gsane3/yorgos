@@ -6,7 +6,6 @@ import { isDemoGuideActive } from '@/lib/demo-guide-session';
 
 const ACTIONS = [
   { label: 'AI review', href: '/ai-review' },
-  { label: 'Demo κλήση', href: '/call/mock' },
 ];
 
 export default function FloatingActionMenu() {

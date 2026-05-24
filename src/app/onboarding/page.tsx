@@ -39,7 +39,7 @@ const STEPS = [
   },
   {
     title: 'Logo επιχείρησης',
-    subtitle: 'Προαιρετικό — μπορείς να το παραλείψεις.',
+    subtitle: 'Προαιρετικό . μπορείς να το παραλείψεις.',
   },
   {
     title: 'ΦΠΑ & Όροι προσφορών',
@@ -145,7 +145,7 @@ export default function OnboardingPage() {
       },
     });
 
-    router.push('/demo');
+    router.push('/dashboard');
   }
 
   const profileFormValue: BusinessProfileData = {

@@ -112,11 +112,6 @@ export default function RegisterPage() {
               Έχεις ήδη backend λογαριασμό; Σύνδεση
             </Link>
           </p>
-          <p>
-            <Link href="/demo" className="text-zinc-500 hover:underline">
-              Πίσω στο demo MVP
-            </Link>
-          </p>
         </div>
       </div>
     </main>

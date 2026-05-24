@@ -211,8 +211,8 @@ export default function OnboardingBackendPage() {
             </Link>
           </p>
           <p>
-            <Link href="/demo" className="text-zinc-500 hover:underline">
-              Πίσω στο demo MVP
+            <Link href="/dashboard" className="text-zinc-500 hover:underline">
+              Πίσω στο dashboard
             </Link>
           </p>
         </div>
