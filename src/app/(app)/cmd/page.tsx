@@ -860,19 +860,21 @@ export default function CmdPage() {
         return;
       }
 
-      let returnedTask: BackendTaskDto | null = null;
+      let json: { ok?: boolean; task?: BackendTaskDto; error?: string };
       try {
-        const json = (await res.json()) as { ok?: boolean; task?: BackendTaskDto; error?: string };
-        returnedTask = json.task ?? null;
+        json = (await res.json()) as { ok?: boolean; task?: BackendTaskDto; error?: string };
       } catch {
-        // JSON parse failure is non-fatal; state update falls back to optimistic
+        setCancelAppointmentError('Δεν ακυρώθηκε το ραντεβού. Δοκίμασε ξανά.');
+        return;
       }
 
-      setBackendTasks((prev) => {
-        if (!returnedTask) return prev;
-        const mapped = mapBackendTask(returnedTask) as unknown as Task;
-        return prev.map((t) => (t.id === appt.id ? mapped : t));
-      });
+      if (!json.ok || !json.task || json.task.status !== 'cancelled') {
+        setCancelAppointmentError('Δεν ακυρώθηκε το ραντεβού. Δοκίμασε ξανά.');
+        return;
+      }
+
+      const mapped = mapBackendTask(json.task) as unknown as Task;
+      setBackendTasks((prev) => prev.map((t) => (t.id === appt.id ? mapped : t)));
       setAppointmentCandidates((prev) => prev.filter((t) => t.id !== appt.id));
       setConfirmingCancelApptId(null);
       setCancelAppointmentError(null);
