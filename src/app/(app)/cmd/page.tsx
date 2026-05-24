@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { loadState, addTask, addOffer, updateTask } from '@/lib/storage';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import {
   isSpeechSupported,
   createRecognition,
@@ -14,6 +15,155 @@ import type {
 } from '@/lib/speech';
 import type { Task, Customer, BusinessProfile, TaskType, TaskPriority, Offer } from '@/lib/types';
 import type { CmdReviewResult } from '@/lib/ai/cmd-schema';
+
+// ---------------------------------------------------------------------------
+// Backend DTOs (read context only)
+// ---------------------------------------------------------------------------
+
+interface BackendBusinessDto {
+  id: string;
+  name: string | null;
+  type: string | null;
+  default_vat_rate: number | null;
+  default_offer_terms: string | null;
+  default_acceptance_text: string | null;
+}
+
+interface BackendCustomerDto {
+  id: string;
+  name: string | null;
+  companyName: string | null;
+  phone: string | null;
+  mobilePhone: string | null;
+  landlinePhone: string | null;
+  email: string | null;
+  address: string | null;
+  status: string | null;
+  source: string | null;
+  preferredContactMethod: string | null;
+  needsSummary: string | null;
+  notes: string | null;
+  crmNumber: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastContactAt: string | null;
+}
+
+interface BackendTaskDto {
+  id: string;
+  customerId: string | null;
+  offerId: string | null;
+  title: string;
+  type: string | null;
+  status: string | null;
+  priority: string | null;
+  dueDate: string;
+  dueTime: string | null;
+  note: string | null;
+  createdFromAi: boolean;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface BackendOfferDto {
+  id: string;
+  customerId: string | null;
+  relatedTaskId: string | null;
+  offerNumber: string;
+  status: string | null;
+  offerDate: string | null;
+  validUntil: string | null;
+  items: { id?: string; description: string; quantity: number; unitPrice: number }[] | null;
+  subtotal: number;
+  vatRate: number;
+  vatAmount: number;
+  total: number;
+  notes: string | null;
+  terms: string | null;
+  acceptanceText: string | null;
+  createdFromAi: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Mappers
+// ---------------------------------------------------------------------------
+
+function mapBackendBusiness(dto: BackendBusinessDto): Partial<BusinessProfile> {
+  return {
+    id: dto.id,
+    businessName: dto.name ?? '',
+    businessType: (dto.type ?? 'other') as BusinessProfile['businessType'],
+    defaultVatRate: dto.default_vat_rate ?? 24,
+    defaultOfferTerms: dto.default_offer_terms ?? '',
+    defaultAcceptanceText: dto.default_acceptance_text ?? 'Αποδέχομαι τους παραπάνω όρους.',
+  };
+}
+
+function mapBackendCustomer(dto: BackendCustomerDto): Customer {
+  return {
+    id: dto.id,
+    name: dto.name ?? dto.companyName ?? dto.crmNumber ?? '',
+    companyName: dto.companyName ?? '',
+    phone: dto.phone ?? '',
+    mobilePhone: dto.mobilePhone ?? '',
+    landlinePhone: dto.landlinePhone ?? '',
+    email: dto.email ?? '',
+    address: dto.address ?? '',
+    status: (dto.status ?? 'new_lead') as Customer['status'],
+    source: (dto.source ?? 'manual_entry') as Customer['source'],
+    preferredContactMethod: dto.preferredContactMethod ?? 'phone',
+    needsSummary: dto.needsSummary ?? '',
+    notes: dto.notes ?? '',
+    crmNumber: dto.crmNumber ?? '',
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
+  } as unknown as Customer;
+}
+
+function mapBackendTask(dto: BackendTaskDto): Task {
+  return {
+    id: dto.id,
+    customerId: dto.customerId ?? undefined,
+    offerId: dto.offerId ?? undefined,
+    title: dto.title,
+    type: (dto.type ?? 'other') as TaskType,
+    status: (dto.status ?? 'open') as Task['status'],
+    priority: (dto.priority ?? 'normal') as TaskPriority,
+    dueDate: dto.dueDate,
+    dueTime: dto.dueTime ?? undefined,
+    note: dto.note ?? '',
+    createdFromAi: dto.createdFromAi,
+    completedAt: dto.completedAt ?? undefined,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
+  } as unknown as Task;
+}
+
+function mapBackendOffer(dto: BackendOfferDto): Offer {
+  const today = new Date().toISOString().split('T')[0];
+  return {
+    id: dto.id,
+    customerId: dto.customerId ?? undefined,
+    offerNumber: dto.offerNumber,
+    status: (dto.status ?? 'draft') as Offer['status'],
+    offerDate: dto.offerDate ?? today,
+    validUntil: dto.validUntil ?? dto.offerDate ?? today,
+    items: Array.isArray(dto.items) ? dto.items : [],
+    subtotal: dto.subtotal ?? 0,
+    vatRate: dto.vatRate ?? 24,
+    vatAmount: dto.vatAmount ?? 0,
+    total: dto.total ?? 0,
+    notes: dto.notes ?? '',
+    terms: dto.terms ?? '',
+    acceptanceText: dto.acceptanceText ?? '',
+    createdFromAi: dto.createdFromAi,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
+  } as unknown as Offer;
+}
 
 const PRIORITY_LABELS: Record<string, string> = {
   low: 'Χαμηλή',
@@ -170,7 +320,13 @@ export default function CmdPage() {
   } | null>(null);
 
   const [hydrated, setHydrated] = useState(false);
-  const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
+  const [businessProfile, setBusinessProfile] = useState<Partial<BusinessProfile> | null>(null);
+
+  const [backendCustomers, setBackendCustomers] = useState<Customer[]>([]);
+  const [backendTasks, setBackendTasks] = useState<Task[]>([]);
+  const [backendOffers, setBackendOffers] = useState<Offer[]>([]);
+  const [backendContextState, setBackendContextState] = useState<'loading' | 'ready' | 'no_session' | 'error'>('loading');
+  const [backendContextError, setBackendContextError] = useState<string | null>(null);
 
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -180,14 +336,105 @@ export default function CmdPage() {
   const stoppingManuallyRef = useRef(false);
 
   useEffect(() => {
-    const bp = loadState().businessProfile ?? null;
+    let cancelled = false;
     const detected = isSpeechSupported();
-    const timer = window.setTimeout(() => {
-      setBusinessProfile(bp);
-      setSpeechSupported(detected);
-      setHydrated(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
+
+    async function loadBackendContext() {
+      let supabase: ReturnType<typeof createBrowserSupabaseClient>;
+      try {
+        supabase = createBrowserSupabaseClient();
+      } catch {
+        if (!cancelled) {
+          setBackendContextState('error');
+          setBackendContextError('Το backend δεν είναι ρυθμισμένο.');
+          setBusinessProfile(null);
+          setBackendCustomers([]);
+          setBackendTasks([]);
+          setBackendOffers([]);
+          setSpeechSupported(detected);
+          setHydrated(true);
+        }
+        return;
+      }
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          if (!cancelled) {
+            setBackendContextState('no_session');
+            setBusinessProfile(null);
+            setBackendCustomers([]);
+            setBackendTasks([]);
+            setBackendOffers([]);
+            setSpeechSupported(detected);
+            setHydrated(true);
+          }
+          return;
+        }
+
+        const headers = { Authorization: `Bearer ${session.access_token}` };
+        const [bizRes, custRes, tasksRes, offersRes] = await Promise.all([
+          fetch('/api/businesses/me', { headers }),
+          fetch('/api/customers?limit=100', { headers }),
+          fetch('/api/tasks?limit=100', { headers }),
+          fetch('/api/offers?limit=100', { headers }),
+        ]);
+
+        if (cancelled) return;
+
+        let bp: Partial<BusinessProfile> | null = null;
+        try {
+          if (bizRes.ok) {
+            const bizJson = await bizRes.json() as { business?: BackendBusinessDto };
+            if (bizJson.business) bp = mapBackendBusiness(bizJson.business);
+          }
+        } catch { /* non-fatal */ }
+
+        let customers: Customer[] = [];
+        try {
+          if (custRes.ok) {
+            const custJson = await custRes.json() as { ok?: boolean; customers?: BackendCustomerDto[] };
+            customers = (custJson.customers ?? []).map(mapBackendCustomer);
+          }
+        } catch { /* non-fatal */ }
+
+        let tasks: Task[] = [];
+        try {
+          if (tasksRes.ok) {
+            const tasksJson = await tasksRes.json() as { ok?: boolean; tasks?: BackendTaskDto[] };
+            tasks = (tasksJson.tasks ?? []).map(mapBackendTask);
+          }
+        } catch { /* non-fatal */ }
+
+        let offers: Offer[] = [];
+        try {
+          if (offersRes.ok) {
+            const offersJson = await offersRes.json() as { ok?: boolean; offers?: BackendOfferDto[] };
+            offers = (offersJson.offers ?? []).map(mapBackendOffer);
+          }
+        } catch { /* non-fatal */ }
+
+        if (!cancelled) {
+          setBusinessProfile(bp);
+          setBackendCustomers(customers);
+          setBackendTasks(tasks);
+          setBackendOffers(offers);
+          setBackendContextState('ready');
+        }
+      } catch {
+        if (!cancelled) {
+          setBackendContextState('error');
+        }
+      } finally {
+        if (!cancelled) {
+          setSpeechSupported(detected);
+          setHydrated(true);
+        }
+      }
+    }
+
+    loadBackendContext();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -310,9 +557,8 @@ export default function CmdPage() {
       const r = data.result;
       setResult(r);
 
-      const state = loadState();
-      const customers = state.customers ?? [];
-      const tasks = state.tasks ?? [];
+      const customers = backendCustomers;
+      const tasks = backendTasks;
       const customerMap: Record<string, string> = Object.fromEntries(
         customers.map((c) => [c.id, c.name])
       );
@@ -542,6 +788,24 @@ export default function CmdPage() {
           Γράψε ή υπαγόρευσε τι θέλεις να οργανώσει το yorgos.ai. Θα δεις πρώτα έλεγχο πριν αποθηκευτεί κάτι.
         </p>
       </div>
+
+      {/* Backend context status */}
+      {backendContextState === 'loading' && (
+        <p className="text-xs text-zinc-400">Φόρτωση δεδομένων assistant...</p>
+      )}
+      {backendContextState === 'no_session' && (
+        <p className="text-xs text-amber-600">Συνδέσου για να χρησιμοποιήσεις το AI Assistant με live δεδομένα.</p>
+      )}
+      {backendContextState === 'error' && (
+        <p className="text-xs text-zinc-500">
+          {backendContextError ?? 'Δεν φορτώθηκαν όλα τα live δεδομένα. Μπορείς να δοκιμάσεις ξανά.'}
+        </p>
+      )}
+      {backendContextState === 'ready' && (
+        <p className="text-xs text-zinc-400">
+          Live δεδομένα: {backendCustomers.length} πελάτες, {backendTasks.length} tasks, {backendOffers.length} προσφορές.
+        </p>
+      )}
 
       {/* Input card */}
       <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-3">
@@ -937,21 +1201,19 @@ export default function CmdPage() {
                   onSelect={(c) => {
                     setMatchedCustomer(c);
                     setCustomerMatchResolved(true);
-                    const s = loadState();
-                    const cMap = Object.fromEntries((s.customers ?? []).map((cu) => [cu.id, cu.name]));
+                    const cMap = Object.fromEntries(backendCustomers.map((cu) => [cu.id, cu.name]));
                     setAppointmentCandidates(computeApptCandidates(
                       { dueDate: result.params.dueDate, dueTime: result.params.dueTime, appointmentType: result.params.appointmentType },
-                      c.id, true, s.tasks ?? [], cMap
+                      c.id, true, backendTasks, cMap
                     ));
                   }}
                   onContinueWithout={() => {
                     setMatchedCustomer(null);
                     setCustomerMatchResolved(true);
-                    const s = loadState();
-                    const cMap = Object.fromEntries((s.customers ?? []).map((cu) => [cu.id, cu.name]));
+                    const cMap = Object.fromEntries(backendCustomers.map((cu) => [cu.id, cu.name]));
                     setAppointmentCandidates(computeApptCandidates(
                       { dueDate: result.params.dueDate, dueTime: result.params.dueTime, appointmentType: result.params.appointmentType },
-                      null, false, s.tasks ?? [], cMap
+                      null, false, backendTasks, cMap
                     ));
                   }}
                 />
