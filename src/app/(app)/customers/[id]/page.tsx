@@ -58,6 +58,21 @@ interface TaskDto {
   updatedAt: string;
 }
 
+interface CustomerDraft {
+  name: string | null;
+  companyName: string | null;
+  phone: string | null;
+  mobilePhone: string | null;
+  landlinePhone: string | null;
+  email: string | null;
+  address: string | null;
+  status: string;
+  source: string | null;
+  preferredContactMethod: string;
+  needsSummary: string | null;
+  notes: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Label maps
 // ---------------------------------------------------------------------------
@@ -199,6 +214,11 @@ export default function CustomerDetailPage() {
   const [tasks, setTasks] = useState<TaskDto[]>([]);
   const [refreshTick, setRefreshTick] = useState(0);
 
+  const [isEditingCustomer, setIsEditingCustomer] = useState(false);
+  const [customerDraft, setCustomerDraft] = useState<CustomerDraft | null>(null);
+  const [customerSaveState, setCustomerSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [customerSaveError, setCustomerSaveError] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -301,6 +321,75 @@ export default function CustomerDetailPage() {
     }),
     [tasks]
   );
+
+  // ---------------------------------------------------------------------------
+  // Customer edit helpers
+  // ---------------------------------------------------------------------------
+
+  function startEditCustomer() {
+    if (!customer) return;
+    setCustomerDraft({
+      name: customer.name,
+      companyName: customer.companyName,
+      phone: customer.phone,
+      mobilePhone: customer.mobilePhone,
+      landlinePhone: customer.landlinePhone,
+      email: customer.email,
+      address: customer.address,
+      status: customer.status,
+      source: customer.source,
+      preferredContactMethod: customer.preferredContactMethod,
+      needsSummary: customer.needsSummary,
+      notes: customer.notes,
+    });
+    setIsEditingCustomer(true);
+    setCustomerSaveError(null);
+    setCustomerSaveState('idle');
+  }
+
+  function cancelEditCustomer() {
+    setIsEditingCustomer(false);
+    setCustomerDraft(null);
+    setCustomerSaveError(null);
+    setCustomerSaveState('idle');
+  }
+
+  async function saveCustomerDraft() {
+    if (!customerDraft) return;
+    setCustomerSaveState('saving');
+    setCustomerSaveError(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setCustomerSaveState('error');
+        setCustomerSaveError('Δεν αποθηκεύτηκαν οι αλλαγές. Δοκίμασε ξανά.');
+        return;
+      }
+      const res = await fetch(`/api/customers/${customerId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(customerDraft),
+      });
+      const json = await res.json() as { ok?: boolean; customer?: CustomerDto; error?: string };
+      if (res.ok && json.ok && json.customer) {
+        setCustomer(json.customer);
+        setCustomerSaveState('saved');
+        setIsEditingCustomer(false);
+        setCustomerDraft(null);
+        setTimeout(() => setCustomerSaveState('idle'), 2500);
+      } else {
+        setCustomerSaveState('error');
+        setCustomerSaveError('Δεν αποθηκεύτηκαν οι αλλαγές. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setCustomerSaveState('error');
+      setCustomerSaveError('Δεν αποθηκεύτηκαν οι αλλαγές. Δοκίμασε ξανά.');
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Loading
@@ -424,51 +513,224 @@ export default function CustomerDetailPage() {
 
         {/* Customer info card */}
         <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-            Στοιχεία επικοινωνίας
-          </h2>
-          <dl className="space-y-2 text-sm">
-            {customer.phone && (
-              <div className="flex justify-between gap-2">
-                <dt className="text-zinc-400">Τηλέφωνο</dt>
-                <dd className="font-medium text-zinc-800">{customer.phone}</dd>
-              </div>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Στοιχεία επικοινωνίας
+            </h2>
+            {!isEditingCustomer && (
+              <button
+                type="button"
+                onClick={startEditCustomer}
+                className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+              >
+                Επεξεργασία
+              </button>
             )}
-            {customer.mobilePhone && (
-              <div className="flex justify-between gap-2">
-                <dt className="text-zinc-400">Κινητό</dt>
-                <dd className="font-medium text-zinc-800">{customer.mobilePhone}</dd>
+          </div>
+
+          {customerSaveState === 'saved' && !isEditingCustomer && (
+            <p className="mb-2 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 ring-1 ring-green-100">
+              Αποθηκεύτηκε
+            </p>
+          )}
+
+          {isEditingCustomer && customerDraft ? (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">Ονοματεπώνυμο</label>
+                <input
+                  type="text"
+                  value={customerDraft.name ?? ''}
+                  onChange={e => setCustomerDraft(d => d ? { ...d, name: e.target.value || null } : d)}
+                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  placeholder="Ονοματεπώνυμο"
+                />
               </div>
-            )}
-            {customer.landlinePhone && (
-              <div className="flex justify-between gap-2">
-                <dt className="text-zinc-400">Σταθερό</dt>
-                <dd className="font-medium text-zinc-800">{customer.landlinePhone}</dd>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">Εταιρεία</label>
+                <input
+                  type="text"
+                  value={customerDraft.companyName ?? ''}
+                  onChange={e => setCustomerDraft(d => d ? { ...d, companyName: e.target.value || null } : d)}
+                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  placeholder="Εταιρεία"
+                />
               </div>
-            )}
-            {customer.email && (
-              <div className="flex justify-between gap-2">
-                <dt className="shrink-0 text-zinc-400">Email</dt>
-                <dd className="break-all font-medium text-zinc-800">{customer.email}</dd>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">Τηλέφωνο</label>
+                <input
+                  type="tel"
+                  value={customerDraft.phone ?? ''}
+                  onChange={e => setCustomerDraft(d => d ? { ...d, phone: e.target.value || null } : d)}
+                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  placeholder="Τηλέφωνο"
+                />
               </div>
-            )}
-            {customer.address && (
-              <div className="flex justify-between gap-2">
-                <dt className="shrink-0 text-zinc-400">Διεύθυνση</dt>
-                <dd className="text-zinc-700">{customer.address}</dd>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">Κινητό</label>
+                <input
+                  type="tel"
+                  value={customerDraft.mobilePhone ?? ''}
+                  onChange={e => setCustomerDraft(d => d ? { ...d, mobilePhone: e.target.value || null } : d)}
+                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  placeholder="Κινητό"
+                />
               </div>
-            )}
-            {customer.lastContactAt && (
-              <div className="flex justify-between gap-2 border-t border-zinc-50 pt-2">
-                <dt className="text-zinc-400">Τελευταία επαφή</dt>
-                <dd className="text-zinc-600">{formatDateShort(customer.lastContactAt)}</dd>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">Σταθερό</label>
+                <input
+                  type="tel"
+                  value={customerDraft.landlinePhone ?? ''}
+                  onChange={e => setCustomerDraft(d => d ? { ...d, landlinePhone: e.target.value || null } : d)}
+                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  placeholder="Σταθερό"
+                />
               </div>
-            )}
-            <div className="flex justify-between gap-2">
-              <dt className="text-zinc-400">Δημιουργία</dt>
-              <dd className="text-zinc-500">{formatDateFull(customer.createdAt)}</dd>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">Email</label>
+                <input
+                  type="email"
+                  value={customerDraft.email ?? ''}
+                  onChange={e => setCustomerDraft(d => d ? { ...d, email: e.target.value || null } : d)}
+                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  placeholder="Email"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">Διεύθυνση</label>
+                <input
+                  type="text"
+                  value={customerDraft.address ?? ''}
+                  onChange={e => setCustomerDraft(d => d ? { ...d, address: e.target.value || null } : d)}
+                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  placeholder="Διεύθυνση"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">Προτιμώμενο κανάλι</label>
+                <select
+                  value={customerDraft.preferredContactMethod}
+                  onChange={e => setCustomerDraft(d => d ? { ...d, preferredContactMethod: e.target.value } : d)}
+                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                >
+                  {Object.entries(CONTACT_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">Status</label>
+                <select
+                  value={customerDraft.status}
+                  onChange={e => setCustomerDraft(d => d ? { ...d, status: e.target.value } : d)}
+                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                >
+                  {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">Πηγή</label>
+                <select
+                  value={customerDraft.source ?? ''}
+                  onChange={e => setCustomerDraft(d => d ? { ...d, source: e.target.value || null } : d)}
+                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                >
+                  <option value=""> - Χωρίς πηγή - </option>
+                  {Object.entries(SOURCE_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">Ανάγκες πελάτη</label>
+                <textarea
+                  rows={3}
+                  value={customerDraft.needsSummary ?? ''}
+                  onChange={e => setCustomerDraft(d => d ? { ...d, needsSummary: e.target.value || null } : d)}
+                  className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  placeholder="Ανάγκες πελάτη"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">Σημειώσεις</label>
+                <textarea
+                  rows={3}
+                  value={customerDraft.notes ?? ''}
+                  onChange={e => setCustomerDraft(d => d ? { ...d, notes: e.target.value || null } : d)}
+                  className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  placeholder="Σημειώσεις"
+                />
+              </div>
+              {customerSaveError && (
+                <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-100">
+                  {customerSaveError}
+                </p>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={saveCustomerDraft}
+                  disabled={customerSaveState === 'saving'}
+                  className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {customerSaveState === 'saving' ? 'Αποθήκευση...' : 'Αποθήκευση'}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelEditCustomer}
+                  disabled={customerSaveState === 'saving'}
+                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+                >
+                  Ακύρωση
+                </button>
+              </div>
             </div>
-          </dl>
+          ) : (
+            <dl className="space-y-2 text-sm">
+              {customer.phone && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-zinc-400">Τηλέφωνο</dt>
+                  <dd className="font-medium text-zinc-800">{customer.phone}</dd>
+                </div>
+              )}
+              {customer.mobilePhone && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-zinc-400">Κινητό</dt>
+                  <dd className="font-medium text-zinc-800">{customer.mobilePhone}</dd>
+                </div>
+              )}
+              {customer.landlinePhone && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-zinc-400">Σταθερό</dt>
+                  <dd className="font-medium text-zinc-800">{customer.landlinePhone}</dd>
+                </div>
+              )}
+              {customer.email && (
+                <div className="flex justify-between gap-2">
+                  <dt className="shrink-0 text-zinc-400">Email</dt>
+                  <dd className="break-all font-medium text-zinc-800">{customer.email}</dd>
+                </div>
+              )}
+              {customer.address && (
+                <div className="flex justify-between gap-2">
+                  <dt className="shrink-0 text-zinc-400">Διεύθυνση</dt>
+                  <dd className="text-zinc-700">{customer.address}</dd>
+                </div>
+              )}
+              {customer.lastContactAt && (
+                <div className="flex justify-between gap-2 border-t border-zinc-50 pt-2">
+                  <dt className="text-zinc-400">Τελευταία επαφή</dt>
+                  <dd className="text-zinc-600">{formatDateShort(customer.lastContactAt)}</dd>
+                </div>
+              )}
+              <div className="flex justify-between gap-2">
+                <dt className="text-zinc-400">Δημιουργία</dt>
+                <dd className="text-zinc-500">{formatDateFull(customer.createdAt)}</dd>
+              </div>
+            </dl>
+          )}
         </section>
 
         {/* AI brief card */}
