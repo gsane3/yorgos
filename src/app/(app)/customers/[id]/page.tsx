@@ -260,6 +260,12 @@ export default function CustomerDetailPage() {
   const [customerSaveState, setCustomerSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [customerSaveError, setCustomerSaveError] = useState<string | null>(null);
 
+  const [isRejectPanelOpen, setIsRejectPanelOpen] = useState(false);
+  const [rejectDraftText, setRejectDraftText] = useState('');
+  const [rejectSaveState, setRejectSaveState] = useState<'idle' | 'copying' | 'saving' | 'saved' | 'error'>('idle');
+  const [rejectSaveError, setRejectSaveError] = useState<string | null>(null);
+  const [rejectCopyMessage, setRejectCopyMessage] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -454,6 +460,78 @@ export default function CustomerDetailPage() {
   }
 
   // ---------------------------------------------------------------------------
+  // Reject client helpers
+  // ---------------------------------------------------------------------------
+
+  function buildDefaultRejectMessage(): string {
+    return 'Καλησπέρα σας. Ευχαριστούμε πολύ για την επικοινωνία. Δυστυχώς δεν θα μπορέσουμε να αναλάβουμε τη συγκεκριμένη εργασία αυτή την περίοδο. Σας ευχόμαστε καλή συνέχεια και ελπίζουμε να βρείτε άμεσα την κατάλληλη λύση.';
+  }
+
+  function startRejectClient() {
+    setRejectDraftText(buildDefaultRejectMessage());
+    setIsRejectPanelOpen(true);
+    setRejectSaveError(null);
+    setRejectCopyMessage(null);
+    setRejectSaveState('idle');
+  }
+
+  function cancelRejectClient() {
+    setIsRejectPanelOpen(false);
+    setRejectSaveError(null);
+    setRejectCopyMessage(null);
+    setRejectSaveState('idle');
+  }
+
+  async function copyRejectDraft() {
+    setRejectSaveState('copying');
+    try {
+      await navigator.clipboard.writeText(rejectDraftText);
+      setRejectCopyMessage('Το μήνυμα αντιγράφηκε. Δεν στάλθηκε.');
+    } catch {
+      setRejectCopyMessage('Δεν έγινε αντιγραφή. Μπορείς να το επιλέξεις χειροκίνητα.');
+    } finally {
+      setRejectSaveState('idle');
+    }
+  }
+
+  async function saveRejectWithoutSending() {
+    setRejectSaveState('saving');
+    setRejectSaveError(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setRejectSaveState('error');
+        setRejectSaveError('Δεν αποθηκεύτηκε η απόρριψη. Δοκίμασε ξανά.');
+        return;
+      }
+      const existingNotes = customer?.notes ?? '';
+      const appendNote = `Απόρριψη πελάτη, draft χωρίς αποστολή:\n${rejectDraftText}`;
+      const updatedNotes = existingNotes ? `${existingNotes}\n\n${appendNote}` : appendNote;
+      const res = await fetch(`/api/customers/${customerId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ status: 'lost', notes: updatedNotes }),
+      });
+      const json = await res.json() as { ok?: boolean; customer?: CustomerDto; error?: string };
+      if (res.ok && json.ok && json.customer) {
+        setCustomer(json.customer);
+        setRejectSaveState('saved');
+        setRejectCopyMessage('Αποθηκεύτηκε ως χαμένος πελάτης. Δεν στάλθηκε μήνυμα.');
+      } else {
+        setRejectSaveState('error');
+        setRejectSaveError('Δεν αποθηκεύτηκε η απόρριψη. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setRejectSaveState('error');
+      setRejectSaveError('Δεν αποθηκεύτηκε η απόρριψη. Δοκίμασε ξανά.');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Loading
   // ---------------------------------------------------------------------------
   if (pageState === 'loading') {
@@ -533,13 +611,22 @@ export default function CustomerDetailPage() {
           <h1 className="text-xl font-bold text-zinc-900 leading-tight">
             {customerTitle(customer)}
           </h1>
-          <button
-            type="button"
-            onClick={() => setRefreshTick(t => t + 1)}
-            className="shrink-0 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
-          >
-            Ανανέωση
-          </button>
+          <div className="flex shrink-0 gap-1.5">
+            <button
+              type="button"
+              onClick={startRejectClient}
+              className="rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100"
+            >
+              Απόρριψη πελάτη
+            </button>
+            <button
+              type="button"
+              onClick={() => setRefreshTick(t => t + 1)}
+              className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+            >
+              Ανανέωση
+            </button>
+          </div>
         </div>
         {customer.companyName && customer.name && (
           <p className="mt-0.5 text-sm text-zinc-500">{customer.companyName}</p>
@@ -569,6 +656,54 @@ export default function CustomerDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Reject panel */}
+      {isRejectPanelOpen && (
+        <div className="rounded-2xl bg-red-50 p-4 ring-1 ring-red-200 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-red-800">Απόρριψη πελάτη</p>
+            <p className="mt-0.5 text-xs text-red-600">Review-first draft. Δεν θα σταλεί μήνυμα αυτόματα.</p>
+          </div>
+          <textarea
+            rows={5}
+            value={rejectDraftText}
+            onChange={e => setRejectDraftText(e.target.value)}
+            className="w-full resize-none rounded-xl border border-red-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+          />
+          {rejectCopyMessage && (
+            <p className="text-xs text-zinc-600">{rejectCopyMessage}</p>
+          )}
+          {rejectSaveError && (
+            <p className="text-xs font-medium text-red-700">{rejectSaveError}</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={copyRejectDraft}
+              disabled={rejectSaveState === 'saving' || rejectSaveState === 'copying'}
+              className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+            >
+              Αντιγραφή
+            </button>
+            <button
+              type="button"
+              onClick={saveRejectWithoutSending}
+              disabled={rejectSaveState === 'saving' || rejectSaveState === 'copying' || rejectSaveState === 'saved'}
+              className="rounded-xl bg-red-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-800 disabled:opacity-60"
+            >
+              {rejectSaveState === 'saving' ? 'Αποθήκευση...' : 'Αποθήκευση χωρίς αποστολή'}
+            </button>
+            <button
+              type="button"
+              onClick={cancelRejectClient}
+              disabled={rejectSaveState === 'saving'}
+              className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+            >
+              Ακύρωση
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Top summary grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
