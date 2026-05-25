@@ -614,12 +614,65 @@ export default function CustomerDetailPage() {
     setOfferNote('');
   }
 
+  function getLocalDateInputValue(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   async function copyMsgDraft() {
     try {
       await navigator.clipboard.writeText(msgDraft);
       setMsgCopied(true);
     } catch {
       setMsgCopied(false);
+    }
+  }
+
+  async function saveTaskFromModal() {
+    if (!taskTitle.trim()) {
+      setTaskError('Συμπλήρωσε τίτλο task.');
+      return;
+    }
+    setTaskSaving(true);
+    setTaskError(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setTaskSaving(false);
+        setTaskError('Δεν αποθηκεύτηκε το task. Δοκίμασε ξανά.');
+        return;
+      }
+      const dueDate = taskDate || getLocalDateInputValue();
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          customerId,
+          title: taskTitle.trim(),
+          type: 'other',
+          status: 'open',
+          priority: 'normal',
+          dueDate,
+          note: taskNote.trim() || null,
+        }),
+      });
+      const json = await res.json() as { ok?: boolean; error?: string };
+      if (res.ok && json.ok) {
+        closeQuickModal();
+        setRefreshTick(t => t + 1);
+      } else {
+        setTaskSaving(false);
+        setTaskError('Δεν αποθηκεύτηκε το task. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setTaskSaving(false);
+      setTaskError('Δεν αποθηκεύτηκε το task. Δοκίμασε ξανά.');
     }
   }
 
@@ -1814,7 +1867,7 @@ export default function CustomerDetailPage() {
                 <div className="mt-4 flex gap-2">
                   <button
                     type="button"
-                    onClick={closeQuickModal}
+                    onClick={saveTaskFromModal}
                     disabled={!taskTitle.trim() || taskSaving}
                     className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
                   >
