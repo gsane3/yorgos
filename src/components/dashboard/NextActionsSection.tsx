@@ -46,7 +46,7 @@ interface ActionItem {
   href: string;
   taskId?: string; // set only for task items to enable inline completion
   offerId?: string; // set only for offer items
-  hasExistingTask?: boolean; // true when a follow-up task already exists in localStorage tasks
+  hasExistingTask?: boolean; // true when a follow-up task already exists in loaded tasks
   quickHref?: string; // context-aware quick action route
   quickLabel?: string; // label for the quick action button
 }
@@ -216,6 +216,8 @@ interface Props {
   onUndoCompleteTask?: () => void;
   onMarkOfferSent?: (offerId: string) => void;
   onCreateOfferFollowUpTask?: (offerId: string) => void;
+  /** When true: hides filter chips, limits to 3 items, shows Δες όλα link. */
+  compact?: boolean;
 }
 
 const FILTER_DEFS: { id: FilterId; label: string }[] = [
@@ -235,6 +237,7 @@ export default function NextActionsSection({
   onUndoCompleteTask,
   onMarkOfferSent,
   onCreateOfferFollowUpTask,
+  compact = false,
 }: Props) {
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
   const [showAll, setShowAll] = useState(false);
@@ -249,7 +252,11 @@ export default function NextActionsSection({
   }
 
   const filteredItems = filterItems(activeFilter);
-  const visible = showAll ? filteredItems : filteredItems.slice(0, INITIAL_VISIBLE);
+  const visible = compact
+    ? allItems.slice(0, 3)
+    : showAll
+    ? filteredItems
+    : filteredItems.slice(0, INITIAL_VISIBLE);
   const extra = filteredItems.length - INITIAL_VISIBLE;
 
   function handleFilterChange(f: FilterId) {
@@ -258,63 +265,83 @@ export default function NextActionsSection({
   }
 
   return (
-    <section className="space-y-3">
+    <section className={compact ? 'overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60' : 'space-y-3'}>
       {/* Section header */}
-      <div className="flex items-center gap-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Προτεραιότητες σήμερα
+      <div
+        className={
+          compact
+            ? 'flex items-center justify-between border-b border-zinc-100 px-4 pb-3 pt-4'
+            : 'flex items-center gap-2'
+        }
+      >
+        <h2
+          className={
+            compact
+              ? 'text-sm font-semibold text-zinc-900'
+              : 'text-xs font-semibold uppercase tracking-wide text-zinc-500'
+          }
+        >
+          {compact ? 'Επόμενες προτεραιότητες' : 'Προτεραιότητες σήμερα'}
         </h2>
-        {allItems.length > 0 && (
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-              allItems.some((i) => i.category === 'task_overdue')
-                ? 'bg-red-100 text-red-700'
-                : 'bg-amber-100 text-amber-700'
-            }`}
-          >
-            {allItems.length}
-          </span>
+        {compact ? (
+          <Link href="/tasks" className="text-xs font-medium text-indigo-600 hover:text-indigo-700">
+            Δες όλα
+          </Link>
+        ) : (
+          allItems.length > 0 && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                allItems.some((i) => i.category === 'task_overdue')
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-amber-100 text-amber-700'
+              }`}
+            >
+              {allItems.length}
+            </span>
+          )
         )}
       </div>
 
-      {/* Filter chips - horizontally scrollable on narrow screens */}
-      <div className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
-        {FILTER_DEFS.map((f) => {
-          const count = filterItems(f.id).length;
-          const active = activeFilter === f.id;
-          return (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => handleFilterChange(f.id)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
-                active
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-              }`}
-            >
-              {f.label}
-              {count > 0 && (
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
-                    active
-                      ? 'bg-white/20 text-white'
-                      : f.id === 'urgent'
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-zinc-200 text-zinc-600'
-                  }`}
-                >
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {/* Filter chips - hidden in compact mode */}
+      {!compact && (
+        <div className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
+          {FILTER_DEFS.map((f) => {
+            const count = filterItems(f.id).length;
+            const active = activeFilter === f.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => handleFilterChange(f.id)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
+                  active
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                }`}
+              >
+                {f.label}
+                {count > 0 && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+                      active
+                        ? 'bg-white/20 text-white'
+                        : f.id === 'urgent'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-zinc-200 text-zinc-600'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Undo banner - shown after completing a task */}
       {lastCompletedTaskTitle && onUndoCompleteTask && (
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-green-50 px-3 py-2 ring-1 ring-green-200">
+        <div className={`flex items-center justify-between gap-3 rounded-xl bg-green-50 px-3 py-2 ring-1 ring-green-200${compact ? ' mx-4 my-2' : ''}`}>
           <div className="min-w-0">
             <p className="text-xs font-medium text-green-800">Το task ολοκληρώθηκε.</p>
             <p className="truncate text-xs text-green-700">{lastCompletedTaskTitle}</p>
@@ -330,92 +357,123 @@ export default function NextActionsSection({
       )}
 
       {/* Items */}
-      {filteredItems.length === 0 ? (
-        <p className="text-sm text-zinc-500">{FILTER_EMPTY[activeFilter]}</p>
+      {(compact ? allItems : filteredItems).length === 0 ? (
+        <p className={`text-sm text-zinc-500${compact ? ' px-4 py-4' : ''}`}>
+          {compact ? 'Δεν υπάρχουν άμεσες εκκρεμότητες.' : FILTER_EMPTY[activeFilter]}
+        </p>
       ) : (
         <>
-          <ul className="space-y-2">
+          <ul className={compact ? 'divide-y divide-zinc-100' : 'space-y-2'}>
             {visible.map((item) => (
-              <li
-                key={item.id}
-                className={`rounded-2xl ring-1 ${TONE_ROW[item.tone]}`}
-              >
-                <div className="flex items-start">
+              <li key={item.id}>
+                {compact ? (
+                  /* Compact mode: clean row inside the white card */
                   <Link
                     href={item.href}
-                    className="flex min-w-0 flex-1 items-start gap-2.5 p-3"
+                    className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-zinc-50/60"
                   >
                     <span
-                      className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${TONE_DOT[item.tone]}`}
+                      className={`inline-block h-2 w-2 shrink-0 rounded-full ${TONE_DOT[item.tone]}`}
                     />
                     <div className="min-w-0 flex-1">
                       {item.customerName && (
-                        <p className="truncate text-xs font-medium text-zinc-500">
-                          {item.customerName}
-                        </p>
+                        <p className="truncate text-xs text-zinc-400">{item.customerName}</p>
                       )}
-                      <p className="truncate text-sm font-semibold text-zinc-800">
-                        {item.title}
-                      </p>
-                      {item.detail && (
-                        <p className="text-xs text-zinc-500">{item.detail}</p>
-                      )}
+                      <p className="truncate text-sm font-medium text-zinc-800">{item.title}</p>
                     </div>
+                    <svg
+                      className="h-4 w-4 shrink-0 text-zinc-300"
+                      fill="none"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m8.25 4.5 7.5 7.5-7.5 7.5"
+                      />
+                    </svg>
                   </Link>
-                  <div className="flex shrink-0 flex-col items-end gap-1 py-3 pr-3">
-                    {item.taskId && onCompleteTask && (
-                      <button
-                        type="button"
-                        onClick={() => onCompleteTask(item.taskId!)}
-                        className="rounded-lg bg-green-600 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-green-700"
-                      >
-                        Ολοκλήρωση
-                      </button>
-                    )}
-                    {item.quickHref && item.quickLabel && (
+                ) : (
+                  /* Full mode: original tone-colored card rows */
+                  <div className={`rounded-2xl ring-1 ${TONE_ROW[item.tone]}`}>
+                    <div className="flex items-start">
                       <Link
-                        href={item.quickHref}
-                        className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-indigo-700"
+                        href={item.href}
+                        className="flex min-w-0 flex-1 items-start gap-2.5 p-3"
                       >
-                        {item.quickLabel}
+                        <span
+                          className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${TONE_DOT[item.tone]}`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          {item.customerName && (
+                            <p className="truncate text-xs font-medium text-zinc-500">
+                              {item.customerName}
+                            </p>
+                          )}
+                          <p className="truncate text-sm font-semibold text-zinc-800">
+                            {item.title}
+                          </p>
+                          {item.detail && (
+                            <p className="text-xs text-zinc-500">{item.detail}</p>
+                          )}
+                        </div>
                       </Link>
-                    )}
-                    {item.category === 'offer_ready' && item.offerId && onMarkOfferSent && (
-                      <button
-                        type="button"
-                        onClick={() => onMarkOfferSent(item.offerId!)}
-                        className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-indigo-700"
-                      >
-                        Στάλθηκε
-                      </button>
-                    )}
-                    {item.category === 'offer_followup' && item.offerId && (
-                      !item.customerName ? (
-                        // Offer has no linked customer - cannot create a customer-linked task.
-                        <span className="text-[10px] text-zinc-300">Χωρίς πελάτη</span>
-                      ) : item.hasExistingTask || createdFollowUpOfferIds.has(item.offerId) ? (
-                        // Task already exists (persistent check takes priority over session state).
-                        <span className="text-[10px] font-medium text-zinc-400">Υπάρχει task</span>
-                      ) : onCreateOfferFollowUpTask ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onCreateOfferFollowUpTask(item.offerId!);
-                            setCreatedFollowUpOfferIds((prev) => new Set(prev).add(item.offerId!));
-                          }}
-                          className="rounded-lg border border-indigo-300 bg-white px-2 py-1 text-[10px] font-semibold text-indigo-700 transition hover:bg-indigo-50"
-                        >
-                          Task follow-up
-                        </button>
-                      ) : null
-                    )}
+                      <div className="flex shrink-0 flex-col items-end gap-1 py-3 pr-3">
+                        {item.taskId && onCompleteTask && (
+                          <button
+                            type="button"
+                            onClick={() => onCompleteTask(item.taskId!)}
+                            className="rounded-lg bg-green-600 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-green-700"
+                          >
+                            Ολοκλήρωση
+                          </button>
+                        )}
+                        {item.quickHref && item.quickLabel && (
+                          <Link
+                            href={item.quickHref}
+                            className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-indigo-700"
+                          >
+                            {item.quickLabel}
+                          </Link>
+                        )}
+                        {item.category === 'offer_ready' && item.offerId && onMarkOfferSent && (
+                          <button
+                            type="button"
+                            onClick={() => onMarkOfferSent(item.offerId!)}
+                            className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-indigo-700"
+                          >
+                            Στάλθηκε
+                          </button>
+                        )}
+                        {item.category === 'offer_followup' && item.offerId && (
+                          !item.customerName ? (
+                            <span className="text-[10px] text-zinc-300">Χωρίς πελάτη</span>
+                          ) : item.hasExistingTask || createdFollowUpOfferIds.has(item.offerId) ? (
+                            <span className="text-[10px] font-medium text-zinc-400">Υπάρχει task</span>
+                          ) : onCreateOfferFollowUpTask ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onCreateOfferFollowUpTask(item.offerId!);
+                                setCreatedFollowUpOfferIds((prev) => new Set(prev).add(item.offerId!));
+                              }}
+                              className="rounded-lg border border-indigo-300 bg-white px-2 py-1 text-[10px] font-semibold text-indigo-700 transition hover:bg-indigo-50"
+                            >
+                              Task follow-up
+                            </button>
+                          ) : null
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
               </li>
             ))}
           </ul>
 
-          {!showAll && extra > 0 && (
+          {!compact && !showAll && extra > 0 && (
             <button
               type="button"
               onClick={() => setShowAll(true)}

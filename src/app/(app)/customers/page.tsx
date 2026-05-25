@@ -5,17 +5,10 @@ import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { Customer, CustomerStatus, CustomerSource } from '@/lib/types';
 import { norm } from '@/lib/search';
-import CustomerCard from '@/components/customers/CustomerCard';
 import { STATUS_LABELS } from '@/components/customers/CustomerStatusBadge';
 import { SOURCE_LABELS } from '@/components/customers/CustomerCard';
 
-const selCls =
-  'rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm text-zinc-700 outline-none focus:border-indigo-400';
-
-// ---------------------------------------------------------------------------
-// API response types
-// ---------------------------------------------------------------------------
-
+// API response type
 interface CustomerDto {
   id: string;
   crmNumber: string | null;
@@ -36,10 +29,6 @@ interface CustomerDto {
   updatedAt: string;
 }
 
-// ---------------------------------------------------------------------------
-// Mapping helpers
-// ---------------------------------------------------------------------------
-
 const VALID_SOURCES: readonly CustomerSource[] = [
   'facebook_ads', 'google_ads', 'website_form', 'referral',
   'inbound_call', 'missed_call', 'manual_entry', 'other',
@@ -52,9 +41,7 @@ const VALID_STATUSES: readonly CustomerStatus[] = [
 
 const VALID_CONTACT_METHODS = ['viber', 'email', 'phone'] as const;
 
-function mapIntakeStatus(
-  raw: string
-): 'none' | 'waiting_sms' | 'completed' {
+function mapIntakeStatus(raw: string): 'none' | 'waiting_sms' | 'completed' {
   if (raw === 'submitted') return 'completed';
   if (raw === 'pending' || raw === 'sent' || raw === 'opened') return 'waiting_sms';
   return 'none';
@@ -91,9 +78,35 @@ function mapCustomer(dto: CustomerDto): Customer {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Page component
-// ---------------------------------------------------------------------------
+// Status chip colors -- calm, no loud backgrounds
+const STATUS_CHIP: Record<CustomerStatus, string> = {
+  new_lead: 'bg-blue-50 text-blue-600',
+  contacted: 'bg-zinc-100 text-zinc-500',
+  follow_up_needed: 'bg-amber-50 text-amber-600',
+  offer_drafted: 'bg-indigo-50 text-indigo-600',
+  offer_sent: 'bg-indigo-50 text-indigo-500',
+  won: 'bg-green-50 text-green-600',
+  lost: 'bg-zinc-100 text-zinc-400',
+};
+
+// Quick status filter chips
+const QUICK_FILTERS: { value: CustomerStatus | ''; label: string }[] = [
+  { value: '', label: 'Όλα' },
+  { value: 'follow_up_needed', label: 'Follow-up' },
+  { value: 'new_lead', label: 'Νέα leads' },
+  { value: 'contacted', label: 'Contacted' },
+  { value: 'won', label: 'Κερδισμένοι' },
+];
+
+const LEAD_STATUSES = new Set<CustomerStatus>(['new_lead', 'contacted', 'offer_drafted', 'offer_sent']);
+
+function ChevronRight() {
+  return (
+    <svg className="h-4 w-4 shrink-0 text-zinc-300" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+    </svg>
+  );
+}
 
 type PageMessage = 'no_session' | 'fetch_error' | null;
 
@@ -197,46 +210,39 @@ export default function CustomersPage() {
     setSourceFilter('');
   }
 
-  // ---------------------------------------------------------------------------
-  // Loading shell (server render + first client render)
-  // ---------------------------------------------------------------------------
+  // Loading skeleton
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h1 className="text-lg font-semibold text-zinc-900">Πελάτες</h1>
+      <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+        <div className="space-y-1.5">
+          <div className="h-3 w-16 rounded-full bg-zinc-200" />
+          <div className="h-7 w-56 rounded-full bg-zinc-200" />
+          <div className="h-4 w-44 rounded-full bg-zinc-200" />
         </div>
-        <div className="mb-4 space-y-2">
-          <input
-            type="search"
-            disabled
-            placeholder="Αναζήτηση ονόματος, εταιρείας, τηλεφώνου, email..."
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none"
-          />
-          <div className="flex flex-wrap gap-2">
-            <select disabled className={selCls}><option>Όλα τα status</option></select>
-            <select disabled className={selCls}><option>Όλες οι πηγές</option></select>
-          </div>
+        <div className="h-12 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+        <div className="grid grid-cols-3 gap-3">
+          <div className="h-16 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+          <div className="h-16 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+          <div className="h-16 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
         </div>
-        <p className="py-10 text-center text-sm text-zinc-400">Φόρτωση πελατών...</p>
+        <p className="text-center text-sm text-zinc-400">Φόρτωση πελατών...</p>
       </div>
     );
   }
 
-  // ---------------------------------------------------------------------------
   // No session
-  // ---------------------------------------------------------------------------
   if (message === 'no_session') {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-5">
-        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Πελάτες</h1>
-        <div className="rounded-2xl bg-zinc-50 px-6 py-10 text-center ring-1 ring-zinc-100">
-          <p className="text-sm font-medium text-zinc-600">
-            Συνδέσου για να δεις τους πελάτες του CRM.
-          </p>
+      <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+        <div>
+          <p className="text-xs font-medium text-zinc-400">Πελάτες</p>
+          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">Ποιος χρειάζεται προσοχή;</h1>
+        </div>
+        <div className="rounded-[28px] bg-white px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60">
+          <p className="text-sm font-medium text-zinc-600">Συνδέσου για να δεις τους πελάτες.</p>
           <Link
             href="/login/backend"
-            className="mt-4 inline-block rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            className="mt-4 inline-block rounded-2xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
           >
             Σύνδεση
           </Link>
@@ -245,21 +251,22 @@ export default function CustomersPage() {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Fetch error
-  // ---------------------------------------------------------------------------
   if (message === 'fetch_error') {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-5">
-        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Πελάτες</h1>
-        <div className="rounded-2xl bg-red-50 px-6 py-8 text-center ring-1 ring-red-100">
+      <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+        <div>
+          <p className="text-xs font-medium text-zinc-400">Πελάτες</p>
+          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">Ποιος χρειάζεται προσοχή;</h1>
+        </div>
+        <div className="rounded-[28px] bg-red-50 px-5 py-6 text-center ring-1 ring-red-200">
           <p className="text-sm font-medium text-red-700">
-            Αδυναμία φόρτωσης πελατών. Έλεγξε τη σύνδεση ή ανανέωσε τη σελίδα.
+            Αδυναμία φόρτωσης πελατών. Έλεγξε τη σύνδεση ή ανανέωσε.
           </p>
           <button
             type="button"
             onClick={() => setRefreshTick((t) => t + 1)}
-            className="mt-4 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+            className="mt-4 rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
           >
             Δοκίμασε ξανά
           </button>
@@ -268,97 +275,175 @@ export default function CustomersPage() {
     );
   }
 
-  // ---------------------------------------------------------------------------
+  // Summary stats
+  const leadsCount = customers.filter((c) => LEAD_STATUSES.has(c.status)).length;
+  const followUpCount = customers.filter((c) => c.status === 'follow_up_needed').length;
+
   // Main view
-  // ---------------------------------------------------------------------------
   return (
-    <div className="mx-auto max-w-2xl px-4 py-5">
+    <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+
       {/* Header */}
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-baseline gap-2">
-          <h1 className="text-lg font-semibold text-zinc-900">Πελάτες</h1>
-          {customers.length > 0 && (
-            <span className="text-sm text-zinc-400">{customers.length}</span>
-          )}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium text-zinc-400">Πελάτες</p>
+          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">
+            Ποιος χρειάζεται προσοχή;
+          </h1>
+          <p className="mt-0.5 text-sm text-zinc-500">
+            Όλοι οι πελάτες και τα leads σε ένα καθαρό workspace.
+          </p>
         </div>
         <button
           type="button"
           onClick={() => setRefreshTick((t) => t + 1)}
           disabled={loading}
-          className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50 disabled:opacity-50"
+          className="mt-1 rounded-full bg-white p-2 shadow-sm ring-1 ring-zinc-200/60 text-zinc-400 transition hover:text-zinc-600 disabled:opacity-40"
+          title="Ανανέωση"
         >
-          {loading ? 'Φόρτωση...' : 'Ανανέωση'}
+          <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+          </svg>
         </button>
       </div>
 
-      {/* Search + filters */}
-      <div className="mb-4 space-y-2">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Αναζήτηση ονόματος, εταιρείας, τηλεφώνου, email..."
-          className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-        />
-        <div className="flex flex-wrap gap-2">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | '')}
-            className={selCls}
-          >
-            <option value="">Όλα τα status</option>
-            {(Object.entries(STATUS_LABELS) as [CustomerStatus, string][]).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
-          <select
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value as CustomerSource | '')}
-            className={selCls}
-          >
-            <option value="">Όλες οι πηγές</option>
-            {(Object.entries(SOURCE_LABELS) as [CustomerSource, string][]).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
+      {/* Search card */}
+      <div className="rounded-[28px] bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-200/60">
+        <div className="flex items-center gap-2">
+          <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Αναζήτηση πελάτη"
+            className="flex-1 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 outline-none"
+          />
           {hasFilter && (
             <button
               type="button"
               onClick={clearFilters}
-              className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+              className="rounded-full px-2 py-0.5 text-[10px] font-medium text-zinc-400 transition hover:text-zinc-600"
             >
               Καθαρισμός
             </button>
           )}
         </div>
+
+        {/* Quick status chips */}
+        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-0.5">
+          {QUICK_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setStatusFilter(f.value as CustomerStatus | '')}
+              className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${
+                statusFilter === f.value
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Source select - compact */}
+        {customers.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-zinc-100">
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value as CustomerSource | '')}
+              className="w-full bg-transparent text-xs text-zinc-500 outline-none"
+            >
+              <option value="">Όλες οι πηγές</option>
+              {(Object.entries(SOURCE_LABELS) as [CustomerSource, string][]).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
+
+      {/* Summary strip */}
+      {customers.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-[28px] bg-white px-3 py-3.5 text-center shadow-sm ring-1 ring-zinc-200/60">
+            <p className="text-2xl font-bold leading-none text-zinc-900">{customers.length}</p>
+            <p className="mt-1 text-[10px] text-zinc-400">Σύνολο</p>
+          </div>
+          <div className="rounded-[28px] bg-white px-3 py-3.5 text-center shadow-sm ring-1 ring-zinc-200/60">
+            <p className="text-2xl font-bold leading-none text-zinc-900">{leadsCount}</p>
+            <p className="mt-1 text-[10px] text-zinc-400">Leads</p>
+          </div>
+          <div className="rounded-[28px] bg-white px-3 py-3.5 text-center shadow-sm ring-1 ring-zinc-200/60">
+            <p className={`text-2xl font-bold leading-none ${followUpCount > 0 ? 'text-amber-600' : 'text-zinc-300'}`}>
+              {followUpCount}
+            </p>
+            <p className="mt-1 text-[10px] text-zinc-400">Follow-up</p>
+          </div>
+        </div>
+      )}
 
       {/* Customer list */}
       {customers.length === 0 ? (
-        <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100">
-          <p className="text-sm font-medium text-zinc-500">
-            Δεν υπάρχουν ακόμα πελάτες.
-          </p>
-          <p className="mt-1 text-sm text-zinc-400">
-            Όταν ολοκληρωθεί η πρώτη κλήση, ο νέος πελάτης θα εμφανιστεί εδώ.
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+          <p className="text-base font-semibold text-zinc-700">Δεν υπάρχουν πελάτες ακόμα.</p>
+          <p className="mt-1.5 text-sm text-zinc-400">
+            Οι νέες κλήσεις και τα leads θα εμφανίζονται εδώ όταν καταγραφούν.
           </p>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100">
+        <div className="rounded-[28px] bg-white px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="text-sm font-medium text-zinc-500">Δεν βρέθηκαν αποτελέσματα.</p>
           <p className="mt-1 text-sm text-zinc-400">
             Δοκίμασε διαφορετικούς όρους ή κάνε καθαρισμό φίλτρων.
           </p>
         </div>
       ) : (
-        <ul className="space-y-2">
-          {filtered.map((customer) => (
-            <li key={customer.id}>
-              <CustomerCard customer={customer} />
-            </li>
-          ))}
+        <ul className="space-y-3">
+          {filtered.map((customer) => {
+            const initial = customer.name.trim().slice(0, 1).toUpperCase() || 'Π';
+            return (
+              <li key={customer.id}>
+                <Link
+                  href={`/customers/${customer.id}`}
+                  className="flex items-start gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50/60 active:bg-zinc-50"
+                >
+                  {/* Avatar */}
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-600">
+                    {initial}
+                  </div>
+                  {/* Info */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[15px] font-semibold leading-snug text-zinc-900 truncate">
+                        {customer.name}
+                      </p>
+                      <ChevronRight />
+                    </div>
+                    {customer.companyName && (
+                      <p className="text-xs text-zinc-400 truncate">{customer.companyName}</p>
+                    )}
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_CHIP[customer.status]}`}>
+                        {STATUS_LABELS[customer.status]}
+                      </span>
+                    </div>
+                    {customer.needsSummary && (
+                      <p className="mt-1.5 line-clamp-1 text-xs text-zinc-400">
+                        {customer.needsSummary}
+                      </p>
+                    )}
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
+
     </div>
   );
 }

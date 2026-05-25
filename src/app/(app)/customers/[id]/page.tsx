@@ -209,6 +209,10 @@ function statusBadgeClass(status: string): string {
   if (status === 'won') return 'bg-green-100 text-green-700';
   if (status === 'lost') return 'bg-red-100 text-red-600';
   if (status === 'new_lead') return 'bg-blue-50 text-blue-700';
+  if (status === 'contacted') return 'bg-emerald-100 text-emerald-700';
+  if (status === 'follow_up_needed') return 'bg-amber-100 text-amber-700';
+  if (status === 'offer_drafted') return 'bg-purple-100 text-purple-700';
+  if (status === 'offer_sent') return 'bg-blue-100 text-blue-700';
   return 'bg-indigo-50 text-indigo-700';
 }
 
@@ -217,6 +221,23 @@ function taskStatusClass(status: string): string {
   if (status === 'completed') return 'bg-green-100 text-green-700';
   if (status === 'cancelled') return 'bg-zinc-100 text-zinc-500';
   return 'bg-indigo-50 text-indigo-700';
+}
+
+function offerStatusBadgeClass(status: string): string {
+  if (status === 'accepted') return 'bg-green-100 text-green-700';
+  if (status === 'rejected') return 'bg-red-100 text-red-600';
+  if (status === 'ready_to_send') return 'bg-indigo-100 text-indigo-700';
+  if (status === 'sent_manually' || status === 'sent_provider') return 'bg-blue-100 text-blue-700';
+  if (status === 'expired' || status === 'cancelled') return 'bg-zinc-100 text-zinc-500';
+  return 'bg-amber-100 text-amber-700';
+}
+
+function taskToneDot(status: string, priority: string): string {
+  if (status === 'ai_draft') return 'bg-amber-500';
+  if (status === 'completed') return 'bg-green-400';
+  if (status === 'cancelled') return 'bg-zinc-300';
+  if (priority === 'high') return 'bg-red-500';
+  return 'bg-indigo-500';
 }
 
 function formatMoney(value: number): string {
@@ -486,7 +507,7 @@ export default function CustomerDetailPage() {
     setRejectSaveState('copying');
     try {
       await navigator.clipboard.writeText(rejectDraftText);
-      setRejectCopyMessage('Το μήνυμα αντιγράφηκε. Δεν στάλθηκε.');
+      setRejectCopyMessage('Το κείμενο αντιγράφηκε. Αποστολή χειροκίνητα.');
     } catch {
       setRejectCopyMessage('Δεν έγινε αντιγραφή. Μπορείς να το επιλέξεις χειροκίνητα.');
     } finally {
@@ -520,7 +541,7 @@ export default function CustomerDetailPage() {
       if (res.ok && json.ok && json.customer) {
         setCustomer(json.customer);
         setRejectSaveState('saved');
-        setRejectCopyMessage('Αποθηκεύτηκε ως χαμένος πελάτης. Δεν στάλθηκε μήνυμα.');
+        setRejectCopyMessage('Αποθηκεύτηκε ως χαμένος πελάτης. Δεν έχει σταλεί μήνυμα.');
       } else {
         setRejectSaveState('error');
         setRejectSaveError('Δεν αποθηκεύτηκε η απόρριψη. Δοκίμασε ξανά.');
@@ -615,7 +636,7 @@ export default function CustomerDetailPage() {
             <button
               type="button"
               onClick={startRejectClient}
-              className="rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100"
+              className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
             >
               Απόρριψη πελάτη
             </button>
@@ -655,6 +676,7 @@ export default function CustomerDetailPage() {
             </span>
           )}
         </div>
+        <p className="mt-2 text-xs text-zinc-400">Κέντρο εργασίας πελάτη</p>
       </div>
 
       {/* Reject panel */}
@@ -662,7 +684,7 @@ export default function CustomerDetailPage() {
         <div className="rounded-2xl bg-red-50 p-4 ring-1 ring-red-200 space-y-3">
           <div>
             <p className="text-sm font-semibold text-red-800">Απόρριψη πελάτη</p>
-            <p className="mt-0.5 text-xs text-red-600">Review-first draft. Δεν θα σταλεί μήνυμα αυτόματα.</p>
+            <p className="mt-0.5 text-xs text-red-600">Review-first draft. Δεν αποστέλλεται μήνυμα χωρίς χειροκίνητη ενέργεια.</p>
           </div>
           <textarea
             rows={5}
@@ -704,6 +726,28 @@ export default function CustomerDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Workspace section navigation chips */}
+      <nav aria-label="Ενότητες καρτέλας" className="flex flex-wrap gap-1.5">
+        {[
+          { label: 'Timeline', href: '#ws-timeline' },
+          { label: 'Κλήσεις', href: '#ws-calls' },
+          { label: 'Tasks', href: '#ws-tasks' },
+          { label: 'Ραντεβού', href: '#ws-appointments' },
+          { label: 'Προσφορές', href: '#ws-offers' },
+          { label: 'Σημειώσεις', href: '#ws-notes' },
+          { label: 'Μηνύματα', href: '#ws-messages' },
+          { label: 'Αρχεία', href: '#ws-files' },
+        ].map((chip) => (
+          <a
+            key={chip.href}
+            href={chip.href}
+            className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-200 hover:text-zinc-800"
+          >
+            {chip.label}
+          </a>
+        ))}
+      </nav>
 
       {/* Top summary grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -932,9 +976,8 @@ export default function CustomerDetailPage() {
 
         {/* AI brief card */}
         <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-            AI Brief
-          </h2>
+          <h2 className="mb-0.5 text-sm font-semibold text-zinc-900">AI Brief</h2>
+          <p className="mb-3 text-xs text-zinc-400">Περίληψη από την τελευταία κλήση.</p>
           {aiBriefComm?.summary ? (
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">
               {aiBriefComm.summary}
@@ -947,48 +990,85 @@ export default function CustomerDetailPage() {
         </section>
       </div>
 
-      {/* Draft task / next action card */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-          Επόμενη ενέργεια
-        </h2>
+      {/* Next best action card */}
+      <section className={`rounded-2xl p-4 ${
+        draftTask
+          ? 'bg-amber-50 ring-1 ring-amber-200'
+          : openTasks.length > 0
+          ? 'bg-indigo-50 ring-1 ring-indigo-200'
+          : 'bg-white shadow-sm ring-1 ring-zinc-100'
+      }`}>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className={`text-xs font-semibold uppercase tracking-wide ${
+            draftTask ? 'text-amber-600' : openTasks.length > 0 ? 'text-indigo-600' : 'text-zinc-400'
+          }`}>
+            Επόμενη καλύτερη ενέργεια
+          </h2>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+            draftTask
+              ? 'bg-amber-100 text-amber-700'
+              : openTasks.length > 0
+              ? 'bg-indigo-100 text-indigo-700'
+              : 'bg-zinc-100 text-zinc-500'
+          }`}>
+            {draftTask ? 'Χρειάζεται έλεγχος' : openTasks.length > 0 ? `${openTasks.length} ανοιχτά` : 'Χωρίς εκκρεμότητες'}
+          </span>
+        </div>
         {draftTask ? (
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+              <span className="rounded-full bg-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
                 Draft task από AI
               </span>
-              <span className="text-xs text-zinc-400">
+              <span className="text-xs text-amber-700">
                 {TASK_TYPE_LABELS[draftTask.type] ?? draftTask.type}
               </span>
-              <span className="text-xs text-zinc-400">{draftTask.dueDate}</span>
+              <span className="text-xs text-amber-700">{draftTask.dueDate}</span>
             </div>
-            <p className="font-medium text-zinc-800">{draftTask.title}</p>
+            <p className="font-semibold text-amber-900">{draftTask.title}</p>
             {draftTask.note && (
-              <p className="text-sm text-zinc-500">{truncate(draftTask.note, 200)}</p>
+              <p className="text-sm text-amber-700">{truncate(draftTask.note, 200)}</p>
             )}
           </div>
         ) : openTasks.length > 0 ? (
           <div className="space-y-2">
             {openTasks.slice(0, 2).map(t => (
-              <div key={t.id} className="flex items-start justify-between gap-2">
-                <p className="text-sm font-medium text-zinc-700">{t.title}</p>
-                <span className="shrink-0 text-xs text-zinc-400">{t.dueDate}</span>
+              <div key={t.id} className="flex items-start gap-2.5">
+                <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(t.status, t.priority)}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-indigo-900">{t.title}</p>
+                  <p className="text-xs text-indigo-700">{TASK_TYPE_LABELS[t.type] ?? t.type} · {t.dueDate}</p>
+                </div>
               </div>
             ))}
             {openTasks.length > 2 && (
-              <p className="text-xs text-zinc-400">+{openTasks.length - 2} ακόμα...</p>
+              <p className="text-xs text-indigo-600">+{openTasks.length - 2} ακόμα...</p>
             )}
           </div>
         ) : (
-          <p className="text-sm text-zinc-400">Δεν υπάρχουν εκκρεμείς ενέργειες.</p>
+          <div className="space-y-2">
+            <p className="text-sm text-zinc-400">Δεν υπάρχουν εκκρεμείς ενέργειες αυτή τη στιγμή.</p>
+            <ul className="list-inside list-disc space-y-1 text-xs text-zinc-400">
+              <li>Αν υπάρχει ανοιχτό ραντεβού, έλεγξε την απάντηση πελάτη.</li>
+              <li>Αν υπάρχει ανοιχτή προσφορά, προγραμμάτισε follow-up.</li>
+              <li>Αν υπάρχει πρόσφατη κλήση, έλεγξε το brief και δημιούργησε task.</li>
+            </ul>
+          </div>
         )}
       </section>
 
       {/* A. Timeline */}
-      <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+      <section id="ws-timeline" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
         <div className="border-b border-zinc-100 px-4 py-3">
-          <h2 className="text-sm font-semibold text-zinc-900">Ιστορικό</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-zinc-900">Timeline</h2>
+            {timeline.length > 0 && (
+              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+                {timeline.length}
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-xs text-zinc-400">Σημαντικές ενέργειες, απαντήσεις πελατών και αλλαγές θα φαίνονται εδώ.</p>
         </div>
         {timeline.length === 0 ? (
           <p className="px-4 py-5 text-sm text-zinc-400">
@@ -998,40 +1078,48 @@ export default function CustomerDetailPage() {
           <ul className="divide-y divide-zinc-100">
             {timeline.map(entry =>
               entry.kind === 'comm' ? (
-                <li key={`c-${entry.item.id}`} className="space-y-1 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs font-semibold text-indigo-600">
-                      {entry.item.channel === 'call' ? 'Κλήση' : entry.item.channel}
-                    </span>
-                    <span className="shrink-0 text-xs text-zinc-400">
-                      {formatDateShort(entry.item.createdAt)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-zinc-400">
-                    {entry.item.direction === 'inbound' ? 'Εισερχόμενη' : 'Εξερχόμενη'} · {entry.item.status}
-                  </p>
-                  {entry.item.summary?.startsWith('AI brief') && (
-                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-500">
-                      {truncate(entry.item.summary, 180)}
+                <li key={`c-${entry.item.id}`} className="flex items-start gap-3 px-4 py-3">
+                  <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${
+                    entry.item.channel === 'call' ? 'bg-indigo-500' : 'bg-blue-500'
+                  }`} />
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`text-xs font-semibold ${entry.item.channel === 'call' ? 'text-indigo-600' : 'text-blue-600'}`}>
+                        {entry.item.channel === 'call' ? 'Κλήση' : entry.item.channel}
+                      </span>
+                      <span className="shrink-0 text-xs text-zinc-400">
+                        {formatDateShort(entry.item.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-400">
+                      {entry.item.direction === 'inbound' ? 'Εισερχόμενη' : 'Εξερχόμενη'} · {entry.item.status}
                     </p>
-                  )}
+                    {entry.item.summary?.startsWith('AI brief') && (
+                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-500">
+                        {truncate(entry.item.summary, 180)}
+                      </p>
+                    )}
+                  </div>
                 </li>
               ) : (
-                <li key={`t-${entry.item.id}`} className="space-y-1 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs font-semibold text-zinc-500">Task</span>
-                    <span className="shrink-0 text-xs text-zinc-400">
-                      {formatDateShort(entry.item.createdAt)}
-                    </span>
+                <li key={`t-${entry.item.id}`} className="flex items-start gap-3 px-4 py-3">
+                  <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(entry.item.status, entry.item.priority)}`} />
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-semibold text-zinc-500">Task</span>
+                      <span className="shrink-0 text-xs text-zinc-400">
+                        {formatDateShort(entry.item.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-zinc-700">{entry.item.title}</p>
+                    <p className="text-xs text-zinc-400">
+                      {TASK_STATUS_LABELS[entry.item.status] ?? entry.item.status}
+                      {' · '}
+                      {TASK_TYPE_LABELS[entry.item.type] ?? entry.item.type}
+                      {' · '}
+                      {entry.item.dueDate}
+                    </p>
                   </div>
-                  <p className="text-sm font-medium text-zinc-700">{entry.item.title}</p>
-                  <p className="text-xs text-zinc-400">
-                    {TASK_STATUS_LABELS[entry.item.status] ?? entry.item.status}
-                    {' · '}
-                    {TASK_TYPE_LABELS[entry.item.type] ?? entry.item.type}
-                    {' · '}
-                    {entry.item.dueDate}
-                  </p>
                 </li>
               )
             )}
@@ -1040,9 +1128,27 @@ export default function CustomerDetailPage() {
       </section>
 
       {/* B. Calls */}
-      <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+      <section id="ws-calls" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
         <div className="border-b border-zinc-100 px-4 py-3">
-          <h2 className="text-sm font-semibold text-zinc-900">Κλήσεις</h2>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-zinc-900">Κλήσεις</h2>
+                {callComms.length > 0 && (
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+                    {callComms.length}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-zinc-400">Κλήσεις, AI briefs και επόμενα βήματα.</p>
+            </div>
+            <Link
+              href="/calls"
+              className="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+            >
+              Άνοιγμα κλήσεων
+            </Link>
+          </div>
         </div>
         {callComms.length === 0 ? (
           <p className="px-4 py-5 text-sm text-zinc-400">
@@ -1051,21 +1157,24 @@ export default function CustomerDetailPage() {
         ) : (
           <ul className="divide-y divide-zinc-100">
             {callComms.map(c => (
-              <li key={c.id} className="space-y-1 px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-medium text-zinc-700">
-                    {c.direction === 'inbound' ? 'Εισερχόμενη κλήση' : 'Εξερχόμενη κλήση'}
-                  </span>
-                  <span className="shrink-0 text-xs text-zinc-400">
-                    {formatDateShort(c.createdAt)}
-                  </span>
+              <li key={c.id} className="flex items-start gap-3 px-4 py-3">
+                <span className={`mt-2 inline-block h-2 w-2 shrink-0 rounded-full ${c.direction === 'inbound' ? 'bg-green-500' : 'bg-blue-500'}`} />
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-zinc-700">
+                      {c.direction === 'inbound' ? 'Εισερχόμενη κλήση' : 'Εξερχόμενη κλήση'}
+                    </span>
+                    <span className="shrink-0 text-xs text-zinc-400">
+                      {formatDateShort(c.createdAt)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400">{c.status}</p>
+                  {c.summary?.startsWith('AI brief') && (
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-600">
+                      {c.summary}
+                    </p>
+                  )}
                 </div>
-                <p className="text-xs text-zinc-400">{c.status}</p>
-                {c.summary?.startsWith('AI brief') && (
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-600">
-                    {c.summary}
-                  </p>
-                )}
               </li>
             ))}
           </ul>
@@ -1073,9 +1182,29 @@ export default function CustomerDetailPage() {
       </section>
 
       {/* C. Tasks */}
-      <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+      <section id="ws-tasks" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
         <div className="border-b border-zinc-100 px-4 py-3">
-          <h2 className="text-sm font-semibold text-zinc-900">Tasks</h2>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-zinc-900">Tasks</h2>
+                {sortedTasks.length > 0 && (
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    openTasks.length > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-zinc-100 text-zinc-500'
+                  }`}>
+                    {openTasks.length > 0 ? `${openTasks.length} ανοιχτά` : sortedTasks.length}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-zinc-400">Ανοιχτές εργασίες και follow-up.</p>
+            </div>
+            <Link
+              href="/tasks"
+              className="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+            >
+              Άνοιγμα tasks
+            </Link>
+          </div>
         </div>
         {sortedTasks.length === 0 ? (
           <p className="px-4 py-5 text-sm text-zinc-400">
@@ -1084,26 +1213,29 @@ export default function CustomerDetailPage() {
         ) : (
           <ul className="divide-y divide-zinc-100">
             {sortedTasks.map(t => (
-              <li key={t.id} className="space-y-1.5 px-4 py-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${taskStatusClass(t.status)}`}>
-                    {TASK_STATUS_LABELS[t.status] ?? t.status}
-                  </span>
-                  {t.createdFromAi && (
-                    <span className="text-xs text-zinc-400">από AI</span>
+              <li key={t.id} className="flex items-start gap-3 px-4 py-3">
+                <span className={`mt-2 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(t.status, t.priority)}`} />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${taskStatusClass(t.status)}`}>
+                      {TASK_STATUS_LABELS[t.status] ?? t.status}
+                    </span>
+                    {t.createdFromAi && (
+                      <span className="text-xs text-zinc-400">από AI</span>
+                    )}
+                    <span className="text-xs text-zinc-400">
+                      {PRIORITY_LABELS[t.priority] ?? t.priority}
+                    </span>
+                  </div>
+                  <p className="font-semibold text-zinc-800">{t.title}</p>
+                  <p className="text-xs text-zinc-400">
+                    {TASK_TYPE_LABELS[t.type] ?? t.type} · {t.dueDate}
+                    {t.dueTime ? ` ${t.dueTime}` : ''}
+                  </p>
+                  {t.note && (
+                    <p className="text-sm text-zinc-500">{truncate(t.note, 160)}</p>
                   )}
-                  <span className="text-xs text-zinc-400">
-                    {PRIORITY_LABELS[t.priority] ?? t.priority}
-                  </span>
                 </div>
-                <p className="font-medium text-zinc-800">{t.title}</p>
-                <p className="text-xs text-zinc-400">
-                  {TASK_TYPE_LABELS[t.type] ?? t.type} · {t.dueDate}
-                  {t.dueTime ? ` ${t.dueTime}` : ''}
-                </p>
-                {t.note && (
-                  <p className="text-sm text-zinc-500">{truncate(t.note, 160)}</p>
-                )}
               </li>
             ))}
           </ul>
@@ -1111,9 +1243,27 @@ export default function CustomerDetailPage() {
       </section>
 
       {/* Appointments */}
-      <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+      <section id="ws-appointments" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
         <div className="border-b border-zinc-100 px-4 py-3">
-          <h2 className="text-sm font-semibold text-zinc-900">Ραντεβού</h2>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-zinc-900">Ραντεβού</h2>
+                {appointmentTasks.length > 0 && (
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+                    {appointmentTasks.length}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-zinc-400">Ραντεβού, απαντήσεις πελάτη και αλλαγές ώρας.</p>
+            </div>
+            <Link
+              href="/appointments"
+              className="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+            >
+              Άνοιγμα ραντεβού
+            </Link>
+          </div>
         </div>
         {appointmentTasks.length === 0 ? (
           <p className="px-4 py-5 text-sm text-zinc-400">
@@ -1158,9 +1308,27 @@ export default function CustomerDetailPage() {
       </section>
 
       {/* Offers */}
-      <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+      <section id="ws-offers" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
         <div className="border-b border-zinc-100 px-4 py-3">
-          <h2 className="text-sm font-semibold text-zinc-900">Προσφορές</h2>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-zinc-900">Προσφορές</h2>
+                {sortedOffers.length > 0 && (
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+                    {sortedOffers.length}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-zinc-400">Προσφορές, κατάσταση και follow-up.</p>
+            </div>
+            <Link
+              href="/offers"
+              className="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+            >
+              Άνοιγμα προσφορών
+            </Link>
+          </div>
         </div>
         {sortedOffers.length === 0 ? (
           <p className="px-4 py-5 text-sm text-zinc-400">
@@ -1174,7 +1342,7 @@ export default function CustomerDetailPage() {
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-semibold text-zinc-900">{offer.offerNumber}</span>
-                      <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${offerStatusBadgeClass(offer.status)}`}>
                         {OFFER_STATUS_LABELS[offer.status] ?? offer.status}
                       </span>
                       {offer.createdFromAi && (
@@ -1204,26 +1372,63 @@ export default function CustomerDetailPage() {
         )}
       </section>
 
-      {/* D. Notes */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-          Σημειώσεις
-        </h2>
+      {/* D. Notes: backend-backed section, comes before placeholders */}
+      <section id="ws-notes" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+        <div className="border-b border-zinc-100 px-4 py-3">
+          <h2 className="text-sm font-semibold text-zinc-900">Σημειώσεις</h2>
+          <p className="mt-0.5 text-xs text-zinc-400">Εσωτερικές σημειώσεις και ιστορικό.</p>
+        </div>
         {customer.notes ? (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">
+          <p className="whitespace-pre-wrap px-4 py-3 text-sm leading-relaxed text-zinc-700">
             {customer.notes}
           </p>
         ) : (
-          <p className="text-sm text-zinc-400">Δεν υπάρχουν σημειώσεις ακόμα.</p>
+          <p className="px-4 py-5 text-sm text-zinc-400">
+            Δεν υπάρχουν σημειώσεις ακόμα.
+          </p>
         )}
       </section>
 
-      {/* E. Files placeholder */}
-      <section className="rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-100">
-        <h2 className="text-sm font-semibold text-zinc-700">Αρχεία και έγγραφα</h2>
-        <p className="mt-1 text-sm text-zinc-400">
-          Εδώ θα εμφανίζονται φωτογραφίες, έγγραφα και αρχεία προσφοράς.
+      {/* Μηνύματα: placeholder section, visually secondary */}
+      <section id="ws-messages" className="rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-100">
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-medium text-zinc-600">Μηνύματα</h2>
+          <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+            Προς σύνδεση
+          </span>
+        </div>
+        <p className="text-xs text-zinc-400">Drafts για Viber ή email, πριν από αποστολή. Θα εμφανίζεται εδώ όταν συνδεθεί.</p>
+      </section>
+
+      {/* E. Files: placeholder section, visually secondary */}
+      <section id="ws-files" className="rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-100">
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-medium text-zinc-600">Αρχεία</h2>
+          <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+            Προς σύνδεση
+          </span>
+        </div>
+        <p className="text-xs text-zinc-400">Φωτογραφίες, έγγραφα και υλικό πελάτη. Θα εμφανίζεται εδώ όταν συνδεθεί.</p>
+      </section>
+
+      {/* Απόρριψη πελάτη: review-first, neutral styling until user initiates */}
+      <section className="rounded-2xl border border-zinc-200 bg-white p-4">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-zinc-700">Απόρριψη πελάτη</h2>
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+            Review-first
+          </span>
+        </div>
+        <p className="text-xs text-zinc-400">
+          Δημιουργεί ευγενικό draft για review πριν σταλεί. Χρειάζεται έγκριση.
         </p>
+        <button
+          type="button"
+          onClick={startRejectClient}
+          className="mt-3 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50"
+        >
+          Προετοιμασία draft
+        </button>
       </section>
 
     </div>

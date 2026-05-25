@@ -2,19 +2,40 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
+const PROFESSION_OPTIONS = [
+  'Μηχανικός / Τεχνικός',
+  'Αρχιτέκτονας',
+  'Λογιστής / Οικονομολόγος',
+  'Δικηγόρος',
+  'Γιατρός / Επαγγελματίας υγείας',
+  'Εκπαιδευτής / Σύμβουλος',
+  'Πωλητής / Έμπορος',
+  'Κατασκευαστής',
+  'Άλλο',
+];
+
 export default function RegisterPage() {
+  const router = useRouter();
+
+  // UI-only fields (not submitted to auth)
+  const [name, setProfessionalName] = useState('');
+  const [profession, setProfession] = useState('');
+  const [agreed, setAgreed] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Auth fields (submitted to Supabase)
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setSuccess(false);
 
     const trimmedEmail = email.trim();
     if (!trimmedEmail || !password) {
@@ -41,78 +62,177 @@ export default function RegisterPage() {
       return;
     }
 
-    setSuccess(true);
+    router.push('/package');
   }
 
   return (
-    <main className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm p-8">
-        <h1 className="text-2xl font-bold text-zinc-900 mb-1">Δημιουργία backend λογαριασμού</h1>
-        <p className="text-sm text-zinc-500 mb-6">
-          Αυτή η σελίδα δοκιμάζει το πραγματικό Supabase Auth. Δεν αντικαθιστά ακόμα το demo MVP login.
-        </p>
+    <main className="min-h-screen bg-white flex flex-col items-center px-5 pt-10 pb-12">
+      <div className="w-full max-w-md">
 
-        {success ? (
-          <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-green-800 text-sm">
-            Έλεγξε το email σου για επιβεβαίωση.
+        {/* Wordmark */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="flex items-center gap-1">
+            <span className="text-[22px] font-bold tracking-tight text-zinc-900">yorgos</span>
+            <span className="text-[22px] font-bold tracking-tight text-indigo-600">.ai</span>
+            <svg
+              className="ml-0.5 h-3.5 w-3.5 text-indigo-400"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M12 2l1.09 6.26L19 9l-5.5 5.14 1.68 6.86L12 17.77l-3.18 3.23L10.5 14.14 5 9l5.91-.74L12 2z" />
+            </svg>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-zinc-700 mb-1">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="you@example.com"
-              />
-            </div>
+          <h1 className="mt-6 text-2xl font-bold text-zinc-900 text-center leading-snug">
+            Καλωσόρισες στο yorgos.ai
+          </h1>
+          <p className="mt-2 text-sm text-zinc-500 text-center">
+            Δημιούργησε τον λογαριασμό σου σε λίγα δευτερόλεπτα.
+          </p>
+        </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-zinc-700 mb-1">
-                Κωδικός
-              </label>
+        <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* Ονοματεπώνυμο */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+              Ονοματεπώνυμο
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setProfessionalName(e.target.value)}
+              placeholder="π.χ. Κωνσταντίνος Σιδέρης"
+              className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+              Email
+            </label>
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="π.χ. ksid@example.com"
+              className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
+            />
+          </div>
+
+          {/* Κωδικός */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+              Κωδικός
+            </label>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400">
+                <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+              </span>
               <input
-                id="password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="Τουλάχιστον 6 χαρακτήρες"
+                placeholder="••••••••"
+                className="w-full rounded-2xl border border-zinc-200 bg-white pl-11 pr-11 py-3 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
               />
+              <button
+                type="button"
+                aria-label={showPassword ? 'Απόκρυψη κωδικού' : 'Εμφάνιση κωδικού'}
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition"
+              >
+                {showPassword ? (
+                  <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  </svg>
+                )}
+              </button>
             </div>
+          </div>
 
-            {error && (
-              <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-red-700 text-sm">
-                {error}
+          {/* Επάγγελμα / Κλάδος */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+              Επάγγελμα / Κλάδος
+            </label>
+            <div className="relative">
+              <select
+                value={profession}
+                onChange={(e) => setProfession(e.target.value)}
+                className="w-full appearance-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
+              >
+                <option value="">Επιλέξτε ή γράψτε τον κλάδο σου</option>
+                {PROFESSION_OPTIONS.map((o) => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400">
+                <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                </svg>
               </div>
-            )}
+            </div>
+          </div>
 
+          {/* Terms */}
+          <label className="flex items-start gap-3 cursor-pointer pt-1">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded accent-indigo-600 shrink-0"
+            />
+            <span className="text-xs text-zinc-500 leading-relaxed">
+              Συμφωνώ με τους{' '}
+              <span className="font-medium text-indigo-600">Όρους Χρήσης</span>
+              {' '}και την{' '}
+              <span className="font-medium text-indigo-600">Πολιτική Απορρήτου</span>
+              .
+            </span>
+          </label>
+
+          {/* Error */}
+          {error && (
+            <div className="rounded-2xl bg-red-50 px-4 py-3 ring-1 ring-red-200">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+
+          {/* CTA */}
+          <div className="pt-2">
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60 transition-colors"
+              className="w-full rounded-[28px] bg-indigo-600 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60"
             >
-              {loading ? 'Δημιουργία...' : 'Δημιουργία λογαριασμού'}
+              {loading ? 'Δημιουργία...' : 'Συνέχεια'}
             </button>
-          </form>
-        )}
+          </div>
+        </form>
 
-        <div className="mt-6 space-y-2 text-center text-sm">
-          <p>
-            <Link href="/login/backend" className="text-indigo-600 hover:underline">
-              Έχεις ήδη backend λογαριασμό; Σύνδεση
-            </Link>
-          </p>
-        </div>
+        <p className="mt-6 text-center text-sm text-zinc-500">
+          Έχεις ήδη λογαριασμό;{' '}
+          <Link
+            href="/login/backend"
+            className="font-semibold text-indigo-600 hover:text-indigo-700 transition"
+          >
+            Σύνδεση
+          </Link>
+        </p>
+
       </div>
     </main>
   );

@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -10,7 +9,7 @@ const PRIMARY_ITEMS = [
     label: 'Αρχική',
     icon: (active: boolean) => (
       <svg
-        className={`h-5 w-5 ${active ? 'text-indigo-600' : 'text-zinc-400'}`}
+        className={`h-6 w-6 ${active ? 'text-indigo-600' : 'text-zinc-400'}`}
         fill="none"
         strokeWidth={1.5}
         stroke="currentColor"
@@ -25,109 +24,11 @@ const PRIMARY_ITEMS = [
     ),
   },
   {
-    href: '/customers',
-    label: 'Πελάτες',
-    icon: (active: boolean) => (
-      <svg
-        className={`h-5 w-5 ${active ? 'text-indigo-600' : 'text-zinc-400'}`}
-        fill="none"
-        strokeWidth={1.5}
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: '/cmd',
-    label: 'AI',
-    icon: (active: boolean) => (
-      <svg
-        className={`h-5 w-5 ${active ? 'text-indigo-600' : 'text-zinc-400'}`}
-        fill="none"
-        strokeWidth={1.5}
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: '/appointments',
-    label: 'Ραντεβού',
-    icon: (active: boolean) => (
-      <svg
-        className={`h-5 w-5 ${active ? 'text-indigo-600' : 'text-zinc-400'}`}
-        fill="none"
-        strokeWidth={1.5}
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"
-        />
-      </svg>
-    ),
-  },
-];
-
-const MORE_ROUTES = [
-  {
-    href: '/tasks',
-    label: 'Tasks',
-    icon: (active: boolean) => (
-      <svg
-        className={`h-5 w-5 shrink-0 ${active ? 'text-indigo-600' : 'text-zinc-500'}`}
-        fill="none"
-        strokeWidth={1.5}
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: '/offers',
-    label: 'Προσφορές',
-    icon: (active: boolean) => (
-      <svg
-        className={`h-5 w-5 shrink-0 ${active ? 'text-indigo-600' : 'text-zinc-500'}`}
-        fill="none"
-        strokeWidth={1.5}
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-        />
-      </svg>
-    ),
-  },
-  {
     href: '/calls',
     label: 'Κλήσεις',
     icon: (active: boolean) => (
       <svg
-        className={`h-5 w-5 shrink-0 ${active ? 'text-indigo-600' : 'text-zinc-500'}`}
+        className={`h-6 w-6 ${active ? 'text-indigo-600' : 'text-zinc-400'}`}
         fill="none"
         strokeWidth={1.5}
         stroke="currentColor"
@@ -142,11 +43,49 @@ const MORE_ROUTES = [
     ),
   },
   {
+    href: '/cmd',
+    label: 'AI',
+    icon: (active: boolean) => (
+      <svg
+        className={`h-6 w-6 ${active ? 'text-indigo-600' : 'text-zinc-400'}`}
+        fill="none"
+        strokeWidth={1.5}
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"
+        />
+      </svg>
+    ),
+  },
+  {
+    href: '/customers',
+    label: 'Πελάτες',
+    icon: (active: boolean) => (
+      <svg
+        className={`h-6 w-6 ${active ? 'text-indigo-600' : 'text-zinc-400'}`}
+        fill="none"
+        strokeWidth={1.5}
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"
+        />
+      </svg>
+    ),
+  },
+  {
     href: '/settings',
     label: 'Ρυθμίσεις',
     icon: (active: boolean) => (
       <svg
-        className={`h-5 w-5 shrink-0 ${active ? 'text-indigo-600' : 'text-zinc-500'}`}
+        className={`h-6 w-6 ${active ? 'text-indigo-600' : 'text-zinc-400'}`}
         fill="none"
         strokeWidth={1.5}
         stroke="currentColor"
@@ -169,108 +108,28 @@ const MORE_ROUTES = [
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const [moreOpen, setMoreOpen] = useState(false);
-
-  const moreActive = MORE_ROUTES.some(
-    (r) => pathname === r.href || pathname.startsWith(r.href + '/')
-  );
 
   return (
-    <>
-      {moreOpen && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40 md:hidden"
-            onClick={() => setMoreOpen(false)}
-            aria-hidden="true"
-          />
-          {/* More sheet */}
-          <div className="fixed bottom-16 left-0 right-0 z-50 border-t border-zinc-200 bg-white shadow-lg md:hidden">
-            <ul className="divide-y divide-zinc-100">
-              {MORE_ROUTES.map((route) => {
-                const active =
-                  pathname === route.href || pathname.startsWith(route.href + '/');
-                return (
-                  <li key={route.href}>
-                    <Link
-                      href={route.href}
-                      onClick={() => setMoreOpen(false)}
-                      className={`flex items-center gap-3 px-5 py-3.5 transition ${
-                        active ? 'text-indigo-600' : 'text-zinc-700 hover:bg-zinc-50'
-                      }`}
-                    >
-                      {route.icon(active)}
-                      <span className="flex-1 text-sm font-medium">{route.label}</span>
-                      <svg
-                        className="h-4 w-4 shrink-0 text-zinc-300"
-                        fill="none"
-                        strokeWidth={2}
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="m8.25 4.5 7.5 7.5-7.5 7.5"
-                        />
-                      </svg>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        </>
-      )}
-
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-200 bg-white md:hidden">
-        <ul className="flex h-16 items-center">
-          {PRIMARY_ITEMS.map((item) => {
-            const active =
-              pathname === item.href || pathname.startsWith(item.href + '/');
-            return (
-              <li key={item.href} className="flex-1">
-                <Link
-                  href={item.href}
-                  onClick={() => setMoreOpen(false)}
-                  className={`flex flex-col items-center gap-0.5 py-1.5 text-[10px] font-medium transition ${
-                    active ? 'text-indigo-600' : 'text-zinc-500 hover:text-zinc-700'
-                  }`}
-                >
-                  {item.icon(active)}
-                  <span>{item.label}</span>
-                </Link>
-              </li>
-            );
-          })}
-          {/* More button */}
-          <li className="flex-1">
-            <button
-              type="button"
-              onClick={() => setMoreOpen((v) => !v)}
-              className={`flex w-full flex-col items-center gap-0.5 py-1.5 text-[10px] font-medium transition ${
-                moreActive || moreOpen ? 'text-indigo-600' : 'text-zinc-500 hover:text-zinc-700'
-              }`}
-            >
-              <svg
-                className={`h-5 w-5 ${moreActive || moreOpen ? 'text-indigo-600' : 'text-zinc-400'}`}
-                fill="none"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-200 bg-white md:hidden">
+      <ul className="flex h-[68px] items-center">
+        {PRIMARY_ITEMS.map((item) => {
+          const active =
+            pathname === item.href || pathname.startsWith(item.href + '/');
+          return (
+            <li key={item.href} className="flex-1">
+              <Link
+                href={item.href}
+                className={`flex flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium transition ${
+                  active ? 'text-indigo-600' : 'text-zinc-500 hover:text-zinc-700'
+                }`}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
-                />
-              </svg>
-              <span>Περισσότερα</span>
-            </button>
-          </li>
-        </ul>
-      </nav>
-    </>
+                {item.icon(active)}
+                <span>{item.label}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }

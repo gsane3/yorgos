@@ -6,15 +6,15 @@ export default function QuickAssistantInput() {
   const [text, setText] = useState('');
 
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+    <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60">
       <p className="text-sm font-medium text-zinc-700">Τι θέλεις να οργανώσω;</p>
 
-      <div className="mt-3 flex gap-2">
-        {/* Mic — stub */}
+      <div className="mt-3 flex items-center gap-2">
+        {/* Mic stub */}
         <button
           disabled
-          title="Φωνητική υπαγόρευση — Σύντομα"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-400 cursor-not-allowed"
+          title="Φωνητική υπαγόρευση, σύντομα"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 cursor-not-allowed"
         >
           <svg
             className="h-4 w-4"
@@ -35,15 +35,15 @@ export default function QuickAssistantInput() {
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder='π.χ. "Φτιάξε προσφορά στον Καραγιάννη με 100€ εργασία"'
-          className="flex-1 rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+          placeholder='π.χ. "Φτιάξε προσφορά στον Καραγιάννη"'
+          className="flex-1 rounded-2xl border-0 bg-zinc-50 px-3.5 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none ring-1 ring-zinc-200/70 focus:bg-white focus:ring-2 focus:ring-indigo-200 transition"
         />
 
-        {/* Submit — stub */}
+        {/* Submit stub */}
         <button
           disabled
           title="Σύντομα διαθέσιμο"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-400 cursor-not-allowed"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white opacity-50 cursor-not-allowed"
         >
           <svg
             className="h-4 w-4"
@@ -60,11 +60,6 @@ export default function QuickAssistantInput() {
           </svg>
         </button>
       </div>
-
-      <p className="mt-2 flex items-center gap-1.5 text-xs text-zinc-400">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-zinc-300" />
-        AI σύνδεση ενεργοποιείται σε επόμενο βήμα
-      </p>
     </div>
   );
 }

@@ -22,10 +22,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-full overflow-x-hidden">
       <DesktopSidebar />
       <div className="flex min-w-0 flex-1 flex-col md:pl-60">
-        {/* Guide guard — visible when guide is active and user is on wrong page */}
+        {/* Guide guard: visible when guide is active and user is on wrong page */}
         <GlobalGuideGuard />
         {/* pb-24 ensures content clears bottom nav on mobile */}
-        <main className="min-w-0 flex-1 overflow-x-hidden pb-24 md:pb-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-hidden pb-24 md:pb-6 scroll-smooth bg-[#F5F5F7]">{children}</main>
         <BottomNav />
       </div>
     </div>

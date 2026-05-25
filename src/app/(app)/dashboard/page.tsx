@@ -7,9 +7,7 @@ import { getEffectiveStatus } from '@/lib/types';
 import type { Customer, Task, Offer, CallRecord, TaskBaseStatus, CommunicationRecord } from '@/lib/types';
 import QuickAssistantInput from '@/components/dashboard/QuickAssistantInput';
 import NextActionsSection from '@/components/dashboard/NextActionsSection';
-import DataQualityWidget from '@/components/dashboard/DataQualityWidget';
-import DashboardSmartCards from '@/components/dashboard/DashboardSmartCards';
-import ActionSheet from '@/components/common/ActionSheet';
+import AttentionInboxBar from '@/components/layout/AttentionInboxBar';
 
 const LEAD_STATUSES = new Set<string>([
   'new_lead',
@@ -18,8 +16,17 @@ const LEAD_STATUSES = new Set<string>([
   'offer_sent',
 ]);
 const OPEN_OFFER_STATUSES = new Set<string>(['draft', 'ready_to_send', 'sent_manually']);
-
 const PRIORITY_ORDER: Record<string, number> = { high: 0, normal: 1, low: 2 };
+
+type FocusTone = 'red' | 'amber' | 'indigo';
+
+interface FocusCard {
+  tone: FocusTone;
+  label: string;
+  title: string;
+  customerName?: string;
+  primaryHref: string;
+}
 
 interface DashboardData {
   customers: Customer[];
@@ -29,7 +36,6 @@ interface DashboardData {
   communications: CommunicationRecord[];
 }
 
-// Map backend offer response to local Offer type.
 function mapOffer(d: Record<string, unknown>): Offer {
   return {
     id: d.id as string,
@@ -53,7 +59,6 @@ function mapOffer(d: Record<string, unknown>): Offer {
   };
 }
 
-// Map backend task response to local Task type.
 function mapTask(d: Record<string, unknown>): Task {
   return {
     id: d.id as string,
@@ -73,7 +78,6 @@ function mapTask(d: Record<string, unknown>): Task {
   };
 }
 
-// Map backend customer response to local Customer type.
 function mapCustomer(d: Record<string, unknown>): Customer {
   const now = new Date().toISOString();
   return {
@@ -99,8 +103,59 @@ function mapCustomer(d: Record<string, unknown>): Customer {
   };
 }
 
+// Chevron used in metric cards.
+function ChevronRight() {
+  return (
+    <svg
+      className="h-4 w-4 shrink-0 text-zinc-300"
+      fill="none"
+      strokeWidth={2}
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+    </svg>
+  );
+}
+
+// Icon inside the focus card action bubble.
+function FocusIcon({ tone }: { tone: FocusTone }) {
+  if (tone === 'indigo') {
+    return (
+      <svg
+        className="h-5 w-5 text-indigo-500"
+        fill="none"
+        strokeWidth={1.5}
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
+        />
+      </svg>
+    );
+  }
+  // Task (red / amber)
+  return (
+    <svg
+      className="h-5 w-5 text-indigo-500"
+      fill="none"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      />
+    </svg>
+  );
+}
+
 export default function DashboardPage() {
-  // Start empty so server render and first client render match.
   const [hydrated, setHydrated] = useState(false);
   const [authRequired, setAuthRequired] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -115,9 +170,8 @@ export default function DashboardPage() {
 
   // Undo state - must be declared before any conditional return.
   const [lastCompletedTask, setLastCompletedTask] = useState<Task | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
 
-  // Auto-clear the undo banner after 8 seconds.
+  // Auto-clear the undo banner after 8 seconds (pre-existing timer).
   useEffect(() => {
     if (!lastCompletedTask) return;
     const timer = setTimeout(() => setLastCompletedTask(null), 8000);
@@ -157,13 +211,7 @@ export default function DashboardPage() {
         Array.isArray(offersData) ? offersData : (offersData.offers ?? [])
       ).map(mapOffer);
 
-      setDashboardData({
-        customers,
-        tasks,
-        offers,
-        calls: undefined,
-        communications: [],
-      });
+      setDashboardData({ customers, tasks, offers, calls: undefined, communications: [] });
       setHydrated(true);
     } catch {
       setActionError('Αποτυχία φόρτωσης dashboard. Δοκίμασε ξανά.');
@@ -193,22 +241,29 @@ export default function DashboardPage() {
     init();
   }, [loadData]);
 
-  // Stable loading shell - identical on server and first client render.
+  // Stable loading skeleton.
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4 px-4 py-5">
-        <div>
-          <h1 className="text-lg font-semibold text-zinc-900">
-            Καλημέρα. Τι πρέπει να γίνει σήμερα;
-          </h1>
+      <div className="mx-auto max-w-md space-y-5 px-5 py-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1.5">
+            <div className="h-3 w-24 rounded-full bg-zinc-200" />
+            <div className="h-7 w-36 rounded-full bg-zinc-200" />
+            <div className="h-4 w-44 rounded-full bg-zinc-200" />
+          </div>
+          <div className="h-9 w-9 shrink-0 rounded-full bg-zinc-200" />
         </div>
-        <QuickAssistantInput />
-        <p className="py-6 text-center text-sm text-zinc-400">Φόρτωση dashboard...</p>
+        <div className="h-36 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+        <div className="h-14 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+        <div className="h-24 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+        <div className="h-24 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+        <div className="h-24 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+        <div className="h-36 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
       </div>
     );
   }
 
-  const { customers, tasks, offers, calls } = dashboardData;
+  const { customers, tasks, offers } = dashboardData;
 
   async function handleCompleteTask(taskId: string) {
     const token = tokenRef.current;
@@ -236,10 +291,7 @@ export default function DashboardPage() {
   async function handleUndoCompleteTask() {
     if (!lastCompletedTask) return;
     const token = tokenRef.current;
-    if (!token) {
-      setLastCompletedTask(null);
-      return;
-    }
+    if (!token) { setLastCompletedTask(null); return; }
     setActionError(null);
     const resp = await fetch(`/api/tasks/${lastCompletedTask.id}`, {
       method: 'PATCH',
@@ -251,17 +303,12 @@ export default function DashboardPage() {
       const restored = mapTask(data.task as Record<string, unknown>);
       setDashboardData((prev) => ({
         ...prev,
-        tasks: prev.tasks.map((t) =>
-          t.id === lastCompletedTask.id ? restored : t
-        ),
+        tasks: prev.tasks.map((t) => (t.id === lastCompletedTask.id ? restored : t)),
       }));
     } else {
-      // Restore from in-memory snapshot on API failure.
       setDashboardData((prev) => ({
         ...prev,
-        tasks: prev.tasks.map((t) =>
-          t.id === lastCompletedTask.id ? lastCompletedTask : t
-        ),
+        tasks: prev.tasks.map((t) => (t.id === lastCompletedTask.id ? lastCompletedTask : t)),
       }));
     }
     setLastCompletedTask(null);
@@ -293,8 +340,6 @@ export default function DashboardPage() {
     const token = tokenRef.current;
     const offer = dashboardData.offers.find((o) => o.id === offerId);
     if (!offer || !offer.customerId || !token) return;
-
-    // Prevent duplicates using in-memory loaded tasks.
     const alreadyExists = dashboardData.tasks.some(
       (t) =>
         t.type === 'follow_up_offer' &&
@@ -303,7 +348,6 @@ export default function DashboardPage() {
         (t.offerId === offer.id || t.title === `Follow-up προσφοράς ${offer.offerNumber}`)
     );
     if (alreadyExists) return;
-
     setActionError(null);
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3);
@@ -325,14 +369,15 @@ export default function DashboardPage() {
     if (resp.ok) {
       const data = await resp.json();
       const created = mapTask(data.task as Record<string, unknown>);
-      setDashboardData((prev) => ({
-        ...prev,
-        tasks: [...prev.tasks, created],
-      }));
+      setDashboardData((prev) => ({ ...prev, tasks: [...prev.tasks, created] }));
     } else {
       setActionError('Αποτυχία δημιουργίας task. Δοκίμασε ξανά.');
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Data computations
+  // ---------------------------------------------------------------------------
 
   const leads = customers
     .filter((c) => LEAD_STATUSES.has(c.status))
@@ -357,69 +402,281 @@ export default function DashboardPage() {
     customers.map((c) => [c.id, c.name])
   );
 
-  return (
-    <div className="mx-auto max-w-2xl space-y-4 px-4 py-5">
+  // Date label (post-hydration, client-side only)
+  const todayLabel = new Date().toLocaleDateString('el-GR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
 
-      {/* Action error banner */}
+  // ---------------------------------------------------------------------------
+  // Focus card selection
+  // Priority: overdue task > due-today task > offer ready to send > lead needing follow-up
+  // ---------------------------------------------------------------------------
+
+  const overdueTask = urgentTasks.find((t) => getEffectiveStatus(t) === 'overdue') ?? null;
+  const todayTask = overdueTask
+    ? null
+    : (urgentTasks.find((t) => getEffectiveStatus(t) === 'due_today') ?? null);
+  const readyOffer =
+    overdueTask || todayTask
+      ? null
+      : (openOffers.find((o) => o.status === 'ready_to_send') ?? null);
+  const focusLead =
+    overdueTask || todayTask || readyOffer ? null : (leads[0] ?? null);
+
+  const focusCard: FocusCard | null = overdueTask
+    ? {
+        tone: 'red',
+        label: 'Εκπρόθεσμο task',
+        title: overdueTask.title,
+        customerName: overdueTask.customerId ? customerMap[overdueTask.customerId] : undefined,
+        primaryHref: overdueTask.customerId ? `/customers/${overdueTask.customerId}` : '/tasks',
+      }
+    : todayTask
+    ? {
+        tone: 'amber',
+        label: 'Χρειάζεται ενέργεια σήμερα',
+        title: todayTask.title,
+        customerName: todayTask.customerId ? customerMap[todayTask.customerId] : undefined,
+        primaryHref: todayTask.customerId ? `/customers/${todayTask.customerId}` : '/tasks',
+      }
+    : readyOffer
+    ? {
+        tone: 'indigo',
+        label: 'Προσφορά σε αναμονή',
+        title: `Προσφορά ${readyOffer.offerNumber}`,
+        customerName: readyOffer.customerId ? customerMap[readyOffer.customerId] : undefined,
+        primaryHref: `/offers/${readyOffer.id}`,
+      }
+    : focusLead
+    ? {
+        tone: 'amber',
+        label: 'Χρειάζεται follow-up',
+        title: focusLead.name,
+        customerName: undefined,
+        primaryHref: `/customers/${focusLead.id}`,
+      }
+    : null;
+
+  // Metric helpers
+  const overdueCount = urgentTasks.filter((t) => getEffectiveStatus(t) === 'overdue').length;
+  const readyToSendCount = openOffers.filter((o) => o.status === 'ready_to_send').length;
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
+  return (
+    <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+
+      {/* Error banner */}
       {actionError && (
-        <div className="rounded-xl bg-red-50 px-4 py-2.5 ring-1 ring-red-200">
+        <div className="rounded-[28px] bg-red-50 px-4 py-2.5 ring-1 ring-red-200">
           <p className="text-sm text-red-700">{actionError}</p>
         </div>
       )}
 
-      {/* Auth required notice */}
+      {/* Auth required */}
       {authRequired && (
-        <div className="rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
+        <div className="rounded-[28px] bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
           <p className="text-sm text-amber-700">
-            Συνδέσου για να φορτωθούν τα πραγματικά δεδομένα του dashboard.
+            Συνδέσου για να φορτωθούν τα πραγματικά δεδομένα.
           </p>
           <Link
             href="/login/backend"
-            className="mt-2 inline-block rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
+            className="mt-2 inline-block rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
           >
             Σύνδεση
           </Link>
         </div>
       )}
 
-      {/* Header: greeting + menu icon */}
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold text-zinc-900">
-          Καλημέρα. Τι πρέπει να γίνει σήμερα;
-        </h1>
-        <button
-          type="button"
-          onClick={() => setMenuOpen(true)}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
-          aria-label="Ρυθμίσεις και μενού"
-        >
-          <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-          </svg>
-        </button>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs capitalize text-zinc-400">{todayLabel}</p>
+          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">Καλημέρα.</h1>
+          <p className="mt-0.5 text-sm text-zinc-500">Τι χρειάζεται προσοχή;</p>
+        </div>
+        <AttentionInboxBar />
       </div>
 
-      {/* Call-first value line */}
-      <p className="text-sm text-zinc-400">
-        Η περίληψη κάθε κλήσης καταχωρείται αυτόματα στο CRM μόλις ολοκληρωθεί η κλήση.
-      </p>
+      {/* Focus card */}
+      <div className="rounded-[28px] bg-white px-5 py-5 shadow-sm ring-1 ring-zinc-200/60">
+        {/* Label row with subtle urgency dot for overdue */}
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs font-medium text-zinc-400">Επόμενη καλύτερη ενέργεια</p>
+          {focusCard?.tone === 'red' && (
+            <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
+          )}
+        </div>
 
-      {/* 6-card control center */}
-      <DashboardSmartCards
-        urgentTasks={urgentTasks}
-        leads={leads}
-        openOffers={openOffers}
-        customers={customers}
-        calls={calls}
-        customerMap={customerMap}
-        onCompleteTask={handleCompleteTask}
-      />
+        {focusCard ? (
+          <>
+            <div className="mt-4 flex items-start gap-3">
+              {/* Icon bubble */}
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
+                <FocusIcon tone={focusCard.tone} />
+              </div>
+              <div className="min-w-0 flex-1">
+                {focusCard.customerName && (
+                  <p className="text-xs font-medium text-zinc-400">{focusCard.customerName}</p>
+                )}
+                <p className="text-[17px] font-semibold leading-snug text-zinc-900">
+                  {focusCard.title}
+                </p>
+                <p className="mt-0.5 text-xs text-zinc-500">{focusCard.label}</p>
+              </div>
+            </div>
+            <div className="mt-5">
+              <Link
+                href={focusCard.primaryHref}
+                className="inline-flex items-center rounded-2xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+              >
+                Άνοιγμα
+              </Link>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="mt-4 text-base font-medium text-zinc-600">
+              Χωρίς επείγουσες εκκρεμότητες
+            </p>
+            <p className="mt-0.5 text-xs text-zinc-400">Ελέγξτε τις εργασίες παρακάτω.</p>
+          </>
+        )}
+      </div>
 
+      {/* AI input */}
       <QuickAssistantInput />
 
-      {/* SmsIntakeNotificationBar omitted: SMS intake is handled via Viber/public intake. */}
+      {/* Metrics */}
 
+      {/* Tasks */}
+      <Link
+        href="/tasks"
+        className="flex items-start gap-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-zinc-50/60"
+      >
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
+          <svg
+            className="h-5 w-5 text-indigo-500"
+            fill="none"
+            strokeWidth={1.5}
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+            />
+          </svg>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-zinc-700">Tasks</span>
+            <span className="text-xs text-zinc-400">Σήμερα</span>
+          </div>
+          <div className="mt-0.5 flex items-end justify-between">
+            <span
+              className={`text-3xl font-bold leading-none ${
+                urgentTasks.length > 0 ? 'text-zinc-900' : 'text-zinc-300'
+              }`}
+            >
+              {urgentTasks.length}
+            </span>
+            <ChevronRight />
+          </div>
+          {overdueCount > 0 && (
+            <p className="mt-0.5 text-xs text-red-500">{overdueCount} εκπρόθεσμα</p>
+          )}
+        </div>
+      </Link>
+
+      {/* Πελάτες */}
+      <Link
+        href="/customers"
+        className="flex items-start gap-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-zinc-50/60"
+      >
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
+          <svg
+            className="h-5 w-5 text-indigo-500"
+            fill="none"
+            strokeWidth={1.5}
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"
+            />
+          </svg>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-zinc-700">Πελάτες</span>
+            <span className="text-xs text-zinc-400">Σύνολο</span>
+          </div>
+          <div className="mt-0.5 flex items-end justify-between">
+            <span
+              className={`text-3xl font-bold leading-none ${
+                customers.length > 0 ? 'text-zinc-900' : 'text-zinc-300'
+              }`}
+            >
+              {customers.length}
+            </span>
+            <ChevronRight />
+          </div>
+          {leads.length > 0 && (
+            <p className="mt-0.5 text-xs text-zinc-400">{leads.length} χρειάζονται προσοχή</p>
+          )}
+        </div>
+      </Link>
+
+      {/* Προσφορές */}
+      <Link
+        href="/offers"
+        className="flex items-start gap-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-zinc-50/60"
+      >
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
+          <svg
+            className="h-5 w-5 text-indigo-500"
+            fill="none"
+            strokeWidth={1.5}
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
+            />
+          </svg>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-zinc-700">Προσφορές</span>
+            <span className="text-xs text-zinc-400">Ανοιχτές</span>
+          </div>
+          <div className="mt-0.5 flex items-end justify-between">
+            <span
+              className={`text-3xl font-bold leading-none ${
+                openOffers.length > 0 ? 'text-zinc-900' : 'text-zinc-300'
+              }`}
+            >
+              {openOffers.length}
+            </span>
+            <ChevronRight />
+          </div>
+          {readyToSendCount > 0 && (
+            <p className="mt-0.5 text-xs text-indigo-500">{readyToSendCount} έτοιμες</p>
+          )}
+        </div>
+      </Link>
+
+      {/* Priorities */}
       <NextActionsSection
         customers={customers}
         tasks={tasks}
@@ -429,34 +686,8 @@ export default function DashboardPage() {
         onUndoCompleteTask={handleUndoCompleteTask}
         onMarkOfferSent={handleMarkOfferSent}
         onCreateOfferFollowUpTask={handleCreateOfferFollowUpTask}
+        compact
       />
-
-      {/* Data quality - secondary, shown only when needed */}
-      <DataQualityWidget customers={customers} />
-
-      {/* App menu */}
-      <ActionSheet open={menuOpen} onClose={() => setMenuOpen(false)} title="Μενού">
-        <div className="space-y-2">
-          {[
-            { href: '/settings', label: 'Ρυθμίσεις', subtitle: 'Επιχείρηση, backup, ρυθμίσεις' },
-          ].map(({ href, label, subtitle }) => (
-            <Link
-              key={href}
-              href={href}
-              onClick={() => setMenuOpen(false)}
-              className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-4 ring-1 ring-zinc-100 shadow-sm transition hover:ring-indigo-200"
-            >
-              <div>
-                <p className="text-base font-semibold text-zinc-900">{label}</p>
-                <p className="mt-0.5 text-sm text-zinc-500">{subtitle}</p>
-              </div>
-              <svg className="h-4 w-4 shrink-0 text-zinc-300" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-              </svg>
-            </Link>
-          ))}
-        </div>
-      </ActionSheet>
 
     </div>
   );
