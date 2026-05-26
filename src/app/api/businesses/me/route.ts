@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const { data: business, error: queryError } = await supabase
       .from('businesses')
       .select(
-        'id, owner_id, name, type, phone, email, address, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, created_at, updated_at'
+        'id, owner_id, name, type, phone, email, address, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, created_at, updated_at'
       )
       .eq('owner_id', user.id)
       .maybeSingle();
@@ -40,7 +40,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, business });
+    const biz = business as Record<string, unknown>;
+    return NextResponse.json({
+      ok: true,
+      business,
+      phoneAssigned:
+        typeof biz.business_phone_number === 'string' && biz.business_phone_number.length > 0,
+    });
   } catch {
     return NextResponse.json({ ok: false, error: 'business_route_failed' }, { status: 500 });
   }

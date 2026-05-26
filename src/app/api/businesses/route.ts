@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { assignPhoneNumber } from '@/lib/server/phone-number-pool';
 
 const VALID_TYPES = ['technical_services', 'sales_services', 'projects_construction', 'other'] as const;
 const VALID_CONTACT_METHODS = ['phone', 'email', 'viber'] as const;
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
         preferred_contact_method: preferredContactMethod,
       })
       .select(
-        'id, owner_id, name, type, phone, email, address, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, created_at, updated_at'
+        'id, owner_id, name, type, phone, email, address, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, created_at, updated_at'
       )
       .single();
 
@@ -124,7 +125,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'business_create_failed' }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, business }, { status: 201 });
+    const bizId = (business as unknown as { id: string }).id;
+    const phoneResult = await assignPhoneNumber(supabase, bizId);
+
+    return NextResponse.json({
+      ok: true,
+      business: {
+        ...(business as Record<string, unknown>),
+        business_phone_number: phoneResult.assigned ? phoneResult.e164Number : null,
+      },
+      phoneAssigned: phoneResult.assigned,
+    }, { status: 201 });
   } catch {
     return NextResponse.json({ ok: false, error: 'business_create_failed' }, { status: 500 });
   }

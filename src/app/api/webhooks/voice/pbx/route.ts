@@ -190,12 +190,14 @@ export async function POST(request: NextRequest) {
   // event_type defaults to 'call.completed' if absent from payload.
   const eventType = getString(parsed['event_type']) ?? getString(parsed['event']) ?? 'call.completed';
 
-  const businessId = getString(process.env.PBX_BUSINESS_ID);
-  if (!businessId) {
+  const callerNumber = getString(parsed['caller_number']);
+  const calledNumberRaw = getString(parsed['called_number']);
+  const pbxBusinessIdFromEnv = getString(process.env.PBX_BUSINESS_ID);
+  // Require at least one source for business resolution before touching Supabase.
+  if (!calledNumberRaw && !pbxBusinessIdFromEnv) {
     return NextResponse.json({ ok: false, error: 'missing_pbx_business_id' }, { status: 503 });
   }
 
-  const callerNumber = getString(parsed['caller_number']);
   const dialStatus = getString(parsed['dialstatus']);
   const uniqueId = getString(parsed['uniqueid']) ?? eventId;
   const recordingPath = getString(parsed['recording_path']);
@@ -213,6 +215,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
     }
     return NextResponse.json({ ok: false, error: 'webhook_store_failed' }, { status: 500 });
+  }
+
+  // Resolve business_id: prefer called_number lookup (multi-tenant),
+  // fall back to PBX_BUSINESS_ID env var (single-tenant / local PBX tests).
+  let businessId: string | null = null;
+
+  if (calledNumberRaw) {
+    const normalizedCalled = normalizePhone(calledNumberRaw);
+    if (normalizedCalled) {
+      const { data: bizRow, error: bizRowError } = await supabase
+        .from('business_phone_numbers')
+        .select('business_id')
+        .eq('e164_number', normalizedCalled)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (!bizRowError && bizRow) {
+        businessId = (bizRow as unknown as { business_id: string }).business_id ?? null;
+      }
+    }
+  }
+
+  if (!businessId) {
+    businessId = pbxBusinessIdFromEnv;
+  }
+
+  if (!businessId) {
+    return NextResponse.json({ ok: false, error: 'missing_pbx_business_id' }, { status: 503 });
   }
 
   try {
