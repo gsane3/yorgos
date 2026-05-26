@@ -324,6 +324,8 @@ export default function CustomerDetailPage() {
   const [editingOfferLoading, setEditingOfferLoading] = useState<string | null>(null);
   const [editOfferError, setEditOfferError] = useState<string | null>(null);
 
+  const [copiedMessageKey, setCopiedMessageKey] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -864,6 +866,19 @@ export default function CustomerDetailPage() {
   }
 
   // ---------------------------------------------------------------------------
+  // Message copy helper
+  // ---------------------------------------------------------------------------
+
+  async function copyMessage(key: string, text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageKey(key);
+    } catch {
+      setCopiedMessageKey(null);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Edit offer helpers
   // ---------------------------------------------------------------------------
 
@@ -1022,6 +1037,23 @@ export default function CustomerDetailPage() {
     createdAt: customer.createdAt,
     updatedAt: customer.updatedAt,
   };
+
+  const msgPhoneText = 'Γεια σας, επικοινωνώ σχετικά με το αίτημά σας.';
+  const msgEmailText = 'Καλημέρα σας, σας επικοινωνώ σχετικά με το αίτημά σας.';
+  const prefCh = customer.preferredContactMethod;
+  const messageDrafts: Array<{ key: string; channelLabel: string; draftText: string }> = [
+    {
+      key: `pref-${prefCh}`,
+      channelLabel: CONTACT_LABELS[prefCh] ?? prefCh,
+      draftText: prefCh === 'email' ? msgEmailText : msgPhoneText,
+    },
+  ];
+  if ((customer.phone || customer.mobilePhone) && prefCh !== 'phone' && prefCh !== 'viber') {
+    messageDrafts.push({ key: 'phone', channelLabel: 'Viber / SMS', draftText: msgPhoneText });
+  }
+  if (customer.email && prefCh !== 'email') {
+    messageDrafts.push({ key: 'email', channelLabel: 'Email', draftText: msgEmailText });
+  }
 
   return (
     <div className="mx-auto w-full max-w-2xl md:max-w-4xl space-y-5 px-4 py-5">
@@ -1935,26 +1967,73 @@ export default function CustomerDetailPage() {
         )}
       </section>
 
-      {/* Μηνύματα: placeholder section, visually secondary */}
-      <section id="ws-messages" className="rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-100">
-        <div className="mb-1.5 flex items-center justify-between gap-2">
-          <h2 className="text-sm font-medium text-zinc-600">Μηνύματα</h2>
-          <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
-            Προς σύνδεση
-          </span>
+      {/* Messages section */}
+      <section id="ws-messages" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+        <div className="border-b border-zinc-100 px-4 py-3">
+          <h2 className="text-sm font-semibold text-zinc-900">Μηνύματα</h2>
+          <p className="mt-0.5 text-xs text-zinc-400">Πρόχειρα και ιστορικό επικοινωνίας με τον πελάτη.</p>
         </div>
-        <p className="text-xs text-zinc-400">Drafts για Viber ή email, πριν από αποστολή. Θα εμφανίζεται εδώ όταν συνδεθεί.</p>
+        <div className="divide-y divide-zinc-100">
+          {messageDrafts.map(draft => (
+            <div key={draft.key} className="flex items-start gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-zinc-700">{draft.channelLabel}</span>
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+                    Πρόχειρο
+                  </span>
+                </div>
+                <p className="text-sm text-zinc-600">{draft.draftText}</p>
+                <p className="text-[11px] text-zinc-400">Δεν έχει σταλεί.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => copyMessage(draft.key, draft.draftText)}
+                className="shrink-0 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+              >
+                {copiedMessageKey === draft.key ? 'Αντιγράφηκε' : 'Αντιγραφή'}
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-zinc-100 px-4 py-3">
+          <p className="text-xs text-zinc-400">Δημιουργία νέου μηνύματος θα συνδεθεί με provider σε επόμενο βήμα.</p>
+        </div>
       </section>
 
-      {/* E. Files: placeholder section, visually secondary */}
-      <section id="ws-files" className="rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-100">
-        <div className="mb-1.5 flex items-center justify-between gap-2">
-          <h2 className="text-sm font-medium text-zinc-600">Αρχεία</h2>
-          <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
-            Προς σύνδεση
-          </span>
+      {/* Files section */}
+      <section id="ws-files" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+        <div className="border-b border-zinc-100 px-4 py-3">
+          <h2 className="text-sm font-semibold text-zinc-900">Αρχεία</h2>
+          <p className="mt-0.5 text-xs text-zinc-400">Φωτογραφίες, βίντεο και έγγραφα του πελάτη.</p>
         </div>
-        <p className="text-xs text-zinc-400">Φωτογραφίες, έγγραφα και υλικό πελάτη. Θα εμφανίζεται εδώ όταν συνδεθεί.</p>
+        <div className="divide-y divide-zinc-100">
+          {(
+            [
+              { key: 'photos', label: 'Φωτογραφίες εργασίας', desc: 'Για εικόνες από τον χώρο ή την εργασία.' },
+              { key: 'videos', label: 'Βίντεο', desc: 'Για σύντομα βίντεο από βλάβη, χώρο ή εγκατάσταση.' },
+              { key: 'docs', label: 'Έγγραφα', desc: 'Για προσφορές, τιμολόγια, έντυπα και σημειώσεις.' },
+            ] as const
+          ).map(cat => (
+            <div key={cat.key} className="flex items-center gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-zinc-800">{cat.label}</p>
+                <p className="text-xs text-zinc-400">{cat.desc}</p>
+              </div>
+              <button
+                type="button"
+                disabled
+                title="Θα ενεργοποιηθεί όταν συνδεθεί το ασφαλές storage."
+                className="shrink-0 cursor-not-allowed rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-400"
+              >
+                Προσθήκη
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-zinc-100 px-4 py-3">
+          <p className="text-xs text-zinc-400">Θα ενεργοποιηθεί όταν συνδεθεί το ασφαλές storage.</p>
+        </div>
       </section>
 
       {/* Απόρριψη πελάτη: review-first, neutral styling until user initiates */}
