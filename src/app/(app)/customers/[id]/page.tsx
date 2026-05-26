@@ -422,6 +422,11 @@ export default function CustomerDetailPage() {
     [communications]
   );
 
+  const latestCallWithBrief = useMemo(
+    () => callComms.find(c => c.summary && c.summary.trim().length > 0) ?? null,
+    [callComms]
+  );
+
   const timeline = useMemo((): TimelineItem[] => {
     const items: TimelineItem[] = [
       ...communications.map(c => ({ kind: 'comm' as const, item: c, date: c.createdAt })),
@@ -1418,28 +1423,30 @@ export default function CustomerDetailPage() {
           )}
         </section>
 
-        {/* Latest call card */}
-        <section
-          className={`rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 ${callComms[0] ? 'cursor-pointer transition hover:ring-indigo-200' : ''}`}
-          onClick={callComms[0] ? () => setSelectedCall(callComms[0]) : undefined}
-        >
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-zinc-900">Τελευταία κλήση</h2>
-            {callComms[0] && (
-              <span className="text-xs text-zinc-400">{formatDateShort(callComms[0].createdAt)}</span>
-            )}
-          </div>
-          {callComms[0]?.summary ? (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">
-              {callComms[0].summary.replace(/^AI brief[:\s]*/i, '')}
+        {/* Latest call brief card, only shown when a call summary exists */}
+        {latestCallWithBrief && (
+          <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-zinc-900">Τελευταία κλήση</h2>
+              <span className="text-xs text-zinc-400">{formatDateShort(latestCallWithBrief.createdAt)}</span>
+            </div>
+            <p className="mb-1.5 text-xs text-zinc-500">
+              {latestCallWithBrief.direction === 'inbound' ? 'Εισερχόμενη' : 'Εξερχόμενη'}
             </p>
-          ) : (
-            <p className="text-sm text-zinc-400">Χωρίς περίληψη κλήσης ακόμα.</p>
-          )}
-          {callComms[0] && (
-            <p className="mt-2 text-[10px] text-indigo-400">Πάτα για λεπτομέρειες</p>
-          )}
-        </section>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">
+              {(latestCallWithBrief.summary ?? '').replace(/^AI brief[:\s]*/i, '')}
+            </p>
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setSelectedCall(latestCallWithBrief)}
+                className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+              >
+                Άνοιγμα κλήσης
+              </button>
+            </div>
+          </section>
+        )}
       </div>
 
       {/* Next best action card */}
@@ -1622,13 +1629,19 @@ export default function CustomerDetailPage() {
                     <p className="text-xs text-zinc-400">
                       {entry.item.direction === 'inbound' ? 'Εισερχόμενη' : 'Εξερχόμενη'} · {entry.item.status}
                     </p>
-                    {entry.item.summary?.startsWith('AI brief') && (
+                    {entry.item.summary && (
                       <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-500">
                         {truncate(entry.item.summary.replace(/^AI brief[:\s]*/i, ''), 180)}
                       </p>
                     )}
                     {entry.item.channel === 'call' && (
-                      <p className="text-[10px] text-indigo-400">Πάτα για λεπτομέρειες</p>
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); setSelectedCall(entry.item); }}
+                        className="mt-0.5 rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-600 transition hover:bg-indigo-100"
+                      >
+                        Περίληψη
+                      </button>
                     )}
                   </div>
                 </li>
@@ -1688,7 +1701,11 @@ export default function CustomerDetailPage() {
         ) : (
           <ul className="divide-y divide-zinc-100">
             {callComms.map(c => (
-              <li key={c.id} className="flex items-start gap-3 px-4 py-3">
+              <li
+                key={c.id}
+                className="flex cursor-pointer items-start gap-3 px-4 py-3 transition hover:bg-indigo-50/50 active:bg-indigo-50"
+                onClick={() => setSelectedCall(c)}
+              >
                 <span className={`mt-2 inline-block h-2 w-2 shrink-0 rounded-full ${c.direction === 'inbound' ? 'bg-green-500' : 'bg-blue-500'}`} />
                 <div className="min-w-0 flex-1 space-y-0.5">
                   <div className="flex items-center justify-between gap-3">
@@ -1700,12 +1717,19 @@ export default function CustomerDetailPage() {
                     </span>
                   </div>
                   <p className="text-xs text-zinc-400">{c.status}</p>
-                  {c.summary?.startsWith('AI brief') && (
+                  {c.summary && (
                     <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-600">
-                      {c.summary}
+                      {truncate(c.summary.replace(/^AI brief[:\s]*/i, ''), 160)}
                     </p>
                   )}
                 </div>
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); setSelectedCall(c); }}
+                  className="shrink-0 self-center rounded-xl border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600 transition hover:bg-indigo-100"
+                >
+                  Περίληψη
+                </button>
               </li>
             ))}
           </ul>
@@ -2067,7 +2091,7 @@ export default function CustomerDetailPage() {
             onClick={e => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-zinc-900">Λεπτομέρειες κλήσης</h2>
+              <h2 className="text-base font-semibold text-zinc-900">Περίληψη κλήσης</h2>
               <button
                 type="button"
                 onClick={() => setSelectedCall(null)}
@@ -2091,7 +2115,7 @@ export default function CustomerDetailPage() {
                 {selectedCall.summary.replace(/^AI brief[:\s]*/i, '')}
               </p>
             ) : (
-              <p className="text-sm text-zinc-400">Χωρίς περίληψη κλήσης ακόμα.</p>
+              <p className="text-sm text-zinc-400">Δεν υπάρχει διαθέσιμη περίληψη για αυτή την κλήση.</p>
             )}
             <div className="mt-5 flex justify-end">
               <button
