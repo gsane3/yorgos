@@ -112,6 +112,14 @@ function mapCustomer(d: Record<string, unknown>): Customer {
   };
 }
 
+function extractAiBrief(summary: string | null): string | null {
+  if (!summary) return null;
+  if (!summary.startsWith('AI brief')) return null;
+  const withoutMeta = summary.split('\n\n---')[0];
+  const text = withoutMeta.replace(/^AI brief [^:\n]+:\s*/, '').trim();
+  return text.length > 0 ? text : null;
+}
+
 // ---------------------------------------------------------------------------
 // Icon helpers
 // ---------------------------------------------------------------------------
@@ -191,6 +199,7 @@ function CallActionSheet({
       : call.status === 'missed'
       ? 'Αναπάντητη'
       : directionLabel;
+  const actionSheetBrief = extractAiBrief(call.summary);
 
   async function handleDelete() {
     const token = getAuthToken();
@@ -477,6 +486,15 @@ function CallActionSheet({
                 <p className="mt-2 text-xs text-red-500">{sheetError}</p>
               )}
             </div>
+
+            {actionSheetBrief && (
+              <div className="mx-5 mb-3 rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-100">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                  Περίληψη κλήσης
+                </p>
+                <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-600">{actionSheetBrief}</p>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="space-y-2.5 px-4">
@@ -843,6 +861,7 @@ function RecentTab({
         const isMissed = call.status === 'missed';
         const isUnknown = !linkedCustomer?.name && !linkedCustomer?.companyName;
         const initial = displayName.charAt(0).toUpperCase();
+        const aiBrief = extractAiBrief(call.summary);
 
         return (
           <li key={call.id}>
@@ -889,6 +908,12 @@ function RecentTab({
                     </span>
                   )}
                 </div>
+
+                {aiBrief && (
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-zinc-400">
+                    {aiBrief}
+                  </p>
+                )}
 
                 {/* Discreet signal + customer link */}
                 <div className="mt-1.5 flex items-center justify-between gap-2">
