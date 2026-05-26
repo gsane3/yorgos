@@ -678,7 +678,7 @@ export default function AppointmentsPage() {
 
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
         <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="text-sm text-zinc-400">Φόρτωση ραντεβού...</p>
         </div>
@@ -692,7 +692,7 @@ export default function AppointmentsPage() {
 
   if (noSession) {
     return (
-      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
         <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Ημερολόγιο</p>
         <h1 className="mb-5 text-xl font-bold text-zinc-900">Ραντεβού</h1>
         <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
@@ -714,7 +714,7 @@ export default function AppointmentsPage() {
 
   if (fetchError) {
     return (
-      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
         <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Ημερολόγιο</p>
         <h1 className="mb-5 text-xl font-bold text-zinc-900">Ραντεβού</h1>
         <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
@@ -761,7 +761,7 @@ export default function AppointmentsPage() {
     const selCustomer = getAppointmentCustomer(selectedAppointment);
     const selRespInfo = getAppointmentResponseInfo(selectedAppointment.note ?? '');
     return (
-      <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
         <div>
           <button
             type="button"
@@ -978,7 +978,7 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>

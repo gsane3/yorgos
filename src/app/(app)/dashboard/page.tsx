@@ -272,7 +272,7 @@ export default function DashboardPage() {
   // Stable loading skeleton.
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-md space-y-5 px-5 py-6">
+      <div className="mx-auto w-full max-w-md space-y-5 px-5 py-6 md:max-w-4xl md:px-8">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1.5">
             <div className="h-3 w-24 rounded-full bg-zinc-200" />
@@ -508,7 +508,7 @@ export default function DashboardPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
+    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
 
       {/* Error banner */}
       {actionError && (
@@ -589,7 +589,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
           label="Νέοι πελάτες μήνα"
           value={newCustomersThisMonth}

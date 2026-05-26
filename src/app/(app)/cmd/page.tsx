@@ -911,7 +911,7 @@ export default function CmdPage() {
 
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-2xl md:px-8">
         <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="text-sm text-zinc-400">Φόρτωση...</p>
         </div>
@@ -920,7 +920,7 @@ export default function CmdPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-6 pb-28 md:max-w-2xl md:px-8">
       {/* Header */}
       <div>
         <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Βοηθός</p>

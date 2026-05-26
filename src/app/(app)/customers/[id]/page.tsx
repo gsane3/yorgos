@@ -973,7 +973,7 @@ export default function CustomerDetailPage() {
   // ---------------------------------------------------------------------------
   if (pageState === 'loading') {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10">
+      <div className="mx-auto w-full max-w-2xl px-4 py-10 md:max-w-4xl">
         <p className="text-center text-sm text-zinc-400">Φόρτωση καρτέλας πελάτη...</p>
       </div>
     );
@@ -984,7 +984,7 @@ export default function CustomerDetailPage() {
   // ---------------------------------------------------------------------------
   if (pageState === 'no_session') {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10">
+      <div className="mx-auto w-full max-w-2xl px-4 py-10 md:max-w-4xl">
         <div className="rounded-2xl bg-zinc-50 px-6 py-10 text-center ring-1 ring-zinc-100">
           <p className="text-sm font-medium text-zinc-600">
             Συνδέσου για να δεις την καρτέλα πελάτη.
@@ -1005,7 +1005,7 @@ export default function CustomerDetailPage() {
   // ---------------------------------------------------------------------------
   if (pageState === 'error' || !customer) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10">
+      <div className="mx-auto w-full max-w-2xl px-4 py-10 md:max-w-4xl">
         <div className="rounded-2xl bg-red-50 px-6 py-8 text-center ring-1 ring-red-100">
           <p className="text-sm font-medium text-red-700">
             Αδυναμία φόρτωσης καρτέλας. Έλεγξε τη σύνδεση ή ανανέωσε.

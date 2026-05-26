@@ -299,7 +299,7 @@ export default function OffersPage() {
 
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
         <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="text-sm text-zinc-400">Φόρτωση προσφορών...</p>
         </div>
@@ -313,7 +313,7 @@ export default function OffersPage() {
 
   if (noSession) {
     return (
-      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
         <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Εμπορικές</p>
         <h1 className="mb-5 text-xl font-bold text-zinc-900">Προσφορές</h1>
         <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
@@ -335,7 +335,7 @@ export default function OffersPage() {
 
   if (fetchError) {
     return (
-      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
         <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Εμπορικές</p>
         <h1 className="mb-5 text-xl font-bold text-zinc-900">Προσφορές</h1>
         <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
@@ -363,7 +363,7 @@ export default function OffersPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+    <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
       {/* Header */}
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>

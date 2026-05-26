@@ -462,7 +462,7 @@ export default function TasksPage() {
 
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
         <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="text-sm text-zinc-400">Φόρτωση tasks...</p>
         </div>
@@ -472,7 +472,7 @@ export default function TasksPage() {
 
   if (noSession) {
     return (
-      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
         <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="mb-4 text-sm text-zinc-600">Συνδέσου για να δεις τα tasks.</p>
           <Link
@@ -488,7 +488,7 @@ export default function TasksPage() {
 
   if (fetchError) {
     return (
-      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
         <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="mb-4 text-sm text-red-600">{fetchError}</p>
           <button
@@ -514,7 +514,7 @@ export default function TasksPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
 
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
