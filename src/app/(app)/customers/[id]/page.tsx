@@ -320,6 +320,10 @@ export default function CustomerDetailPage() {
   const [editTaskSaving, setEditTaskSaving] = useState(false);
   const [editTaskError, setEditTaskError] = useState<string | null>(null);
 
+  const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
+  const [editingOfferLoading, setEditingOfferLoading] = useState<string | null>(null);
+  const [editOfferError, setEditOfferError] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -856,6 +860,91 @@ export default function CustomerDetailPage() {
     } catch {
       setEditTaskSaving(false);
       setEditTaskError('Δεν αποθηκεύτηκαν οι αλλαγές. Δοκίμασε ξανά.');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Edit offer helpers
+  // ---------------------------------------------------------------------------
+
+  async function openEditOffer(offerId: string) {
+    setEditingOfferLoading(offerId);
+    setEditOfferError(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setEditingOfferLoading(null);
+        setEditOfferError('Δεν φορτώθηκε η προσφορά. Δοκίμασε ξανά.');
+        return;
+      }
+      const res = await fetch(`/api/offers/${offerId}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json() as { ok?: boolean; offer?: Offer; error?: string };
+      if (res.ok && json.ok && json.offer) {
+        setEditingOffer(json.offer);
+        setEditingOfferLoading(null);
+      } else {
+        setEditingOfferLoading(null);
+        setEditOfferError('Δεν φορτώθηκε η προσφορά. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setEditingOfferLoading(null);
+      setEditOfferError('Δεν φορτώθηκε η προσφορά. Δοκίμασε ξανά.');
+    }
+  }
+
+  function closeEditOffer() {
+    setEditingOffer(null);
+    setEditingOfferLoading(null);
+    setEditOfferError(null);
+  }
+
+  async function saveEditedOffer(offer: Offer) {
+    if (!editingOffer) return;
+    setEditOfferError(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setEditOfferError('Δεν αποθηκεύτηκε η προσφορά. Δοκίμασε ξανά.');
+        return;
+      }
+      const res = await fetch(`/api/offers/${editingOffer.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          offerNumber: offer.offerNumber,
+          status: offer.status,
+          customerId,
+          offerDate: offer.offerDate,
+          validUntil: offer.validUntil || null,
+          vatRate: offer.vatRate,
+          items: offer.items.map((item, idx) => ({
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            sortOrder: idx,
+          })),
+          notes: offer.notes,
+          terms: offer.terms,
+          acceptanceText: offer.acceptanceText,
+          createdFromAi: offer.createdFromAi,
+        }),
+      });
+      const json = await res.json() as { ok?: boolean; error?: string };
+      if (res.ok && json.ok) {
+        closeEditOffer();
+        setRefreshTick(t => t + 1);
+      } else {
+        setEditOfferError('Δεν αποθηκεύτηκε η προσφορά. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setEditOfferError('Δεν αποθηκεύτηκε η προσφορά. Δοκίμασε ξανά.');
     }
   }
 
@@ -1774,6 +1863,9 @@ export default function CustomerDetailPage() {
             </Link>
           </div>
         </div>
+        {editOfferError && !editingOffer && (
+          <p className="px-4 pt-3 text-xs font-medium text-red-600">{editOfferError}</p>
+        )}
         {sortedOffers.length === 0 ? (
           <p className="px-4 py-5 text-sm text-zinc-400">
             Δεν υπάρχουν προσφορές ακόμα για αυτόν τον πελάτη.
@@ -1803,12 +1895,22 @@ export default function CustomerDetailPage() {
                       <p className="text-xs text-zinc-400">{truncate(offer.notes, 120)}</p>
                     )}
                   </div>
-                  <Link
-                    href={`/offers/${offer.id}`}
-                    className="shrink-0 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
-                  >
-                    Άνοιγμα
-                  </Link>
+                  <div className="flex shrink-0 flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => openEditOffer(offer.id)}
+                      disabled={editingOfferLoading === offer.id}
+                      className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {editingOfferLoading === offer.id ? 'Φόρτωση...' : 'Επεξεργασία'}
+                    </button>
+                    <Link
+                      href={`/offers/${offer.id}`}
+                      className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-center text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+                    >
+                      Άνοιγμα
+                    </Link>
+                  </div>
                 </div>
               </li>
             ))}
@@ -2224,6 +2326,53 @@ export default function CustomerDetailPage() {
             )}
 
 
+          </div>
+        </div>
+      )}
+
+      {/* Edit offer modal, large centered, full OfferForm */}
+      {editingOffer !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+          onClick={closeEditOffer}
+        >
+          <div
+            className="mx-4 w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[28px] bg-white shadow-2xl ring-1 ring-zinc-200/60"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-t-[28px] bg-white px-5 pt-5 pb-3 border-b border-zinc-100">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-900">Επεξεργασία προσφοράς</h2>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  Η αποστολή στον πελάτη γίνεται μόνο από ξεχωριστό βήμα.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditOffer}
+                aria-label="Κλείσιμο"
+                className="shrink-0 rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+              >
+                <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {editOfferError && (
+              <p className="mx-5 mt-3 text-xs font-medium text-red-600">{editOfferError}</p>
+            )}
+            <div className="p-5">
+              <OfferForm
+                initial={editingOffer}
+                customers={[currentCustomerForOfferForm]}
+                initialCustomerId={customerId}
+                lockCustomer
+                requireOfferNumber
+                nextOfferNumber={editingOffer.offerNumber}
+                onSave={saveEditedOffer}
+                onCancel={closeEditOffer}
+              />
+            </div>
           </div>
         </div>
       )}
