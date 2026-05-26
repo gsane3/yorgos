@@ -810,6 +810,8 @@ export default function CallsPage() {
   const [phoneInfo, setPhoneInfo] = useState<BusinessMeResponse | null>(null);
   const [phoneLoading, setPhoneLoading] = useState(true);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [micState, setMicState] = useState<'unknown' | 'checking' | 'granted' | 'denied' | 'unsupported'>('unknown');
+  const [micError, setMicError] = useState<string | null>(null);
 
   const loadData = useCallback(async (token: string) => {
     const headers: HeadersInit = { Authorization: `Bearer ${token}` };
@@ -895,6 +897,27 @@ export default function CallsPage() {
   function closeNewSms() {
     setNewSmsOpen(false);
     setNewSmsCustomer(null);
+  }
+
+  async function checkMicrophonePermission() {
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices ||
+      typeof navigator.mediaDevices.getUserMedia !== 'function'
+    ) {
+      setMicState('unsupported');
+      return;
+    }
+    setMicState('checking');
+    setMicError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      setMicState('granted');
+    } catch {
+      setMicState('denied');
+      setMicError('Δεν δόθηκε άδεια μικροφώνου. Ενεργοποίησέ την από τον browser για να μπορείς να απαντάς κλήσεις μέσα από το app.');
+    }
   }
 
   if (!hydrated) {
@@ -992,6 +1015,98 @@ export default function CallsPage() {
           </div>
         </div>
       ) : null}
+
+      {/* WebRTC readiness card */}
+      <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+        <div className="flex items-start gap-3">
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
+            micState === 'granted' ? 'bg-green-50' : micState === 'denied' ? 'bg-amber-50' : micState === 'unsupported' ? 'bg-zinc-100' : 'bg-indigo-50'
+          }`}>
+            <svg
+              className={`h-5 w-5 ${
+                micState === 'granted' ? 'text-green-500' : micState === 'denied' ? 'text-amber-500' : micState === 'unsupported' ? 'text-zinc-400' : 'text-indigo-500'
+              }`}
+              fill="none"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z"
+              />
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-medium text-zinc-500">Τηλέφωνο μέσα στο app</p>
+              {micState === 'granted' && (
+                <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 ring-1 ring-green-200">
+                  Μικρόφωνο έτοιμο
+                </span>
+              )}
+              {micState === 'denied' && (
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+                  Χρειάζεται άδεια
+                </span>
+              )}
+              {micState === 'unsupported' && (
+                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-500 ring-1 ring-zinc-200">
+                  Δεν υποστηρίζεται
+                </span>
+              )}
+            </div>
+            {micState === 'unknown' && (
+              <>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  Έλεγξε το μικρόφωνο για να ετοιμαστεί η τηλεφωνία μέσα από το yorgos.ai.
+                </p>
+                <button
+                  type="button"
+                  onClick={checkMicrophonePermission}
+                  className="mt-2 rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
+                >
+                  Έλεγχος μικροφώνου
+                </button>
+              </>
+            )}
+            {micState === 'checking' && (
+              <button
+                type="button"
+                disabled
+                className="mt-2 rounded-full bg-indigo-300 px-3 py-1.5 text-xs font-semibold text-white cursor-not-allowed"
+              >
+                Έλεγχος...
+              </button>
+            )}
+            {micState === 'granted' && (
+              <p className="mt-0.5 text-xs text-zinc-400">
+                Το μικρόφωνο είναι έτοιμο. Η σύνδεση κλήσεων μέσα στο app θα ενεργοποιηθεί στο επόμενο βήμα.
+              </p>
+            )}
+            {micState === 'denied' && (
+              <>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  {micError ?? 'Δεν δόθηκε άδεια μικροφώνου. Ενεργοποίησέ την από τον browser για να μπορείς να απαντάς κλήσεις μέσα από το app.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={checkMicrophonePermission}
+                  className="mt-2 rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
+                >
+                  Δοκιμή ξανά
+                </button>
+              </>
+            )}
+            {micState === 'unsupported' && (
+              <p className="mt-0.5 text-xs text-zinc-400">
+                Ο browser δεν υποστηρίζει έλεγχο μικροφώνου εδώ. Δοκίμασε από Chrome ή Edge.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Latest call card */}
       {latestCall ? (
