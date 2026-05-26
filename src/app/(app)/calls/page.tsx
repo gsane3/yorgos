@@ -132,100 +132,294 @@ function PhoneIcon({ className }: { className?: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Call detail modal
+// Call action sheet (iPhone-style bottom sheet)
 // ---------------------------------------------------------------------------
 
-function CallDetailModal({
+function CallActionSheet({
   call,
+  customers,
+  getAuthToken,
   onClose,
+  onDeleted,
+  onContactAdded,
 }: {
   call: BackendCall;
+  customers: Customer[];
+  getAuthToken: () => string | null;
   onClose: () => void;
+  onDeleted: (id: string) => void;
+  onContactAdded: (customer: Customer) => void;
 }) {
-  const displayName =
-    call.customer?.name ??
-    call.customer?.companyName ??
-    (call.phone ? `****${call.phone.slice(-4)}` : null) ??
-    'Αγνωστος';
-  const isMissed = call.status === 'missed';
+  // 'actions' shows the main list; 'add_contact' shows the mini form.
+  const [view, setView] = useState<'actions' | 'add_contact'>('actions');
+  const [busy, setBusy] = useState(false);
+  const [sheetError, setSheetError] = useState<string | null>(null);
+  // Form fields for the add-contact view.
+  const [contactName, setContactName] = useState('');
+  const [contactCompany, setContactCompany] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Customer already linked via customer_id in the communication row.
+  const linkedCustomer = call.customer ?? null;
+  // Customer found by exact phone match in the loaded customer list.
+  const phoneMatchCustomer =
+    call.phone
+      ? customers.find((c) => c.phone === call.phone) ?? null
+      : null;
+  const existingCustomer = linkedCustomer ?? phoneMatchCustomer;
+
+  const directionLabel = CALL_DIRECTION_LABEL[call.direction] ?? call.direction;
+  const contextLine =
+    call.status === 'failed'
+      ? `Αποτυχημένη ${directionLabel.toLowerCase()}`
+      : call.status === 'missed'
+      ? 'Αναπάντητη'
+      : directionLabel;
+
+  async function handleDelete() {
+    const token = getAuthToken();
+    if (!token) return;
+    setBusy(true);
+    setSheetError(null);
+    try {
+      const resp = await fetch(`/api/communications?id=${encodeURIComponent(call.id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await resp.json();
+      if (json.ok) {
+        onDeleted(call.id);
+        onClose();
+      } else {
+        setSheetError('Αδύνατη η διαγραφή. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setSheetError('Αδύνατη η διαγραφή. Δοκίμασε ξανά.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveContact() {
+    const name = contactName.trim();
+    const company = contactCompany.trim();
+    const email = contactEmail.trim();
+    if (!name && !company) {
+      setFormError('Συμπλήρωσε όνομα ή εταιρεία.');
+      return;
+    }
+    const token = getAuthToken();
+    if (!token) return;
+    setBusy(true);
+    setFormError(null);
+    try {
+      const body: Record<string, unknown> = {
+        name: name || company || 'Νέα επαφή',
+        phone: call.phone,
+      };
+      if (company) body.companyName = company;
+      if (email) body.email = email;
+      const resp = await fetch('/api/customers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const json = await resp.json();
+      if (json.ok && json.customer) {
+        onContactAdded(mapCustomer(json.customer as Record<string, unknown>));
+        onClose();
+      } else {
+        setFormError('Αδύνατη η προσθήκη επαφής. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setFormError('Αδύνατη η προσθήκη επαφής. Δοκίμασε ξανά.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+      className="fixed inset-0 z-50 flex flex-col justify-end bg-black/30"
       onClick={onClose}
     >
       <div
-        className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+        className="mx-auto w-full max-w-md rounded-t-[28px] bg-white pb-8 shadow-2xl ring-1 ring-zinc-200/60"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3">
-          <p className="text-base font-semibold text-zinc-900">Λεπτομέρειες κλήσης</p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
-            aria-label="Κλείσιμο"
-          >
-            <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
+        {/* Handle bar */}
+        <div className="flex justify-center pb-2 pt-3">
+          <div className="h-1 w-10 rounded-full bg-zinc-300" />
         </div>
 
-        {/* Caller info */}
-        <div className="mt-4 flex items-start gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-indigo-50">
-            <PhoneIcon className="h-5 w-5 text-indigo-500" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-lg font-bold leading-snug text-zinc-900">{displayName}</p>
-            {call.customer?.companyName && call.customer.companyName !== displayName && (
-              <p className="text-xs text-zinc-400">{call.customer.companyName}</p>
-            )}
-            <p className="mt-0.5 text-xs text-zinc-400">{fmtDate(call.createdAt)}</p>
-          </div>
-        </div>
+        {view === 'actions' ? (
+          <>
+            {/* Header info */}
+            <div className="px-5 pb-4 pt-1 text-center">
+              {call.phone ? (
+                <p className="text-xl font-bold tracking-wide text-zinc-900">{call.phone}</p>
+              ) : (
+                <p className="text-xl font-bold text-zinc-400">Αγνωστος αριθμός</p>
+              )}
+              <p className="mt-1 text-xs text-zinc-400">
+                {contextLine}
+                {' · '}
+                {fmtDate(call.createdAt)}
+              </p>
+              {call.customer?.name && (
+                <p className="mt-0.5 text-xs font-medium text-indigo-600">{call.customer.name}</p>
+              )}
+              {sheetError && (
+                <p className="mt-2 text-xs text-red-500">{sheetError}</p>
+              )}
+            </div>
 
-        {/* Status chips */}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600">
-            {CALL_DIRECTION_LABEL[call.direction] ?? call.direction}
-          </span>
-          {isMissed && (
-            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
-              Αναπάντητη
-            </span>
-          )}
-        </div>
+            {/* Actions */}
+            <div className="space-y-2.5 px-4">
+              {/* Delete call - destructive */}
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={busy}
+                className="w-full rounded-2xl bg-red-50 py-3.5 text-sm font-semibold text-red-600 ring-1 ring-red-200 transition hover:bg-red-100 active:bg-red-200 disabled:opacity-50"
+              >
+                Διαγραφή κλήσης
+              </button>
 
-        {/* Summary / brief, shown only in modal */}
-        {call.summary && (
-          <div className="mt-4 rounded-2xl bg-zinc-50 px-4 py-3">
-            <p className="mb-1.5 text-xs font-medium text-zinc-500">Περίληψη κλήσης</p>
-            <p className="text-sm leading-relaxed text-zinc-700">{call.summary}</p>
-          </div>
+              {/* Contact action: view linked, already exists, open form, or no phone */}
+              {existingCustomer ? (
+                call.customerId ? (
+                  <Link
+                    href={`/customers/${call.customerId}`}
+                    onClick={onClose}
+                    className="flex w-full items-center justify-center rounded-2xl bg-zinc-50 py-3.5 text-sm font-medium text-indigo-600 ring-1 ring-zinc-200 transition hover:bg-indigo-50"
+                  >
+                    Προβολή επαφής
+                  </Link>
+                ) : (
+                  <div className="w-full rounded-2xl bg-zinc-50 py-3.5 text-center text-sm font-medium text-zinc-400 ring-1 ring-zinc-200">
+                    Υπάρχει ήδη επαφή
+                  </div>
+                )
+              ) : call.phone ? (
+                <button
+                  type="button"
+                  onClick={() => { setSheetError(null); setView('add_contact'); }}
+                  disabled={busy}
+                  className="w-full rounded-2xl bg-indigo-50 py-3.5 text-sm font-semibold text-indigo-600 ring-1 ring-indigo-200 transition hover:bg-indigo-100 active:bg-indigo-200 disabled:opacity-50"
+                >
+                  Προσθήκη επαφής
+                </button>
+              ) : (
+                <div className="w-full rounded-2xl bg-zinc-50 py-3.5 text-center text-sm font-medium text-zinc-400 ring-1 ring-zinc-200">
+                  Προσθήκη επαφής
+                </div>
+              )}
+
+              {/* Cancel */}
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300"
+              >
+                Ακύρωση
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Add contact form */}
+            <div className="px-5 pb-3 pt-1 text-center">
+              <p className="text-base font-semibold text-zinc-900">Νέα επαφή</p>
+              {call.phone && (
+                <p className="mt-0.5 text-sm text-zinc-500">{call.phone}</p>
+              )}
+            </div>
+
+            <div className="space-y-3 px-4 pb-2">
+              {/* Name */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                  Όνομα
+                </label>
+                <input
+                  type="text"
+                  value={contactName}
+                  onChange={(e) => { setContactName(e.target.value); setFormError(null); }}
+                  placeholder="Γιώργης Παπαδόπουλος"
+                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+
+              {/* Company */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                  Εταιρεία
+                </label>
+                <input
+                  type="text"
+                  value={contactCompany}
+                  onChange={(e) => { setContactCompany(e.target.value); setFormError(null); }}
+                  placeholder="Προαιρετικό"
+                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={contactEmail}
+                  onChange={(e) => { setContactEmail(e.target.value); setFormError(null); }}
+                  placeholder="Προαιρετικό"
+                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+
+              {formError && (
+                <p className="text-xs text-red-500">{formError}</p>
+              )}
+            </div>
+
+            <div className="space-y-2.5 px-4 pt-1">
+              {/* Save */}
+              <button
+                type="button"
+                onClick={handleSaveContact}
+                disabled={busy}
+                className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50"
+              >
+                Αποθήκευση επαφής
+              </button>
+
+              {/* Back */}
+              <button
+                type="button"
+                onClick={() => { setFormError(null); setView('actions'); }}
+                disabled={busy}
+                className="w-full rounded-2xl bg-zinc-50 py-3.5 text-sm font-medium text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-100 disabled:opacity-50"
+              >
+                Πίσω
+              </button>
+
+              {/* Cancel */}
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300"
+              >
+                Ακύρωση
+              </button>
+            </div>
+          </>
         )}
-
-        {/* Actions */}
-        <div className="mt-5 flex flex-col gap-2">
-          {call.customerId && (
-            <Link
-              href={`/customers/${call.customerId}`}
-              onClick={onClose}
-              className="flex items-center justify-center rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
-            >
-              Άνοιγμα πελάτη
-            </Link>
-          )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-2xl border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-          >
-            Κλείσιμο
-          </button>
-        </div>
       </div>
     </div>
   );
@@ -265,7 +459,7 @@ function RecentTab({
         const displayName =
           linkedCustomer?.name ??
           linkedCustomer?.companyName ??
-          (call.phone ? `****${call.phone.slice(-4)}` : null) ??
+          call.phone ??
           'Αγνωστος';
         const isMissed = call.status === 'missed';
         const isUnknown = !linkedCustomer?.name && !linkedCustomer?.companyName;
@@ -944,6 +1138,14 @@ export default function CallsPage() {
     setNewSmsCustomer(null);
   }
 
+  function handleCallDeleted(id: string) {
+    setCalls((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  function handleContactAdded(newCustomer: Customer) {
+    setCustomers((prev) => [newCustomer, ...prev]);
+  }
+
   // Best-effort call logger. Fires after every completed or failed browser
   // call. Does not block UI; errors are silently discarded.
   const handleCallEnded = useCallback(
@@ -1238,7 +1440,8 @@ export default function CallsPage() {
               <p className="mt-0.5 text-base font-semibold text-zinc-900">
                 {latestCall.customer?.name ??
                   latestCall.customer?.companyName ??
-                  (latestCall.phone ? `****${latestCall.phone.slice(-4)}` : 'Αγνωστος')}
+                  latestCall.phone ??
+                  'Αγνωστος'}
               </p>
               <p className="text-xs text-zinc-400">{fmtDate(latestCall.createdAt)}</p>
             </div>
@@ -1314,9 +1517,16 @@ export default function CallsPage() {
       {/* Numpad modal */}
       <NumpadPanel open={numpadOpen} onClose={() => setNumpadOpen(false)} />
 
-      {/* Call detail modal */}
+      {/* Call action sheet */}
       {selectedCall && (
-        <CallDetailModal call={selectedCall} onClose={() => setSelectedCall(null)} />
+        <CallActionSheet
+          call={selectedCall}
+          customers={customers}
+          getAuthToken={() => tokenRef.current}
+          onClose={() => setSelectedCall(null)}
+          onDeleted={handleCallDeleted}
+          onContactAdded={handleContactAdded}
+        />
       )}
 
       {/* New SMS modal */}

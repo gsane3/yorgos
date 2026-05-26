@@ -306,3 +306,71 @@ export async function POST(request: NextRequest) {
     return jsonNoStore({ ok: false, error: 'communications_create_failed' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  const token = getBearerToken(request);
+  if (!token) {
+    return jsonNoStore({ ok: false, error: 'missing_auth' }, { status: 401 });
+  }
+
+  let supabase: SupabaseClient;
+  try {
+    supabase = createServerSupabaseClient();
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('Missing Supabase server')) {
+      return jsonNoStore({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
+    }
+    return jsonNoStore({ ok: false, error: 'communication_delete_failed' }, { status: 500 });
+  }
+
+  try {
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return jsonNoStore({ ok: false, error: 'invalid_auth' }, { status: 401 });
+    }
+
+    const businessId = await getBusinessId(supabase, user.id);
+    if (!businessId) {
+      return jsonNoStore({ ok: false, error: 'business_not_found' }, { status: 404 });
+    }
+
+    const id = request.nextUrl.searchParams.get('id');
+    if (!id) {
+      return jsonNoStore({ ok: false, error: 'missing_id' }, { status: 400 });
+    }
+
+    // Confirm the row belongs to this business before deleting.
+    const { data: existing, error: fetchError } = await supabase
+      .from('communications')
+      .select('id')
+      .eq('id', id)
+      .eq('business_id', businessId)
+      .maybeSingle();
+
+    if (fetchError) {
+      return jsonNoStore({ ok: false, error: 'communication_delete_failed' }, { status: 500 });
+    }
+
+    if (!existing) {
+      return jsonNoStore({ ok: false, error: 'communication_not_found' }, { status: 404 });
+    }
+
+    const { error: deleteError } = await supabase
+      .from('communications')
+      .delete()
+      .eq('id', id)
+      .eq('business_id', businessId);
+
+    if (deleteError) {
+      return jsonNoStore({ ok: false, error: 'communication_delete_failed' }, { status: 500 });
+    }
+
+    return jsonNoStore({ ok: true });
+  } catch {
+    return jsonNoStore({ ok: false, error: 'communication_delete_failed' }, { status: 500 });
+  }
+}
