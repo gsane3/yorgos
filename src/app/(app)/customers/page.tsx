@@ -88,12 +88,16 @@ const STATUS_CHIP: Record<CustomerStatus, string> = {
   lost: 'bg-zinc-100 text-zinc-400',
 };
 
-// Three simple filter chips
-type QuickFilter = 'all' | 'attention' | 'new';
+// Status-based filter chips
+type QuickFilter = 'all' | 'new_lead' | 'follow_up_needed' | 'offer_drafted' | 'offer_sent' | 'won' | 'lost';
 const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: 'all', label: 'Όλοι' },
-  { value: 'attention', label: 'Χρειάζονται προσοχή' },
-  { value: 'new', label: 'Νέοι' },
+  { value: 'new_lead', label: 'Νέα leads' },
+  { value: 'follow_up_needed', label: 'Follow-up' },
+  { value: 'offer_drafted', label: 'Draft προσφορά' },
+  { value: 'offer_sent', label: 'Στάλθηκε προσφορά' },
+  { value: 'won', label: 'Κερδισμένοι' },
+  { value: 'lost', label: 'Χαμένοι' },
 ];
 
 const LEAD_STATUSES = new Set<CustomerStatus>(['new_lead', 'contacted', 'offer_drafted', 'offer_sent']);
@@ -182,32 +186,30 @@ export default function CustomersPage() {
 
   const filtered = useMemo(() => {
     const q = norm(search.trim());
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const cutoff = thirtyDaysAgo.toISOString();
+    // Normalise phone-like queries: strip spaces, dashes, parentheses, dots
+    const qPhone = search.trim().replace(/[\s\-().+]/g, '');
+    const normPhone = (s: string) => s.replace(/[\s\-().+]/g, '');
     return customers.filter((c) => {
       if (q) {
         const hit =
           norm(c.name).includes(q) ||
           norm(c.companyName).includes(q) ||
-          norm(c.phone).includes(q) ||
           norm(c.email).includes(q) ||
           norm(c.needsSummary).includes(q) ||
           norm(c.crmNumber ?? '').includes(q) ||
+          norm(c.phone).includes(q) ||
           norm(c.mobilePhone ?? '').includes(q) ||
-          norm(c.landlinePhone ?? '').includes(q);
+          norm(c.landlinePhone ?? '').includes(q) ||
+          (qPhone.length >= 4 && normPhone(c.phone).includes(qPhone)) ||
+          (qPhone.length >= 4 && normPhone(c.mobilePhone ?? '').includes(qPhone)) ||
+          (qPhone.length >= 4 && normPhone(c.landlinePhone ?? '').includes(qPhone));
         if (!hit) return false;
       }
-      if (quickFilter === 'attention' && c.status !== 'follow_up_needed') return false;
-      if (quickFilter === 'new' && c.createdAt < cutoff) return false;
+      if (quickFilter !== 'all' && c.status !== quickFilter) return false;
       return true;
     });
   }, [customers, search, quickFilter]);
 
-  function clearFilters() {
-    setSearch('');
-    setQuickFilter('all');
-  }
 
   // Loading skeleton
   if (!hydrated) {
@@ -316,14 +318,14 @@ export default function CustomersPage() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Αναζήτηση πελάτη"
+            placeholder="Αναζήτηση με όνομα, εταιρεία, τηλέφωνο ή email"
             className="flex-1 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 outline-none"
           />
-          {hasFilter && (
+          {search.trim() !== '' && (
             <button
               type="button"
-              onClick={clearFilters}
-              className="rounded-full px-2 py-0.5 text-[10px] font-medium text-zinc-400 transition hover:text-zinc-600"
+              onClick={() => setSearch('')}
+              className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium text-zinc-400 transition hover:text-zinc-600"
             >
               Καθαρισμός
             </button>
@@ -369,20 +371,26 @@ export default function CustomersPage() {
         </div>
       )}
 
+      {/* Results summary line */}
+      {customers.length > 0 && (
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-zinc-500">
+            {hasFilter ? 'Αποτελέσματα αναζήτησης' : 'Όλοι οι πελάτες'}
+          </p>
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+            {filtered.length}
+          </span>
+        </div>
+      )}
+
       {/* Customer list */}
       {customers.length === 0 ? (
         <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="text-base font-semibold text-zinc-700">Δεν υπάρχουν πελάτες ακόμα.</p>
-          <p className="mt-1.5 text-sm text-zinc-400">
-            Οι νέες κλήσεις και τα leads θα εμφανίζονται εδώ όταν καταγραφούν.
-          </p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-[28px] bg-white px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm font-medium text-zinc-500">Δεν βρέθηκαν πελάτες.</p>
-          <p className="mt-1 text-sm text-zinc-400">
-            Δοκίμασε διαφορετικούς όρους ή άλλο φίλτρο.
-          </p>
+          <p className="text-sm font-medium text-zinc-500">Δεν βρέθηκαν πελάτες με αυτά τα κριτήρια.</p>
         </div>
       ) : (
         <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
