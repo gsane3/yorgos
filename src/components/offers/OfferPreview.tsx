@@ -134,6 +134,10 @@ export default function OfferPreview({ offerId }: Props) {
   const [undoResponseState, setUndoResponseState] = useState<'idle' | 'done'>('idle');
   const [confirmingOfferDelete, setConfirmingOfferDelete] = useState(false);
   const [confirmingUndoResponse, setConfirmingUndoResponse] = useState(false);
+  // Response link generation state (backend offers only).
+  const [responseLinkState, setResponseLinkState] = useState<'idle' | 'generating' | 'copied' | 'manual_copy' | 'error'>('idle');
+  const [responseLinkUrl, setResponseLinkUrl] = useState('');
+  const [responseLinkError, setResponseLinkError] = useState('');
   // Appointment form state for accepted-offer task creation
   const [appointmentFormOpen, setAppointmentFormOpen] = useState(false);
   const [appointmentDate, setAppointmentDate] = useState(() => {
@@ -639,6 +643,49 @@ export default function OfferPreview({ offerId }: Props) {
     setRejectTaskState('created');
   }
 
+  // Response link generation (backend offers only).
+  async function handleGenerateResponseLink() {
+    if (!offer) return;
+    const token = tokenRef.current;
+    if (!token) return;
+
+    setResponseLinkState('generating');
+    setResponseLinkUrl('');
+    setResponseLinkError('');
+
+    try {
+      const resp = await fetch(`/api/offers/${offer.id}/response-link`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await resp.json()) as { ok: boolean; responseUrl?: string; error?: string };
+
+      if (!resp.ok || !data.ok || !data.responseUrl) {
+        setResponseLinkState('error');
+        setResponseLinkError('Αποτυχία δημιουργίας link. Δοκίμασε ξανά.');
+        return;
+      }
+
+      const url = data.responseUrl;
+      setResponseLinkUrl(url);
+
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(url);
+          setResponseLinkState('copied');
+          setTimeout(() => setResponseLinkState('idle'), 2500);
+        } catch {
+          setResponseLinkState('manual_copy');
+        }
+      } else {
+        setResponseLinkState('manual_copy');
+      }
+    } catch {
+      setResponseLinkState('error');
+      setResponseLinkError('Αποτυχία δημιουργίας link. Δοκίμασε ξανά.');
+    }
+  }
+
   // Stable loading shell - identical on server and first client render.
   if (!hydrated) {
     return (
@@ -894,12 +941,53 @@ export default function OfferPreview({ offerId }: Props) {
         onCreateFollowUpTask={handleCreateFollowUpTask}
       />
 
-      {/* Acceptance link note for real backend offers */}
+      {/* Response link generation for backend offers */}
       {loadedFromBackend && (
-        <section className="rounded-xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200 print:hidden">
-          <p className="text-xs text-zinc-500">
-            Το δημόσιο link αποδοχής για πραγματικές προσφορές δεν έχει συνδεθεί ακόμα. Για τώρα στείλε την προσφορά χειροκίνητα.
-          </p>
+        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden space-y-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Link αποδοχής πελάτη
+            </p>
+            <p className="mt-1 text-xs text-zinc-500">
+              Δημιουργεί ασφαλές link για να το στείλεις χειροκίνητα στον πελάτη. Δεν γίνεται αυτόματη αποστολή.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            disabled={responseLinkState === 'generating'}
+            onClick={() => { void handleGenerateResponseLink(); }}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+              responseLinkState === 'copied'
+                ? 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-indigo-600 text-white hover:bg-indigo-700'
+            }`}
+          >
+            {responseLinkState === 'generating'
+              ? 'Δημιουργία...'
+              : responseLinkState === 'copied'
+              ? 'Αντιγράφηκε'
+              : 'Αντιγραφή link αποδοχής'}
+          </button>
+
+          {responseLinkState === 'error' && (
+            <p className="text-xs text-red-600">{responseLinkError}</p>
+          )}
+
+          {responseLinkState === 'manual_copy' && responseLinkUrl && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-zinc-500">
+                Το clipboard δεν ήταν διαθέσιμο. Αντέγραψε το link χειροκίνητα:
+              </p>
+              <textarea
+                readOnly
+                rows={2}
+                value={responseLinkUrl}
+                onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-xs leading-relaxed text-zinc-700 outline-none"
+              />
+            </div>
+          )}
         </section>
       )}
 
