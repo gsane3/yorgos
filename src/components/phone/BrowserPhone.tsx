@@ -1,6 +1,6 @@
 'use client';
 
-// BrowserPhone - minimal JsSIP softphone for inbound calls.
+// BrowserPhone - JsSIP softphone for inbound and outbound calls.
 //
 // DEPENDENCY: requires jssip to be installed before building.
 // George runs: npm install jssip
@@ -35,6 +35,7 @@ type PhoneState =
   | 'registered'
   | 'registration_failed'
   | 'incoming_call'
+  | 'calling'
   | 'in_call';
 
 const STATE_LABELS: Record<PhoneState, string> = {
@@ -44,6 +45,7 @@ const STATE_LABELS: Record<PhoneState, string> = {
   registered: 'Συνδεδεμένο',
   registration_failed: 'Αποτυχία σύνδεσης',
   incoming_call: 'Εισερχόμενη κλήση',
+  calling: 'Κλήση εξερχόμενη...',
   in_call: 'Σε κλήση',
 };
 
@@ -51,6 +53,22 @@ const STATE_LABELS: Record<PhoneState, string> = {
 // installed yet. Replace with proper imports once confirmed stable.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Loose = any;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+// Normalize a raw phone number string to a dialable E.164 Greek number.
+// Returns null when the input cannot be resolved to a recognized format.
+function normalizePhoneForSip(raw: string): string | null {
+  // Strip whitespace, dashes, parentheses, dots.
+  const s = raw.trim().replace(/[\s\-().]/g, '');
+  if (!s) return null;
+  if (/^\+30\d{10}$/.test(s)) return s;
+  if (/^30\d{10}$/.test(s)) return '+' + s;
+  if (/^[26]\d{9}$/.test(s)) return '+30' + s;
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -69,6 +87,7 @@ export default function BrowserPhone({
   );
   const [callerInfo, setCallerInfo] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [outboundInput, setOutboundInput] = useState('');
 
   // phoneStateRef lets JsSIP event handlers read current state without
   // stale closure captures. Always keep in sync with phoneState.
@@ -77,6 +96,15 @@ export default function BrowserPhone({
   const uaRef = useRef<Loose>(null);
   const sessionRef = useRef<Loose>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // realmRef persists the resolved SIP realm after handleConnect completes
+  // so that handleDial can use it without prop access inside callbacks.
+  const realmRef = useRef<string>('');
+
+  // wiredSessionsRef tracks sessions whose event handlers have already been
+  // attached. wireSession is idempotent: a second call for the same session
+  // is a no-op, preventing duplicate peerconnection/track listeners.
+  const wiredSessionsRef = useRef<WeakSet<object>>(new WeakSet());
 
   // Helper: update both state and ref atomically.
   const transition = useCallback((next: PhoneState) => {
@@ -109,6 +137,77 @@ export default function BrowserPhone({
   }, []);
 
   // ---------------------------------------------------------------------------
+  // Shared session event wiring.
+  // Attaches peerconnection/ended/failed handlers to any session (inbound or
+  // outbound). Called after sessionRef.current is assigned.
+  // ---------------------------------------------------------------------------
+
+  const wireSession = useCallback((session: Loose) => {
+    // Idempotency guard: never attach handlers to the same session twice.
+    if (wiredSessionsRef.current.has(session as object)) return;
+    wiredSessionsRef.current.add(session as object);
+
+    // One stable track listener per session, reused across both the
+    // peerconnection event and the direct-PC fallback below.
+    // Using a named reference ensures addEventListener deduplicates correctly.
+    const onTrack = (evt: RTCTrackEvent) => {
+      if (audioRef.current && evt.streams[0]) {
+        audioRef.current.srcObject = evt.streams[0];
+        // Play may need a prior user gesture; failures are silent.
+        audioRef.current.play().catch(() => { /* autoplay blocked */ });
+      }
+    };
+
+    const attachToPC = (pc: RTCPeerConnection) => {
+      pc.addEventListener('track', onTrack);
+    };
+
+    // Primary path: JsSIP fires 'peerconnection' when the RTCPeerConnection
+    // is created. Reliable for both inbound and outbound.
+    session.on(
+      'peerconnection',
+      (pcData: { peerconnection: RTCPeerConnection }) => {
+        attachToPC(pcData.peerconnection);
+      }
+    );
+
+    // Fallback path for outbound calls: ua.call() creates the RTCPeerConnection
+    // synchronously, so 'peerconnection' may have already fired before
+    // wireSession is called from handleDial. Attach directly if available.
+    const existingPc =
+      (session.connection as RTCPeerConnection | null | undefined) ??
+      (session._connection as RTCPeerConnection | null | undefined) ??
+      null;
+    if (existingPc) {
+      attachToPC(existingPc);
+    }
+
+    session.on('confirmed', () => {
+      // Call was answered (outbound or inbound answered via answer()).
+      setStatusMessage(null);
+      transition('in_call');
+    });
+
+    session.on('ended', () => {
+      sessionRef.current = null;
+      setCallerInfo(null);
+      setOutboundInput('');
+      transition('registered');
+    });
+
+    session.on('failed', (e: { cause?: string }) => {
+      sessionRef.current = null;
+      setCallerInfo(null);
+      const cause = e?.cause ?? null;
+      setStatusMessage(
+        cause ? `Η κλήση απέτυχε: ${cause}` : 'Η κλήση απέτυχε.'
+      );
+      // Return to registered so the status message is visible with the dial input.
+      transition('registered');
+    });
+  }, [transition]);
+
+  // ---------------------------------------------------------------------------
   // Disconnect: stop UA and session, return to disconnected.
   // ---------------------------------------------------------------------------
 
@@ -124,6 +223,7 @@ export default function BrowserPhone({
       uaRef.current = null;
     }
     setCallerInfo(null);
+    setOutboundInput('');
     setStatusMessage(null);
     transition('disconnected');
   }, [transition]);
@@ -138,6 +238,7 @@ export default function BrowserPhone({
       cur === 'connecting' ||
       cur === 'registered' ||
       cur === 'incoming_call' ||
+      cur === 'calling' ||
       cur === 'in_call'
     ) {
       return;
@@ -185,6 +286,9 @@ export default function BrowserPhone({
       }
     }
 
+    // Persist the resolved realm so handleDial can use it later.
+    realmRef.current = realm;
+
     // Use the username portion only (strip domain if present).
     const userPart = sipUsername.includes('@')
       ? sipUsername.split('@')[0]
@@ -217,23 +321,42 @@ export default function BrowserPhone({
     ua.on('disconnected', () => {
       // Do not overwrite an active call state on a transient transport drop.
       const c = phoneStateRef.current;
-      if (c === 'in_call' || c === 'incoming_call') return;
+      if (c === 'in_call' || c === 'incoming_call' || c === 'calling') return;
       transition('disconnected');
     });
 
     ua.on('newRTCSession', (data: { session: Loose; request: Loose }) => {
       const newSession: Loose = data.session;
+      const isOutbound = newSession.direction === 'outgoing';
 
-      // Reject if already handling a call.
-      if (sessionRef.current) {
+      // For outbound sessions, sessionRef was set by handleDial just before
+      // ua.call() returned. The event fires immediately after, so
+      // sessionRef.current already points to this session. Do not treat it
+      // as a busy conflict -- check identity rather than mere existence.
+      if (sessionRef.current && sessionRef.current !== newSession) {
+        // A different session is already active. Reject the newcomer.
         try {
           newSession.terminate({ status_code: 486, reason_phrase: 'Busy Here' });
         } catch { /* ignore */ }
         return;
       }
 
-      // This slice handles inbound calls only.
-      if (newSession.direction !== 'incoming') return;
+      if (isOutbound) {
+        // Outbound: session was already stored and state set by handleDial.
+        // Just wire the shared handlers.
+        wireSession(newSession);
+        return;
+      }
+
+      // Inbound path (unchanged behavior).
+      if (sessionRef.current) {
+        // A session was active but it was not this one (caught above).
+        // This branch is unreachable; kept for safety.
+        try {
+          newSession.terminate({ status_code: 486, reason_phrase: 'Busy Here' });
+        } catch { /* ignore */ }
+        return;
+      }
 
       sessionRef.current = newSession;
 
@@ -243,39 +366,48 @@ export default function BrowserPhone({
       setCallerInfo(callerUser);
       transition('incoming_call');
 
-      // Attach remote audio when the peer connection receives a track.
-      newSession.on(
-        'peerconnection',
-        (pcData: { peerconnection: RTCPeerConnection }) => {
-          pcData.peerconnection.addEventListener(
-            'track',
-            (evt: RTCTrackEvent) => {
-              if (audioRef.current && evt.streams[0]) {
-                audioRef.current.srcObject = evt.streams[0];
-                // Play may be deferred to the Answer button gesture.
-                audioRef.current.play().catch(() => { /* autoplay blocked */ });
-              }
-            }
-          );
-        }
-      );
-
-      newSession.on('ended', () => {
-        sessionRef.current = null;
-        setCallerInfo(null);
-        transition('registered');
-      });
-
-      newSession.on('failed', () => {
-        sessionRef.current = null;
-        setCallerInfo(null);
-        transition('registered');
-      });
+      wireSession(newSession);
     });
 
     uaRef.current = ua;
     ua.start();
-  }, [ready, wssUrl, sipUsername, sipPassword, sipRealm, transition]);
+  }, [ready, wssUrl, sipUsername, sipPassword, sipRealm, transition, wireSession]);
+
+  // ---------------------------------------------------------------------------
+  // Dial outbound number.
+  // ---------------------------------------------------------------------------
+
+  const handleDial = useCallback(() => {
+    if (phoneStateRef.current !== 'registered') return;
+    const ua = uaRef.current;
+    if (!ua) return;
+
+    const normalized = normalizePhoneForSip(outboundInput);
+    if (!normalized) {
+      setStatusMessage('Μη έγκυρος αριθμός.');
+      return;
+    }
+
+    setStatusMessage(null);
+
+    const realm = realmRef.current || 'sip';
+    const target = `sip:${normalized}@${realm}`;
+
+    try {
+      const session: Loose = ua.call(target, {
+        mediaConstraints: { audio: true, video: false },
+      });
+      // Wire handlers immediately, before newRTCSession fires, so that the
+      // peerconnection/track listener is in place even if the RTCPeerConnection
+      // was already created synchronously inside ua.call().
+      sessionRef.current = session;
+      wireSession(session);
+      setCallerInfo(normalized);
+      transition('calling');
+    } catch {
+      setStatusMessage('Αποτυχία κλήσης. Δοκίμασε ξανά.');
+    }
+  }, [outboundInput, transition, wireSession]);
 
   // ---------------------------------------------------------------------------
   // Answer incoming call (audio only).
@@ -286,7 +418,7 @@ export default function BrowserPhone({
     if (!session) return;
     try {
       session.answer({ mediaConstraints: { audio: true, video: false } });
-      transition('in_call');
+      // State transitions to in_call via the confirmed event in wireSession.
       // Resume audio if autoplay was blocked before the user gesture.
       if (audioRef.current) {
         audioRef.current.play().catch(() => { /* ignore */ });
@@ -294,7 +426,7 @@ export default function BrowserPhone({
     } catch {
       setStatusMessage('Αποτυχία απάντησης κλήσης. Δοκίμασε ξανά.');
     }
-  }, [transition]);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Decline incoming call.
@@ -312,7 +444,7 @@ export default function BrowserPhone({
   }, [transition]);
 
   // ---------------------------------------------------------------------------
-  // Hang up active call.
+  // Hang up active call (inbound or outbound).
   // ---------------------------------------------------------------------------
 
   const handleHangUp = useCallback(() => {
@@ -323,6 +455,7 @@ export default function BrowserPhone({
     } catch { /* ignore */ }
     sessionRef.current = null;
     setCallerInfo(null);
+    setOutboundInput('');
     transition('registered');
   }, [transition]);
 
@@ -339,14 +472,15 @@ export default function BrowserPhone({
       ? 'bg-indigo-50 text-indigo-700 ring-indigo-200'
       : phoneState === 'registration_failed'
       ? 'bg-red-50 text-red-700 ring-red-200'
-      : phoneState === 'connecting'
+      : phoneState === 'connecting' || phoneState === 'calling'
       ? 'bg-amber-50 text-amber-700 ring-amber-200'
       : 'bg-zinc-100 text-zinc-500 ring-zinc-200';
 
   const isActive =
     phoneState === 'registered' ||
     phoneState === 'in_call' ||
-    phoneState === 'incoming_call';
+    phoneState === 'incoming_call' ||
+    phoneState === 'calling';
 
   const iconBg = isActive
     ? 'bg-green-50'
@@ -412,7 +546,7 @@ export default function BrowserPhone({
           {phoneState === 'disconnected' && (
             <>
               <p className="mt-0.5 text-xs text-zinc-400">
-                Σύνδεσε το app για να λαμβάνεις κλήσεις.
+                Σύνδεσε το app για να λαμβάνεις και να κάνεις κλήσεις.
               </p>
               <button
                 type="button"
@@ -438,8 +572,38 @@ export default function BrowserPhone({
           {phoneState === 'registered' && (
             <>
               <p className="mt-0.5 text-xs text-zinc-400">
-                Έτοιμο να λαμβάνει κλήσεις.
+                Έτοιμο. Μπορείς να δεχτείς ή να κάνεις κλήση.
               </p>
+
+              {/* Outbound dial row */}
+              <div className="mt-2 flex items-center gap-1.5">
+                <input
+                  type="tel"
+                  value={outboundInput}
+                  onChange={(e) => {
+                    setOutboundInput(e.target.value);
+                    setStatusMessage(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && outboundInput.trim()) handleDial();
+                  }}
+                  placeholder="+30..."
+                  className="min-w-0 flex-1 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200"
+                />
+                <button
+                  type="button"
+                  onClick={handleDial}
+                  disabled={!outboundInput.trim()}
+                  className="shrink-0 rounded-full bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Κλήση
+                </button>
+              </div>
+
+              {statusMessage && (
+                <p className="mt-1.5 text-xs text-red-500">{statusMessage}</p>
+              )}
+
               <button
                 type="button"
                 onClick={stopUa}
@@ -497,6 +661,25 @@ export default function BrowserPhone({
                   Απόρριψη
                 </button>
               </div>
+            </>
+          )}
+
+          {/* calling -- outbound ringing */}
+          {phoneState === 'calling' && (
+            <>
+              <p className="mt-0.5 text-xs text-zinc-400">
+                Κλήση προς{' '}
+                <span className="font-medium text-zinc-700">
+                  {callerInfo ?? outboundInput}
+                </span>
+              </p>
+              <button
+                type="button"
+                onClick={handleHangUp}
+                className="mt-2 rounded-full bg-red-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-600"
+              >
+                Ακύρωση κλήσης
+              </button>
             </>
           )}
 
