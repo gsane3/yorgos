@@ -49,13 +49,12 @@ const STEPS = [
 ];
 
 function buildInitialFormData(): FormData {
-  const state = loadState();
   return {
     businessType: null,
     businessName: '',
-    ownerName: state.userProfile?.name ?? '',
+    ownerName: '',
     phone: '',
-    email: state.userProfile?.email ?? '',
+    email: '',
     address: '',
     vatNumber: '',
     taxOffice: '',
@@ -86,6 +85,19 @@ export default function OnboardingPage() {
           return;
         }
         setAccessToken(session.access_token);
+        try {
+          const raw = localStorage.getItem('yorgos_onboarding_prefill');
+          const prefill = raw
+            ? (JSON.parse(raw) as { ownerName?: string; email?: string })
+            : null;
+          setFormData((prev) => ({
+            ...prev,
+            ownerName: prefill?.ownerName?.trim() || prev.ownerName,
+            email: prefill?.email?.trim() || session.user.email || prev.email,
+          }));
+        } catch {
+          // non-fatal
+        }
       } catch {
         router.replace('/login');
       }
@@ -195,6 +207,7 @@ export default function OnboardingPage() {
       } catch {
         // localStorage write failure is non-fatal
       }
+      try { localStorage.removeItem('yorgos_onboarding_prefill'); } catch { /* non-fatal */ }
       router.push('/number');
       return;
     }
@@ -252,10 +265,15 @@ export default function OnboardingPage() {
               />
             )}
             {step === 1 && (
-              <BusinessProfileForm
-                value={profileFormValue}
-                onChange={(fields) => updateForm(fields)}
-              />
+              <>
+                <BusinessProfileForm
+                  value={profileFormValue}
+                  onChange={(fields) => updateForm(fields)}
+                />
+                <p className="mt-3 text-xs text-zinc-400">
+                  Το τηλέφωνο εδώ είναι κινητό επικοινωνίας. Ο επαγγελματικός αριθμός σου δίνεται αυτόματα από το yorgos.ai.
+                </p>
+              </>
             )}
             {step === 2 && (
               <LogoUpload

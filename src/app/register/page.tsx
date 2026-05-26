@@ -5,24 +5,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
-const PROFESSION_OPTIONS = [
-  'Μηχανικός / Τεχνικός',
-  'Αρχιτέκτονας',
-  'Λογιστής / Οικονομολόγος',
-  'Δικηγόρος',
-  'Γιατρός / Επαγγελματίας υγείας',
-  'Εκπαιδευτής / Σύμβουλος',
-  'Πωλητής / Έμπορος',
-  'Κατασκευαστής',
-  'Άλλο',
-];
-
 export default function RegisterPage() {
   const router = useRouter();
 
   // UI-only fields (not submitted to auth)
   const [name, setProfessionalName] = useState('');
-  const [profession, setProfession] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -62,6 +49,14 @@ export default function RegisterPage() {
       return;
     }
 
+    try {
+      localStorage.setItem(
+        'yorgos_onboarding_prefill',
+        JSON.stringify({ ownerName: name.trim(), email: trimmedEmail })
+      );
+    } catch {
+      // non-fatal
+    }
     router.push('/package');
   }
 
@@ -160,30 +155,6 @@ export default function RegisterPage() {
                   </svg>
                 )}
               </button>
-            </div>
-          </div>
-
-          {/* Επάγγελμα / Κλάδος */}
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1.5">
-              Επάγγελμα / Κλάδος
-            </label>
-            <div className="relative">
-              <select
-                value={profession}
-                onChange={(e) => setProfession(e.target.value)}
-                className="w-full appearance-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
-              >
-                <option value="">Επιλέξτε ή γράψτε τον κλάδο σου</option>
-                {PROFESSION_OPTIONS.map((o) => (
-                  <option key={o} value={o}>{o}</option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400">
-                <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
             </div>
           </div>
 
