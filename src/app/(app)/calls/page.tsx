@@ -6,6 +6,7 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { norm } from '@/lib/search';
 import type { Customer } from '@/lib/types';
 import BrowserPhone, { type CallEndedEvent } from '@/components/phone/BrowserPhone';
+import { findCustomerByPhone } from '@/lib/phone';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -95,6 +96,8 @@ function mapCustomer(d: Record<string, unknown>): Customer {
       'Πελάτης',
     companyName: (d.companyName as string | null) ?? '',
     phone: (d.phone as string | null) ?? '',
+    mobilePhone: (d.mobilePhone as string | null) ?? undefined,
+    landlinePhone: (d.landlinePhone as string | null) ?? undefined,
     email: (d.email as string | null) ?? '',
     address: (d.address as string | null) ?? '',
     source: (d.source as Customer['source']) ?? 'manual_entry',
@@ -162,14 +165,12 @@ function CallActionSheet({
   const [contactEmail, setContactEmail] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Customer already linked via customer_id in the communication row.
-  const linkedCustomer = call.customer ?? null;
-  // Customer found by exact phone match in the loaded customer list.
+  // Customer found by normalized phone match in the loaded customer list.
+  // Checks customer.phone, customer.mobilePhone, and customer.landlinePhone.
   const phoneMatchCustomer =
     call.phone
-      ? customers.find((c) => c.phone === call.phone) ?? null
+      ? findCustomerByPhone(customers, call.phone) ?? null
       : null;
-  const existingCustomer = linkedCustomer ?? phoneMatchCustomer;
 
   const directionLabel = CALL_DIRECTION_LABEL[call.direction] ?? call.direction;
   const contextLine =
@@ -203,12 +204,48 @@ function CallActionSheet({
     }
   }
 
+  async function handleLinkToExisting(customer: Customer) {
+    const token = getAuthToken();
+    if (!token) return;
+    setBusy(true);
+    setSheetError(null);
+    try {
+      const resp = await fetch(
+        `/api/communications?id=${encodeURIComponent(call.id)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ customerId: customer.id }),
+        }
+      );
+      const json = await resp.json();
+      if (json.ok) {
+        onCallLinked(call.id, customer);
+        onClose();
+      } else {
+        setSheetError('Αδύνατη η σύνδεση. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setSheetError('Αδύνατη η σύνδεση. Δοκίμασε ξανά.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSaveContact() {
     const name = contactName.trim();
     const company = contactCompany.trim();
     const email = contactEmail.trim();
     if (!name && !company) {
       setFormError('Συμπλήρωσε όνομα ή εταιρεία.');
+      return;
+    }
+    // Guard: if a normalized phone match already exists, do not create a duplicate.
+    if (call.phone && findCustomerByPhone(customers, call.phone)) {
+      setFormError('Βρέθηκε ήδη επαφή με αυτόν τον αριθμό. Χρησιμοποίησε τη σύνδεση υπάρχουσας επαφής.');
       return;
     }
     const token = getAuthToken();
@@ -324,21 +361,29 @@ function CallActionSheet({
                 Διαγραφή κλήσης
               </button>
 
-              {/* Contact action: view linked, already exists, open form, or no phone */}
-              {existingCustomer ? (
-                call.customerId ? (
-                  <Link
-                    href={`/customers/${call.customerId}`}
-                    onClick={onClose}
-                    className="flex w-full items-center justify-center rounded-2xl bg-zinc-50 py-3.5 text-sm font-medium text-indigo-600 ring-1 ring-zinc-200 transition hover:bg-indigo-50"
+              {/* Contact action: view linked, link existing match, open form, or no phone */}
+              {call.customerId ? (
+                <Link
+                  href={`/customers/${call.customerId}`}
+                  onClick={onClose}
+                  className="flex w-full items-center justify-center rounded-2xl bg-zinc-50 py-3.5 text-sm font-medium text-indigo-600 ring-1 ring-zinc-200 transition hover:bg-indigo-50"
+                >
+                  Προβολή επαφής
+                </Link>
+              ) : phoneMatchCustomer ? (
+                <div className="space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleLinkToExisting(phoneMatchCustomer)}
+                    disabled={busy}
+                    className="w-full rounded-2xl bg-indigo-50 py-3.5 text-sm font-semibold text-indigo-600 ring-1 ring-indigo-200 transition hover:bg-indigo-100 active:bg-indigo-200 disabled:opacity-50"
                   >
-                    Προβολή επαφής
-                  </Link>
-                ) : (
-                  <div className="w-full rounded-2xl bg-zinc-50 py-3.5 text-center text-sm font-medium text-zinc-400 ring-1 ring-zinc-200">
-                    Υπάρχει ήδη επαφή
-                  </div>
-                )
+                    Σύνδεση με υπάρχουσα επαφή
+                  </button>
+                  <p className="px-1 text-center text-xs text-zinc-400">
+                    {phoneMatchCustomer.name}
+                  </p>
+                </div>
               ) : call.phone ? (
                 <button
                   type="button"
