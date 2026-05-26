@@ -21,6 +21,7 @@ const COMMUNICATION_COLUMNS = [
 
 const VALID_CHANNELS = ['call', 'sms', 'viber', 'email'] as const;
 const VALID_DIRECTIONS = ['inbound', 'outbound'] as const;
+const VALID_POST_STATUSES = ['completed', 'failed'] as const;
 
 type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
 
@@ -97,6 +98,12 @@ function dbToCommunication(row: CommunicationRow, customer: CommunicationCustome
         }
       : null,
   };
+}
+
+function jsonNoStore(body: object, init?: ResponseInit): NextResponse {
+  const r = NextResponse.json(body, init);
+  r.headers.set('Cache-Control', 'no-store');
+  return r;
 }
 
 export async function GET(request: NextRequest) {
@@ -208,5 +215,94 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, communications, count: communications.length });
   } catch {
     return NextResponse.json({ ok: false, error: 'communications_query_failed' }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const token = getBearerToken(request);
+  if (!token) {
+    return jsonNoStore({ ok: false, error: 'missing_auth' }, { status: 401 });
+  }
+
+  let supabase: SupabaseClient;
+  try {
+    supabase = createServerSupabaseClient();
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('Missing Supabase server')) {
+      return jsonNoStore({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
+    }
+    return jsonNoStore({ ok: false, error: 'communications_create_failed' }, { status: 500 });
+  }
+
+  try {
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return jsonNoStore({ ok: false, error: 'invalid_auth' }, { status: 401 });
+    }
+
+    const businessId = await getBusinessId(supabase, user.id);
+    if (!businessId) {
+      return jsonNoStore({ ok: false, error: 'business_not_found' }, { status: 404 });
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonNoStore({ ok: false, error: 'invalid_body' }, { status: 400 });
+    }
+
+    const { channel, direction, status, phone, customerId, customer_id, summary } = body;
+
+    if (channel !== 'call') {
+      return jsonNoStore({ ok: false, error: 'invalid_channel' }, { status: 400 });
+    }
+
+    if (!isValidEnum(direction, VALID_DIRECTIONS)) {
+      return jsonNoStore({ ok: false, error: 'invalid_direction' }, { status: 400 });
+    }
+
+    if (!isValidEnum(status, VALID_POST_STATUSES)) {
+      return jsonNoStore({ ok: false, error: 'invalid_status' }, { status: 400 });
+    }
+
+    // Accept camelCase customerId (preferred) or snake_case customer_id (legacy).
+    const resolvedCustomerId =
+      typeof customerId === 'string' && customerId.length > 0
+        ? customerId
+        : typeof customer_id === 'string' && customer_id.length > 0
+        ? customer_id
+        : null;
+
+    const { data, error } = await supabase
+      .from('communications')
+      .insert({
+        business_id: businessId,
+        customer_id: resolvedCustomerId,
+        channel: 'call',
+        direction,
+        status,
+        phone:
+          typeof phone === 'string' && phone.length > 0 ? phone : null,
+        summary:
+          typeof summary === 'string' && summary.length > 0 ? summary : null,
+      })
+      .select(COMMUNICATION_COLUMNS)
+      .single();
+
+    if (error || !data) {
+      return jsonNoStore({ ok: false, error: 'communications_create_failed' }, { status: 500 });
+    }
+
+    const row = asCommunicationRow(data);
+    const communication = dbToCommunication(row, null);
+
+    return jsonNoStore({ ok: true, communication });
+  } catch {
+    return jsonNoStore({ ok: false, error: 'communications_create_failed' }, { status: 500 });
   }
 }

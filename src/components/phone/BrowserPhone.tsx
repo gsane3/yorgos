@@ -15,6 +15,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // Props
 // ---------------------------------------------------------------------------
 
+export interface CallEndedEvent {
+  direction: 'inbound' | 'outbound';
+  status: 'completed' | 'failed';
+  phone: string | null;
+  reason?: string | null;
+}
+
 export interface BrowserPhoneProps {
   ready: boolean;
   wssUrl?: string;
@@ -22,6 +29,8 @@ export interface BrowserPhoneProps {
   sipPassword?: string;
   sipRealm?: string;
   disabledReason?: string;
+  /** Called once when a session ends (completed) or fails (failed). Best-effort. */
+  onCallEnded?: (event: CallEndedEvent) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +90,7 @@ export default function BrowserPhone({
   sipPassword,
   sipRealm,
   disabledReason,
+  onCallEnded,
 }: BrowserPhoneProps) {
   const [phoneState, setPhoneState] = useState<PhoneState>(
     ready ? 'disconnected' : 'not_configured'
@@ -106,11 +116,30 @@ export default function BrowserPhone({
   // is a no-op, preventing duplicate peerconnection/track listeners.
   const wiredSessionsRef = useRef<WeakSet<object>>(new WeakSet());
 
+  // Tracks the direction and phone of the current session so that wireSession
+  // callbacks can read them after callerInfo state has been cleared.
+  const sessionDirectionRef = useRef<'inbound' | 'outbound'>('inbound');
+  const sessionPhoneRef = useRef<string | null>(null);
+
+  // Tracks sessions that have already fired onCallEnded to prevent duplicates.
+  const calledBackSessionsRef = useRef<WeakSet<object>>(new WeakSet());
+
+  // Stable ref for the onCallEnded prop. Kept current via a dedicated effect
+  // so wireSession closures always call the latest version without adding
+  // onCallEnded to wireSession's dependency array (which would re-attach all
+  // session handlers on every parent render).
+  const onCallEndedRef = useRef(onCallEnded);
+
   // Helper: update both state and ref atomically.
   const transition = useCallback((next: PhoneState) => {
     phoneStateRef.current = next;
     setPhoneState(next);
   }, []);
+
+  // Keep onCallEndedRef current whenever the prop changes.
+  useEffect(() => {
+    onCallEndedRef.current = onCallEnded;
+  }, [onCallEnded]);
 
   // Sync not_configured / disconnected when the ready prop changes.
   // setTimeout defers the state update out of the render cycle, satisfying
@@ -189,6 +218,15 @@ export default function BrowserPhone({
     });
 
     session.on('ended', () => {
+      // Fire onCallEnded exactly once per session.
+      if (!calledBackSessionsRef.current.has(session as object)) {
+        calledBackSessionsRef.current.add(session as object);
+        onCallEndedRef.current?.({
+          direction: sessionDirectionRef.current,
+          status: 'completed',
+          phone: sessionPhoneRef.current,
+        });
+      }
       sessionRef.current = null;
       setCallerInfo(null);
       setOutboundInput('');
@@ -196,6 +234,16 @@ export default function BrowserPhone({
     });
 
     session.on('failed', (e: { cause?: string }) => {
+      // Fire onCallEnded exactly once per session.
+      if (!calledBackSessionsRef.current.has(session as object)) {
+        calledBackSessionsRef.current.add(session as object);
+        onCallEndedRef.current?.({
+          direction: sessionDirectionRef.current,
+          status: 'failed',
+          phone: sessionPhoneRef.current,
+          reason: e?.cause ?? null,
+        });
+      }
       sessionRef.current = null;
       setCallerInfo(null);
       const cause = e?.cause ?? null;
@@ -363,6 +411,9 @@ export default function BrowserPhone({
       // Display the caller URI user part only, not the full URI.
       const callerUser =
         (data.request?.from?.uri?.user as string | undefined) ?? null;
+      // Record direction and phone before wiring so ended/failed can read them.
+      sessionDirectionRef.current = 'inbound';
+      sessionPhoneRef.current = callerUser;
       setCallerInfo(callerUser);
       transition('incoming_call');
 
@@ -401,6 +452,9 @@ export default function BrowserPhone({
       // peerconnection/track listener is in place even if the RTCPeerConnection
       // was already created synchronously inside ua.call().
       sessionRef.current = session;
+      // Record direction and phone before wiring so ended/failed can read them.
+      sessionDirectionRef.current = 'outbound';
+      sessionPhoneRef.current = normalized;
       wireSession(session);
       setCallerInfo(normalized);
       transition('calling');

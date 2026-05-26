@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { norm } from '@/lib/search';
 import type { Customer } from '@/lib/types';
-import BrowserPhone from '@/components/phone/BrowserPhone';
+import BrowserPhone, { type CallEndedEvent } from '@/components/phone/BrowserPhone';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -944,6 +944,49 @@ export default function CallsPage() {
     setNewSmsCustomer(null);
   }
 
+  // Best-effort call logger. Fires after every completed or failed browser
+  // call. Does not block UI; errors are silently discarded.
+  const handleCallEnded = useCallback(
+    (event: CallEndedEvent) => {
+      const token = tokenRef.current;
+      if (!token) return;
+
+      const customer =
+        customers.find(
+          (c) => typeof c.phone === 'string' && c.phone === event.phone
+        ) ?? null;
+      const customerId = customer?.id ?? null;
+
+      const summary =
+        event.direction === 'inbound'
+          ? event.status === 'completed'
+            ? 'Εισερχόμενη κλήση'
+            : 'Αποτυχημένη εισερχόμενη κλήση'
+          : event.status === 'completed'
+          ? 'Εξερχόμενη κλήση'
+          : 'Αποτυχημένη εξερχόμενη κλήση';
+
+      fetch('/api/communications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          channel: 'call',
+          direction: event.direction,
+          status: event.status,
+          phone: event.phone,
+          customerId,
+          summary,
+        }),
+      }).catch(() => {
+        // Best effort - discard errors silently.
+      });
+    },
+    [customers]
+  );
+
   async function checkMicrophonePermission() {
     if (
       typeof navigator === 'undefined' ||
@@ -1171,6 +1214,7 @@ export default function CallsPage() {
             sipPassword={phoneToken.sipPassword}
             sipRealm={phoneToken.sipRealm}
             disabledReason={phoneToken.ready ? undefined : 'Το browser τηλέφωνο δεν είναι έτοιμο ακόμα.'}
+            onCallEnded={handleCallEnded}
           />
         )}
       </div>
