@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { assignPhoneNumber } from '@/lib/server/phone-number-pool';
 
 // E.164 validation: starts with +, followed by 8 to 15 digits.
 const E164_RE = /^\+\d{8,15}$/;
@@ -485,6 +486,116 @@ export async function PATCH(request: NextRequest) {
   }
 
   const raw = body as Record<string, unknown>;
+
+  // ---------------------------------------------------------------------------
+  // Action: assign_pending_request
+  // ---------------------------------------------------------------------------
+  // Assigns an available pool number to a business that has a pending
+  // phone_number_requests row. Migration 019 resolves the request atomically
+  // inside assign_available_phone_number when assignment succeeds.
+
+  if (raw['action'] === 'assign_pending_request') {
+    // Validate business_id: required, non-empty UUID.
+    const rawAssignBizId = raw['business_id'];
+    if (typeof rawAssignBizId !== 'string' || !rawAssignBizId.trim()) {
+      return NextResponse.json({ ok: false, error: 'missing_business_id' }, { status: 400 });
+    }
+    const assignBizId = rawAssignBizId.trim();
+    if (!UUID_RE.test(assignBizId)) {
+      return NextResponse.json({ ok: false, error: 'invalid_business_id' }, { status: 400 });
+    }
+
+    // Validate optional requested_city from payload (lowest priority city source).
+    let payloadCity: string | null = null;
+    const rawPayloadCity = raw['requested_city'];
+    if (rawPayloadCity !== undefined && rawPayloadCity !== null) {
+      if (typeof rawPayloadCity !== 'string') {
+        return NextResponse.json({ ok: false, error: 'invalid_city' }, { status: 400 });
+      }
+      const trimmedPayloadCity = rawPayloadCity.trim();
+      if (trimmedPayloadCity.length > 100) {
+        return NextResponse.json({ ok: false, error: 'invalid_city' }, { status: 400 });
+      }
+      payloadCity = trimmedPayloadCity.length > 0 ? trimmedPayloadCity : null;
+    }
+
+    try {
+      // Confirm business exists and fetch its city for fallback.
+      const { data: bizRow, error: bizQueryError } = await supabase
+        .from('businesses')
+        .select('id, city')
+        .eq('id', assignBizId)
+        .maybeSingle();
+
+      if (bizQueryError) {
+        return NextResponse.json({ ok: false, error: 'assign_rpc_failed' }, { status: 500 });
+      }
+      if (!bizRow) {
+        return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
+      }
+      const bizForAssign = bizRow as { id: string; city: string | null };
+
+      // Confirm a pending phone_number_requests row exists for this business.
+      const { data: pendingReqRow, error: pendingReqQueryError } = await supabase
+        .from('phone_number_requests')
+        .select('id, requested_city')
+        .eq('business_id', assignBizId)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (pendingReqQueryError) {
+        return NextResponse.json({ ok: false, error: 'assign_rpc_failed' }, { status: 500 });
+      }
+      if (!pendingReqRow) {
+        return NextResponse.json({ ok: false, error: 'pending_request_not_found' }, { status: 404 });
+      }
+      const pendingReq = pendingReqRow as { id: string; requested_city: string | null };
+
+      // City priority: pending request city > business city > payload city.
+      const effectiveCity = pendingReq.requested_city ?? bizForAssign.city ?? payloadCity;
+
+      // Call the assignment helper. Migration 019 resolves the pending request
+      // atomically inside assign_available_phone_number when assigned is true.
+      const assignRpcResult = await assignPhoneNumber(supabase, assignBizId, effectiveCity);
+
+      if (!assignRpcResult.assigned) {
+        return NextResponse.json({
+          ok:       true,
+          assigned: false,
+          reason:   'no_available_number',
+        });
+      }
+
+      // Query updated request status to confirm resolution. Non-fatal.
+      let requestStatus: string | null = null;
+      try {
+        const { data: updatedReq } = await supabase
+          .from('phone_number_requests')
+          .select('status')
+          .eq('id', pendingReq.id)
+          .maybeSingle();
+        if (updatedReq) {
+          requestStatus = (updatedReq as { status: string }).status;
+        }
+      } catch {
+        // Non-fatal. Omit requestStatus from response.
+      }
+
+      return NextResponse.json({
+        ok:                   true,
+        assigned:             true,
+        managedPhoneNumberId: assignRpcResult.managedPhoneNumberId,
+        e164Number:           assignRpcResult.e164Number,
+        ...(requestStatus !== null ? { requestStatus } : {}),
+      });
+    } catch {
+      return NextResponse.json({ ok: false, error: 'phone_pool_route_failed' }, { status: 500 });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // (Existing) Release number action
+  // ---------------------------------------------------------------------------
 
   // Validate business_id: required, must be a UUID.
   const rawBusinessId = raw['business_id'];

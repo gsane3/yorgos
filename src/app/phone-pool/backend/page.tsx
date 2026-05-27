@@ -74,6 +74,16 @@ interface ReleaseApiResponse {
   error?: string;
 }
 
+interface AssignApiResponse {
+  ok: boolean;
+  assigned?: boolean;
+  managedPhoneNumberId?: string | null;
+  e164Number?: string | null;
+  requestStatus?: string | null;
+  reason?: string;
+  error?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -162,6 +172,14 @@ export default function PhonePoolBackendPage() {
     mpnId: string;
     msg: string;
     isError: boolean;
+  } | null>(null);
+
+  // Assign action state: tracks which pending request row is in-flight.
+  const [assignLoadingId, setAssignLoadingId] = useState<string | null>(null);
+  const [assignResult, setAssignResult] = useState<{
+    requestId: string;
+    msg: string;
+    type: 'success' | 'info' | 'error';
   } | null>(null);
 
   // ---------------------------------------------------------------------------
@@ -361,6 +379,100 @@ export default function PhonePoolBackendPage() {
   }
 
   // ---------------------------------------------------------------------------
+  // Assign pending request action
+  // ---------------------------------------------------------------------------
+  // Sends PATCH /api/admin/phone-pool with action: assign_pending_request.
+  // On success, reloads the pool so the resolved request disappears from the list.
+  // On no available number, shows an informational message without reloading.
+
+  async function handleAssignPendingRequest(
+    requestId: string,
+    businessId: string,
+    requestedCity: string | null
+  ) {
+    setAssignLoadingId(requestId);
+    setAssignResult(null);
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        setAssignResult({
+          requestId,
+          msg: 'Δεν έγινε η ανάθεση αριθμού.',
+          type: 'error',
+        });
+        return;
+      }
+
+      const bodyPayload: Record<string, unknown> = {
+        action:      'assign_pending_request',
+        business_id: businessId,
+      };
+      if (requestedCity !== null) {
+        bodyPayload['requested_city'] = requestedCity;
+      }
+
+      const res = await fetch('/api/admin/phone-pool', {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bodyPayload),
+      });
+
+      const json = (await res.json()) as AssignApiResponse;
+
+      if (res.status === 403 || json.error === 'forbidden') {
+        setForbidden(true);
+        return;
+      }
+
+      if (!res.ok || !json.ok) {
+        setAssignResult({
+          requestId,
+          msg: 'Δεν έγινε η ανάθεση αριθμού.',
+          type: 'error',
+        });
+        return;
+      }
+
+      if (json.assigned === true) {
+        setAssignResult({
+          requestId,
+          msg: 'Ο αριθμός ανατέθηκε.',
+          type: 'success',
+        });
+        await loadPool();
+        return;
+      }
+
+      if (json.reason === 'no_available_number') {
+        setAssignResult({
+          requestId,
+          msg: 'Δεν υπάρχει διαθέσιμος αριθμός για ανάθεση.',
+          type: 'info',
+        });
+        return;
+      }
+
+      setAssignResult({
+        requestId,
+        msg: 'Δεν έγινε η ανάθεση αριθμού.',
+        type: 'error',
+      });
+    } catch {
+      setAssignResult({
+        requestId,
+        msg: 'Δεν έγινε η ανάθεση αριθμού.',
+        type: 'error',
+      });
+    } finally {
+      setAssignLoadingId(null);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Forbidden state
   // ---------------------------------------------------------------------------
 
@@ -512,9 +624,38 @@ export default function PhonePoolBackendPage() {
                   <span className="rounded-full bg-zinc-50 px-2.5 py-0.5 text-xs font-medium text-zinc-500 ring-1 ring-zinc-200">
                     {req.source}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleAssignPendingRequest(
+                        req.request_id,
+                        req.business_id,
+                        req.requested_city
+                      )
+                    }
+                    disabled={assignLoadingId === req.request_id}
+                    className="rounded-full bg-indigo-600 px-2.5 py-0.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {assignLoadingId === req.request_id
+                      ? 'Γίνεται ανάθεση...'
+                      : 'Ανάθεση αριθμού'}
+                  </button>
                   <span className="ml-auto text-right text-xs text-zinc-400">
                     {formatDate(req.created_at)}
                   </span>
+                  {assignResult?.requestId === req.request_id && (
+                    <span
+                      className={`w-full text-xs ${
+                        assignResult.type === 'success'
+                          ? 'text-green-600'
+                          : assignResult.type === 'info'
+                          ? 'text-amber-600'
+                          : 'text-red-600'
+                      }`}
+                    >
+                      {assignResult.msg}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
