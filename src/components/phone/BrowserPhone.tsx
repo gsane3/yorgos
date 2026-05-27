@@ -35,6 +35,8 @@ export interface BrowserPhoneProps {
   pendingDialTarget?: string | null;
   /** Called after pendingDialTarget is consumed (dialed or rejected). Parent should set pendingDialTarget to null. */
   onDialConsumed?: () => void;
+  /** When true, hides the internal dial input and small Κλήση button. Use when an external numpad provides the dial trigger. All call handling and pendingDialTarget remain unchanged. */
+  externalDialer?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +99,7 @@ export default function BrowserPhone({
   onCallEnded,
   pendingDialTarget,
   onDialConsumed,
+  externalDialer,
 }: BrowserPhoneProps) {
   const [phoneState, setPhoneState] = useState<PhoneState>(
     ready ? 'disconnected' : 'not_configured'
@@ -680,7 +683,8 @@ export default function BrowserPhone({
                 Έτοιμο. Μπορείς να δεχτείς ή να κάνεις κλήση.
               </p>
 
-              {/* Outbound dial row */}
+              {/* Outbound dial row - hidden when an external dialer (inline numpad) is active */}
+              {!externalDialer && (
               <div className="mt-2 flex items-center gap-1.5">
                 <input
                   type="tel"
@@ -704,6 +708,7 @@ export default function BrowserPhone({
                   Κλήση
                 </button>
               </div>
+              )}
 
               {statusMessage && (
                 <p className="mt-1.5 text-xs text-red-500">{statusMessage}</p>

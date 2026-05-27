@@ -1589,6 +1589,7 @@ export default function CallsPage() {
   const [callReviewBusy, setCallReviewBusy] = useState(false);
   const [callReviewError, setCallReviewError] = useState<string | null>(null);
   const [pendingDialTarget, setPendingDialTarget] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const loadData = useCallback(async (token: string) => {
     const headers: HeadersInit = { Authorization: `Bearer ${token}` };
@@ -1912,7 +1913,39 @@ export default function CallsPage() {
         </div>
       ) : null)}
 
-      {/* WebRTC readiness card - hidden once microphone permission is granted */}
+      {/* Browser phone */}
+      <div>
+        {phoneToken.loading ? (
+          <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+            <p className="text-sm text-zinc-400">Φόρτωση...</p>
+          </div>
+        ) : (
+          <BrowserPhone
+            ready={phoneToken.ready}
+            wssUrl={phoneToken.wssUrl}
+            sipUsername={phoneToken.sipUsername}
+            sipPassword={phoneToken.sipPassword}
+            sipRealm={phoneToken.sipRealm}
+            disabledReason={phoneToken.ready ? undefined : 'Το browser τηλέφωνο δεν είναι έτοιμο ακόμα.'}
+            onCallEnded={handleCallEnded}
+            pendingDialTarget={pendingDialTarget}
+            onDialConsumed={() => setPendingDialTarget(null)}
+            externalDialer
+          />
+        )}
+      </div>
+
+      {/* Inline numpad - visible immediately when browser phone token is ready */}
+      {!phoneToken.loading && phoneToken.ready && (
+        <NumpadPanel
+          inline
+          open
+          onClose={() => {}}
+          onDial={(number) => setPendingDialTarget(number)}
+        />
+      )}
+
+      {/* Microphone check - shown below dialer when mic permission is needed */}
       {micState !== 'granted' && (
       <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
         <div className="flex items-start gap-3">
@@ -1937,7 +1970,7 @@ export default function CallsPage() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-medium text-zinc-500">Τηλέφωνο μέσα στο app</p>
+              <p className="text-xs font-medium text-zinc-500">Μικρόφωνο</p>
               {micState === 'denied' && (
                 <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
                   Χρειάζεται άδεια
@@ -1952,7 +1985,7 @@ export default function CallsPage() {
             {micState === 'unknown' && (
               <>
                 <p className="mt-0.5 text-xs text-zinc-400">
-                  Έλεγξε το μικρόφωνο για να ετοιμαστεί η τηλεφωνία μέσα από το yorgos.ai.
+                  Χρειάζεται άδεια μικροφώνου για κλήσεις μέσα από την εφαρμογή.
                 </p>
                 <button
                   type="button"
@@ -1975,7 +2008,7 @@ export default function CallsPage() {
             {micState === 'denied' && (
               <>
                 <p className="mt-0.5 text-xs text-zinc-400">
-                  {micError ?? 'Δεν δόθηκε άδεια μικροφώνου. Ενεργοποίησέ την από τον browser για να μπορείς να απαντάς κλήσεις μέσα από το app.'}
+                  {micError ?? 'Δεν δόθηκε άδεια μικροφώνου. Ενεργοποίησέ την από τον browser.'}
                 </p>
                 <button
                   type="button"
@@ -1996,38 +2029,18 @@ export default function CallsPage() {
       </div>
       )}
 
-      {/* Browser phone */}
-      <div>
-        {phoneToken.loading ? (
-          <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-            <p className="text-sm text-zinc-400">Φόρτωση...</p>
-          </div>
-        ) : (
-          <BrowserPhone
-            ready={phoneToken.ready}
-            wssUrl={phoneToken.wssUrl}
-            sipUsername={phoneToken.sipUsername}
-            sipPassword={phoneToken.sipPassword}
-            sipRealm={phoneToken.sipRealm}
-            disabledReason={phoneToken.ready ? undefined : 'Το browser τηλέφωνο δεν είναι έτοιμο ακόμα.'}
-            onCallEnded={handleCallEnded}
-            pendingDialTarget={pendingDialTarget}
-            onDialConsumed={() => setPendingDialTarget(null)}
-          />
-        )}
-      </div>
+      {/* History toggle */}
+      <button
+        type="button"
+        onClick={() => setDetailsOpen((o) => !o)}
+        className="w-full rounded-[28px] border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+      >
+        {detailsOpen ? 'Απόκρυψη ιστορικού' : 'Ιστορικό και πελάτες'}
+      </button>
 
-      {/* Inline numpad - visible immediately when browser phone token is ready */}
-      {!phoneToken.loading && phoneToken.ready && (
-        <NumpadPanel
-          inline
-          open
-          onClose={() => {}}
-          onDial={(number) => setPendingDialTarget(number)}
-        />
-      )}
-
-      {/* Segmented tabs */}
+      {/* CRM tabs - shown when detailsOpen */}
+      {detailsOpen && (
+      <>
       <div className="grid grid-cols-3 gap-1 rounded-2xl bg-zinc-100 p-1">
         {TABS.map((t) => (
           <button
@@ -2045,7 +2058,6 @@ export default function CallsPage() {
         ))}
       </div>
 
-      {/* Tab content */}
       {tab === 'recent' && (
         <RecentTab calls={calls} onSelect={setSelectedCall} />
       )}
@@ -2056,6 +2068,8 @@ export default function CallsPage() {
 
       {tab === 'sms' && (
         <SmsTab customers={customers} onNewSms={() => openNewSms()} />
+      )}
+      </>
       )}
 
       {/* Floating numpad launcher - hidden when inline numpad is active */}
