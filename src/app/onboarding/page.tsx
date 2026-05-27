@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { loadState, saveState } from '@/lib/storage';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { BusinessType, BusinessProfile } from '@/lib/types';
@@ -49,6 +49,13 @@ const STEPS = [
   },
 ];
 
+// Map plan keys to display names shown in the onboarding header badge.
+const PLAN_NAMES: Record<string, string> = {
+  starter: 'Starter',
+  pro:     'Pro',
+  team:    'Team',
+};
+
 function buildInitialFormData(): FormData {
   return {
     businessType: null,
@@ -66,8 +73,11 @@ function buildInitialFormData(): FormData {
   };
 }
 
-export default function OnboardingPage() {
+function OnboardingPageContent() {
   const router = useRouter();
+  const searchParams    = useSearchParams();
+  const planKeyParam    = searchParams.get('plan')    ?? '';
+  const voucherCodeParam = searchParams.get('voucher') ?? '';
   const [step, setStep] = useState(0);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState<FormData>(buildInitialFormData);
@@ -106,6 +116,13 @@ export default function OnboardingPage() {
     }
     checkSession();
   }, [router]);
+
+  // Redirect to /package if no plan was passed in URL.
+  useEffect(() => {
+    if (!planKeyParam) {
+      router.replace('/package');
+    }
+  }, [planKeyParam, router]);
 
   function updateForm(fields: Partial<FormData>) {
     setFormData((prev) => ({ ...prev, ...fields }));
@@ -166,10 +183,32 @@ export default function OnboardingPage() {
           default_vat_rate: formData.vatRate,
           default_offer_terms: formData.offerTerms.trim() || null,
           preferred_contact_method: 'viber',
+          packageKey:               planKeyParam,
+          ...(voucherCodeParam ? { voucherCode: voucherCodeParam } : {}),
         }),
       });
     } catch {
       setSubmitError('Δεν μπορέσαμε να αποθηκεύσουμε την επιχείρηση. Δοκίμασε ξανά.');
+      setSubmitting(false);
+      return;
+    }
+    if (res.status === 400) {
+      let apiErr = '';
+      try {
+        const errBody = await res.json();
+        apiErr = typeof errBody.error === 'string' ? errBody.error : '';
+      } catch {
+        // non-fatal parse failure
+      }
+      if (apiErr === 'invalid_package') {
+        setSubmitError('Δεν βρέθηκε αυτό το πακέτο.');
+      } else if (apiErr === 'invalid_voucher') {
+        setSubmitError('Ο κωδικός δεν είναι έγκυρος.');
+      } else if (apiErr === 'expired_voucher') {
+        setSubmitError('Ο κωδικός έχει λήξει.');
+      } else {
+        setSubmitError('Δεν μπορέσαμε να αποθηκεύσουμε την επιχείρηση. Δοκίμασε ξανά.');
+      }
       setSubmitting(false);
       return;
     }
@@ -218,6 +257,12 @@ export default function OnboardingPage() {
     setSubmitting(false);
   }
 
+  // Guard: redirect to /package if plan param is missing.
+  // Returning null prevents a flash of the form before router.replace fires.
+  if (!planKeyParam) {
+    return null;
+  }
+
   const profileFormValue: BusinessProfileData = {
     businessName: formData.businessName,
     ownerName: formData.ownerName,
@@ -251,6 +296,18 @@ export default function OnboardingPage() {
           <p className="mt-2 text-xs text-zinc-400">
             Βήμα {step + 1} από {STEPS.length}
           </p>
+          {planKeyParam && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200">
+                {PLAN_NAMES[planKeyParam] ?? planKeyParam}
+              </span>
+              {voucherCodeParam && (
+                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 ring-1 ring-zinc-200">
+                  Κωδικός: {voucherCodeParam}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
@@ -333,5 +390,19 @@ export default function OnboardingPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-full items-center justify-center">
+          <p className="text-sm text-zinc-400">Φόρτωση...</p>
+        </div>
+      }
+    >
+      <OnboardingPageContent />
+    </Suspense>
   );
 }

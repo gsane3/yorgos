@@ -71,9 +71,15 @@ function CheckIcon() {
 export default function PackagePage() {
   const router = useRouter();
   const [selected, setSelected] = useState<string>('pro');
+  const [voucherInput, setVoucherInput] = useState<string>('');
 
   function handleContinue() {
-    router.push('/onboarding');
+    const params = new URLSearchParams({ plan: selected });
+    const trimmedVoucher = voucherInput.trim();
+    if (trimmedVoucher) {
+      params.set('voucher', trimmedVoucher);
+    }
+    router.push(`/onboarding?${params.toString()}`);
   }
 
   return (
@@ -156,8 +162,32 @@ export default function PackagePage() {
 
         {/* Billing truth note */}
         <p className="mt-4 text-center text-xs text-zinc-400">
-          Η χρέωση δεν ενεργοποιείται σε αυτό το βήμα.
+          Η επιβεβαίωση ενεργοποίησης γίνεται μετά την καταχώρηση.
         </p>
+
+        {/* Voucher or demo code */}
+        <div className="mt-4">
+          <label
+            htmlFor="voucher-input"
+            className="mb-1.5 block text-xs font-medium text-zinc-600"
+          >
+            Κωδικός pilot ή demo (προαιρετικό)
+          </label>
+          <input
+            id="voucher-input"
+            type="text"
+            value={voucherInput}
+            onChange={(e) => setVoucherInput(e.target.value)}
+            placeholder="π.χ. PILOT2025"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            className="w-full rounded-[28px] border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+          />
+          <p className="mt-1.5 text-xs text-zinc-400">
+            Αν δεν έχεις κωδικό, άφησε το πεδίο κενό.
+          </p>
+        </div>
 
         {/* CTA */}
         <div className="mt-6">
