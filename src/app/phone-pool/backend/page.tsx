@@ -17,6 +17,7 @@ interface PoolStats {
   retired: number;
   total: number;
   by_city: Record<string, number>;
+  by_type?: Record<string, number>;
 }
 
 interface PoolNumber {
@@ -24,9 +25,12 @@ interface PoolNumber {
   e164_number: string;
   provider: string;
   city: string | null;
+  number_type: string | null;
   status: string;
   imported_at: string;
   assigned_at: string | null;
+  cooling_down_since: string | null;
+  available_after: string | null;
   retired_at: string | null;
 }
 
@@ -79,6 +83,12 @@ function statusBadge(status: string): { label: string; cls: string } {
     default:
       return { label: status, cls: 'bg-zinc-100 text-zinc-500 ring-zinc-200' };
   }
+}
+
+function numberTypeLabel(type: string | null): string {
+  if (type === 'platform_owned') return 'Πλατφόρμας';
+  if (type === 'customer_ported') return 'Πελάτη';
+  return 'Άγνωστος τύπος';
 }
 
 const IMPORT_ERRORS: Record<string, string> = {
@@ -360,6 +370,9 @@ export default function PhonePoolBackendPage() {
             <p className="text-sm font-semibold text-zinc-900">
               Αριθμοί στο pool
             </p>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Η αποδέσμευση αριθμού είναι backend-ready, αλλά δεν έχει συνδεθεί ακόμα με ακύρωση συνδρομής.
+            </p>
           </div>
           <ul className="divide-y divide-zinc-100">
             {numbers.map((n) => {
@@ -378,12 +391,20 @@ export default function PhonePoolBackendPage() {
                     {badge.label}
                   </span>
                   <span className="text-xs text-zinc-400">{n.provider}</span>
+                  <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-700 ring-1 ring-violet-200">
+                    {numberTypeLabel(n.number_type)}
+                  </span>
                   {n.city ? (
                     <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600">
                       {n.city}
                     </span>
                   ) : (
                     <span className="text-xs italic text-zinc-300">Χωρίς πόλη</span>
+                  )}
+                  {n.status === 'cooling_down' && (
+                    <span className="w-full text-xs text-sky-600">
+                      Αποψύξη: {formatDate(n.cooling_down_since)} · Επαναχρησιμοποίηση: {formatDate(n.available_after)}
+                    </span>
                   )}
                   <span className="ml-auto text-right text-xs text-zinc-400">
                     <span className="block">

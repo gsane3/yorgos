@@ -11,9 +11,12 @@ type PoolRow = {
   e164_number: string;
   provider: string;
   city: string | null;
+  number_type: string | null;
   status: string;
   imported_at: string;
   assigned_at: string | null;
+  cooling_down_since: string | null;
+  available_after: string | null;
   retired_at: string | null;
 };
 
@@ -26,6 +29,7 @@ type StatsMap = {
   retired: number;
   total: number;
   by_city: Record<string, number>;
+  by_type: Record<string, number>;
 };
 
 // ---------------------------------------------------------------------------
@@ -105,8 +109,8 @@ async function checkAdmin(request: NextRequest): Promise<
 // GET /api/admin/phone-pool
 // ---------------------------------------------------------------------------
 // Returns pool stats and the most recent 200 managed_phone_numbers rows.
-// Fields returned: id, e164_number, provider, city, status, imported_at,
-//   assigned_at, retired_at.
+// Fields returned: id, e164_number, provider, city, number_type, status,
+//   imported_at, assigned_at, cooling_down_since, available_after, retired_at.
 // provider_ref and notes are intentionally excluded.
 
 export async function GET(request: NextRequest) {
@@ -117,7 +121,7 @@ export async function GET(request: NextRequest) {
   try {
     const { data, error } = await supabase
       .from('managed_phone_numbers')
-      .select('id, e164_number, provider, city, status, imported_at, assigned_at, retired_at')
+      .select('id, e164_number, provider, city, number_type, status, imported_at, assigned_at, cooling_down_since, available_after, retired_at')
       .order('imported_at', { ascending: false })
       .limit(200);
 
@@ -136,6 +140,7 @@ export async function GET(request: NextRequest) {
       retired: 0,
       total: rows.length,
       by_city: {},
+      by_type: {},
     };
 
     for (const row of rows) {
@@ -150,6 +155,10 @@ export async function GET(request: NextRequest) {
       // Empty string key represents numbers with no city set.
       const cityKey = row.city ?? '';
       stats.by_city[cityKey] = (stats.by_city[cityKey] ?? 0) + 1;
+
+      // Count by number_type for lifecycle distribution visibility.
+      const typeKey = row.number_type ?? 'unknown';
+      stats.by_type[typeKey] = (stats.by_type[typeKey] ?? 0) + 1;
     }
 
     return NextResponse.json({ ok: true, stats, numbers: rows });
@@ -248,7 +257,7 @@ export async function POST(request: NextRequest) {
     const { data: inserted, error: insertError } = await supabase
       .from('managed_phone_numbers')
       .insert(insertPayload)
-      .select('id, e164_number, provider, city, status, imported_at, assigned_at, retired_at')
+      .select('id, e164_number, provider, city, number_type, status, imported_at, assigned_at, cooling_down_since, available_after, retired_at')
       .single();
 
     if (insertError) {
