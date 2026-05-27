@@ -232,7 +232,7 @@ export default function RegisterPage() {
         <p className="mt-6 text-center text-sm text-zinc-500">
           Έχεις ήδη λογαριασμό;{' '}
           <Link
-            href="/login/backend"
+            href="/login"
             className="font-semibold text-indigo-600 hover:text-indigo-700 transition"
           >
             Σύνδεση

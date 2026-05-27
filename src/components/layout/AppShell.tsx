@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { loadState } from '@/lib/storage';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import BottomNav from './BottomNav';
 import DesktopSidebar from './DesktopSidebar';
 import GlobalGuideGuard from './GlobalGuideGuard';
@@ -11,13 +12,49 @@ import GlobalGuideGuard from './GlobalGuideGuard';
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    const state = loadState();
-    if (state.userProfile && !state.userProfile.onboardingCompleted) {
-      router.replace('/onboarding');
+    let cancelled = false;
+
+    async function checkAuth() {
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const { data } = await supabase.auth.getSession();
+        if (cancelled) return;
+
+        if (!data.session) {
+          router.replace('/login');
+          return;
+        }
+
+        // Session confirmed. Now apply the onboarding redirect if needed.
+        const state = loadState();
+        if (state.userProfile && !state.userProfile.onboardingCompleted) {
+          router.replace('/onboarding');
+          return;
+        }
+
+        setAuthChecked(true);
+      } catch {
+        // Auth client not configured or network error: redirect to login.
+        if (!cancelled) {
+          router.replace('/login');
+        }
+      }
     }
+
+    checkAuth();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router, pathname]);
+
+  // Do not render protected content until session check passes.
+  if (!authChecked) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-full overflow-x-hidden">
