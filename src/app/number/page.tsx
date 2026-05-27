@@ -21,6 +21,12 @@ function PhoneIcon() {
   );
 }
 
+type NumberRequest = {
+  status:        string;
+  requestedCity: string | null;
+  createdAt:     string;
+};
+
 type BusinessMeResponse = {
   ok?: boolean;
   business?: {
@@ -28,6 +34,7 @@ type BusinessMeResponse = {
   };
   phoneAssigned?: boolean;
   activationAllowed?: boolean;
+  numberRequest?: NumberRequest | null;
   error?: string;
 };
 
@@ -64,6 +71,9 @@ export default function NumberPage() {
   const [phoneInfo, setPhoneInfo] = useState<BusinessMeResponse | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [noSession, setNoSession] = useState(false);
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [localNumberRequest, setLocalNumberRequest] = useState<NumberRequest | null>(null);
 
   useEffect(() => {
     async function fetchPhone() {
@@ -83,6 +93,7 @@ export default function NumberPage() {
         if (resp.ok) {
           const data: BusinessMeResponse = await resp.json();
           setPhoneInfo(data);
+          setLocalNumberRequest(data.numberRequest ?? null);
         } else {
           setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
         }
@@ -94,6 +105,51 @@ export default function NumberPage() {
     }
     fetchPhone();
   }, []);
+
+  async function handleCreateRequest() {
+    if (requestSubmitting) return;
+    setRequestSubmitting(true);
+    setRequestError(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        setRequestError('Πρέπει να συνδεθείς ξανά.');
+        setRequestSubmitting(false);
+        return;
+      }
+      const resp = await fetch('/api/number-requests', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (resp.ok) {
+        const data = (await resp.json()) as {
+          ok?: boolean;
+          status?: string;
+          numberRequest?: NumberRequest;
+        };
+        if (data.ok) {
+          setLocalNumberRequest(
+            data.numberRequest ?? {
+              status:        'pending',
+              requestedCity: null,
+              createdAt:     new Date().toISOString(),
+            }
+          );
+        } else {
+          setRequestError('Δεν μπόρεσε να καταχωρηθεί το αίτημα. Δοκίμασε ξανά.');
+        }
+      } else {
+        setRequestError('Δεν μπόρεσε να καταχωρηθεί το αίτημα. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setRequestError('Δεν μπόρεσε να καταχωρηθεί το αίτημα. Δοκίμασε ξανά.');
+    } finally {
+      setRequestSubmitting(false);
+    }
+  }
 
   function handleContinue() {
     router.push('/dashboard');
@@ -176,18 +232,58 @@ export default function NumberPage() {
           ) : (
             <>
               <p className="text-xs font-medium text-zinc-400">Ο αριθμός σου</p>
-              <p className="mt-2 text-base font-medium text-zinc-500">
+              <p className="mt-2 text-base font-medium text-zinc-700">
                 Ο αριθμός σου ετοιμάζεται.
               </p>
-              <div className="mt-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 ring-1 ring-amber-200">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                  <span className="text-xs font-medium text-amber-700">Σε αναμονή</span>
-                </span>
-              </div>
-              <p className="mt-3 text-xs text-zinc-400">
-                Δεν χρειάζεται να ρυθμίσεις κάτι. Θα εμφανιστεί εδώ μόλις ενεργοποιηθεί.
-              </p>
+              {localNumberRequest?.status === 'pending' ? (
+                <>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Καταγράψαμε ότι χρειάζεσαι αριθμό
+                    {localNumberRequest.requestedCity
+                      ? ` για ${localNumberRequest.requestedCity}`
+                      : ''}.
+                  </p>
+                  <div className="mt-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 ring-1 ring-indigo-200">
+                      <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                      <span className="text-xs font-medium text-indigo-700">Αίτημα σε εκκρεμότητα</span>
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-zinc-400">
+                    Θα εμφανιστεί εδώ μόλις ενεργοποιηθεί.
+                  </p>
+                  <button
+                    type="button"
+                    disabled
+                    className="mt-4 rounded-full bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-400 cursor-not-allowed"
+                  >
+                    Το αίτημα έχει καταχωρηθεί
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="mt-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 ring-1 ring-amber-200">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                      <span className="text-xs font-medium text-amber-700">Σε αναμονή</span>
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-zinc-400">
+                    Δεν χρειάζεται να ρυθμίσεις κάτι άλλο τώρα.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleCreateRequest}
+                    disabled={requestSubmitting}
+                    className={`mt-4 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800${requestSubmitting ? ' opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    {requestSubmitting ? 'Αποστολή...' : 'Καταχώρηση αιτήματος'}
+                  </button>
+                  {requestError && (
+                    <p className="mt-2 text-xs text-red-600">{requestError}</p>
+                  )}
+                </>
+              )}
             </>
           )}
         </div>

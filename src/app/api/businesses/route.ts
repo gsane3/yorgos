@@ -246,6 +246,28 @@ export async function POST(request: NextRequest) {
 
     const phoneResult = await assignPhoneNumber(supabase, bizId, cityVal);
 
+    // If no number was assigned from the pool, record a pending request so the
+    // admin can fulfil the assignment manually. Non-fatal: business creation
+    // succeeds regardless of whether this insert succeeds.
+    let numberRequest: { status: string; requestedCity: string | null } | null = null;
+    if (!phoneResult.assigned) {
+      try {
+        const { error: reqInsertError } = await supabase
+          .from('phone_number_requests')
+          .insert({
+            business_id:    bizId,
+            requested_city: cityVal ?? null,
+            source:         'onboarding',
+            status:         'pending',
+          });
+        if (!reqInsertError) {
+          numberRequest = { status: 'pending', requestedCity: cityVal ?? null };
+        }
+      } catch {
+        // Non-fatal: pending request creation does not block business creation.
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       business: {
@@ -254,6 +276,7 @@ export async function POST(request: NextRequest) {
       },
       phoneAssigned:      phoneResult.assigned,
       subscriptionStatus,
+      ...(numberRequest !== null ? { numberRequest } : {}),
     }, { status: 201 });
   } catch {
     return NextResponse.json({ ok: false, error: 'business_create_failed' }, { status: 500 });

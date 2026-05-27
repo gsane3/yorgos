@@ -65,6 +65,29 @@ export async function GET(request: NextRequest) {
         }
       : null;
 
+    // Query the latest pending phone number request for this business.
+    const { data: reqRow } = await supabase
+      .from('phone_number_requests')
+      .select('status, requested_city, created_at')
+      .eq('business_id', bizId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const req = reqRow as {
+      status:         string;
+      requested_city: string | null;
+      created_at:     string;
+    } | null;
+    const numberRequest = req
+      ? {
+          status:        req.status,
+          requestedCity: req.requested_city ?? null,
+          createdAt:     req.created_at,
+        }
+      : null;
+
     return NextResponse.json({
       ok: true,
       business,
@@ -72,6 +95,7 @@ export async function GET(request: NextRequest) {
         typeof biz.business_phone_number === 'string' && biz.business_phone_number.length > 0,
       activationAllowed,
       subscription,
+      numberRequest,
     });
   } catch {
     return NextResponse.json({ ok: false, error: 'business_route_failed' }, { status: 500 });
