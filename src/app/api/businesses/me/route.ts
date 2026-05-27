@@ -43,11 +43,23 @@ export async function GET(request: NextRequest) {
     const biz = business as Record<string, unknown>;
     const bizId = biz.id as string;
 
-    const { data: subRow } = await supabase
+    const { data: subRow, error: subError } = await supabase
       .from('business_subscriptions')
       .select('plan_key, status, trial_ends_at')
       .eq('business_id', bizId)
       .maybeSingle();
+
+    if (subError) {
+      console.error('[api/businesses/me] subscription query failed', {
+        code:        subError.code,
+        message:     subError.message,
+        bizIdPrefix: bizId.slice(0, 8),
+      });
+      return NextResponse.json(
+        { ok: false, error: 'subscription_query_failed' },
+        { status: 500 }
+      );
+    }
 
     const ALLOWED_STATUSES = ['pending_manual_review', 'trialing', 'active'];
     const sub = subRow as {
@@ -66,7 +78,7 @@ export async function GET(request: NextRequest) {
       : null;
 
     // Query the latest pending phone number request for this business.
-    const { data: reqRow } = await supabase
+    const { data: reqRow, error: requestError } = await supabase
       .from('phone_number_requests')
       .select('status, requested_city, created_at')
       .eq('business_id', bizId)
@@ -74,6 +86,18 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (requestError) {
+      console.error('[api/businesses/me] number request query failed', {
+        code:        requestError.code,
+        message:     requestError.message,
+        bizIdPrefix: bizId.slice(0, 8),
+      });
+      return NextResponse.json(
+        { ok: false, error: 'number_request_query_failed' },
+        { status: 500 }
+      );
+    }
 
     const req = reqRow as {
       status:         string;
