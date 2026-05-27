@@ -34,12 +34,14 @@ const selectCls = inputCls + ' cursor-pointer';
 function Field({
   label,
   children,
+  fullWidth,
 }: {
   label: string;
   children: React.ReactNode;
+  fullWidth?: boolean;
 }) {
   return (
-    <div>
+    <div className={fullWidth ? 'sm:col-span-2' : undefined}>
       <label className={labelCls}>{label}</label>
       {children}
     </div>
@@ -51,6 +53,12 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
 
   function set<K extends keyof BusinessProfile>(key: K, value: BusinessProfile[K]) {
     onChange({ ...profile, [key]: value });
+  }
+
+  // Keep legacy `address` in sync with addressLine1 so existing offer rendering
+  // (which reads `address`) continues to work without a separate migration.
+  function handleAddressLine1Change(value: string) {
+    onChange({ ...profile, addressLine1: value, address: value });
   }
 
   function handleLogoUpload(e: ChangeEvent<HTMLInputElement>) {
@@ -66,11 +74,12 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
 
   return (
     <div className="space-y-8">
-      {/* 1. Business settings */}
+
+      {/* 1. Ταυτότητα επιχείρησης */}
       <section>
-        <h2 className="mb-4 text-base font-semibold text-zinc-900">Στοιχεία επιχείρησης</h2>
+        <h2 className="mb-4 text-base font-semibold text-zinc-900">Ταυτότητα επιχείρησης</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Επωνυμία">
+          <Field label="Επωνυμία εμφάνισης">
             <input
               className={inputCls}
               value={profile.businessName}
@@ -78,14 +87,65 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
               placeholder="π.χ. Τεχνική Σάνε"
             />
           </Field>
-          <Field label="Όνομα ιδιοκτήτη">
+          <Field label="Τύπος επιχείρησης">
+            <select
+              className={selectCls}
+              value={profile.businessType}
+              onChange={(e) => set('businessType', e.target.value as BusinessType)}
+            >
+              {BUSINESS_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Νομική επωνυμία">
             <input
               className={inputCls}
-              value={profile.ownerName}
-              onChange={(e) => set('ownerName', e.target.value)}
-              placeholder="π.χ. Γιώργος Σανές"
+              value={profile.legalName ?? ''}
+              onChange={(e) => set('legalName', e.target.value)}
+              placeholder="π.χ. ΤΕΧΝΙΚΗ ΣΑΝΕ ΙΚΕ"
             />
           </Field>
+          <Field label="Εμπορικό όνομα">
+            <input
+              className={inputCls}
+              value={profile.tradeName ?? ''}
+              onChange={(e) => set('tradeName', e.target.value)}
+              placeholder="π.χ. Τεχνική Σάνε"
+            />
+          </Field>
+        </div>
+      </section>
+
+      {/* 2. Υπεύθυνος */}
+      <section>
+        <h2 className="mb-4 text-base font-semibold text-zinc-900">Υπεύθυνος</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Όνομα υπευθύνου">
+            <input
+              className={inputCls}
+              value={profile.ownerFirstName ?? ''}
+              onChange={(e) => set('ownerFirstName', e.target.value)}
+              placeholder="π.χ. Γιώργος"
+            />
+          </Field>
+          <Field label="Επώνυμο υπευθύνου">
+            <input
+              className={inputCls}
+              value={profile.ownerLastName ?? ''}
+              onChange={(e) => set('ownerLastName', e.target.value)}
+              placeholder="π.χ. Σανές"
+            />
+          </Field>
+        </div>
+      </section>
+
+      {/* 3. Επικοινωνία */}
+      <section>
+        <h2 className="mb-4 text-base font-semibold text-zinc-900">Επικοινωνία</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Τηλέφωνο">
             <input
               className={inputCls}
@@ -104,27 +164,70 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
               placeholder="π.χ. info@example.gr"
             />
           </Field>
-          <Field label="Διεύθυνση">
+          <Field label="Ιστότοπος">
             <input
               className={inputCls}
-              value={profile.address}
-              onChange={(e) => set('address', e.target.value)}
-              placeholder="π.χ. Λεωφ. Βικέλα 30, Θεσσαλονίκη"
+              type="url"
+              value={profile.website ?? ''}
+              onChange={(e) => set('website', e.target.value)}
+              placeholder="https://example.gr"
             />
           </Field>
-          <Field label="Τύπος επιχείρησης">
-            <select
-              className={selectCls}
-              value={profile.businessType}
-              onChange={(e) => set('businessType', e.target.value as BusinessType)}
-            >
-              {BUSINESS_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
+        </div>
+      </section>
+
+      {/* 4. Διεύθυνση */}
+      <section>
+        <h2 className="mb-4 text-base font-semibold text-zinc-900">Διεύθυνση</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Οδός και αριθμός" fullWidth>
+            <input
+              className={inputCls}
+              value={profile.addressLine1 ?? ''}
+              onChange={(e) => handleAddressLine1Change(e.target.value)}
+              placeholder="π.χ. Λεωφ. Βικέλα 30"
+            />
           </Field>
+          <Field label="Συμπλήρωμα διεύθυνσης" fullWidth>
+            <input
+              className={inputCls}
+              value={profile.addressLine2 ?? ''}
+              onChange={(e) => set('addressLine2', e.target.value)}
+              placeholder="π.χ. Όροφος 2, Διαμέρισμα 4"
+            />
+          </Field>
+          <Field label="ΤΚ">
+            <input
+              className={inputCls}
+              value={profile.postalCode ?? ''}
+              onChange={(e) => set('postalCode', e.target.value)}
+              placeholder="π.χ. 54249"
+              maxLength={5}
+            />
+          </Field>
+          <Field label="Πόλη">
+            <input
+              className={inputCls}
+              value={profile.city ?? ''}
+              onChange={(e) => set('city', e.target.value)}
+              placeholder="π.χ. Θεσσαλονίκη"
+            />
+          </Field>
+          <Field label="Περιοχή / Νομός">
+            <input
+              className={inputCls}
+              value={profile.region ?? ''}
+              onChange={(e) => set('region', e.target.value)}
+              placeholder="π.χ. Κεντρική Μακεδονία"
+            />
+          </Field>
+        </div>
+      </section>
+
+      {/* 5. Φορολογικά */}
+      <section>
+        <h2 className="mb-4 text-base font-semibold text-zinc-900">Φορολογικά</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="ΑΦΜ">
             <input
               className={inputCls}
@@ -144,7 +247,7 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
         </div>
       </section>
 
-      {/* 2. Logo */}
+      {/* 6. Logo */}
       <section>
         <h2 className="mb-1 text-base font-semibold text-zinc-900">Λογότυπο</h2>
         <p className="mb-4 text-xs text-zinc-400">
@@ -193,7 +296,7 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
         </div>
       </section>
 
-      {/* 3. Offer settings */}
+      {/* 7. Offer settings */}
       <section>
         <h2 className="mb-4 text-base font-semibold text-zinc-900">Ρυθμίσεις προσφορών</h2>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -224,7 +327,7 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
         </div>
       </section>
 
-      {/* 4. Communication defaults */}
+      {/* 8. Communication defaults */}
       <section>
         <h2 className="mb-4 text-base font-semibold text-zinc-900">Προεπιλεγμένη επικοινωνία</h2>
         <Field label="Προτιμώμενος τρόπος επικοινωνίας">

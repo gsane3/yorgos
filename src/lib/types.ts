@@ -21,6 +21,15 @@ export interface BusinessProfile {
   email: string;
   address: string;
   city?: string;
+  legalName?: string;
+  tradeName?: string;
+  ownerFirstName?: string;
+  ownerLastName?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  postalCode?: string;
+  region?: string;
+  website?: string;
   vatNumber: string;
   taxOffice: string;
   logoDataUrl: string;

@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     const { data: business, error: queryError } = await supabase
       .from('businesses')
       .select(
-        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, created_at, updated_at'
+        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, legal_name, trade_name, owner_first_name, owner_last_name, address_line1, address_line2, postal_code, region, website, created_at, updated_at'
       )
       .eq('owner_id', user.id)
       .maybeSingle();
@@ -197,6 +197,18 @@ export async function PATCH(request: NextRequest) {
       defaultVatRate = n;
     }
 
+    // postal_code must be exactly 5 digits if provided.
+    const postalCodeRaw = patchStr(raw.postal_code);
+    if (postalCodeRaw !== null && !/^\d{5}$/.test(postalCodeRaw)) {
+      return NextResponse.json({ ok: false, error: 'invalid_postal_code' }, { status: 400 });
+    }
+
+    // website must start with http:// or https:// if provided.
+    const websiteRaw = patchStr(raw.website);
+    if (websiteRaw !== null && !/^https?:\/\/.+/.test(websiteRaw)) {
+      return NextResponse.json({ ok: false, error: 'invalid_website' }, { status: 400 });
+    }
+
     // Verify the business exists and belongs to this user.
     const { data: existing } = await supabase
       .from('businesses')
@@ -223,6 +235,15 @@ export async function PATCH(request: NextRequest) {
       tax_office:               patchStr(raw.tax_office),
       default_offer_terms:      patchStr(raw.default_offer_terms),
       default_acceptance_text:  patchStr(raw.default_acceptance_text),
+      legal_name:               patchStr(raw.legal_name),
+      trade_name:               patchStr(raw.trade_name),
+      owner_first_name:         patchStr(raw.owner_first_name),
+      owner_last_name:          patchStr(raw.owner_last_name),
+      address_line1:            patchStr(raw.address_line1),
+      address_line2:            patchStr(raw.address_line2),
+      postal_code:              postalCodeRaw,
+      region:                   patchStr(raw.region),
+      website:                  websiteRaw,
       updated_at:               new Date().toISOString(),
     };
     if (defaultVatRate !== undefined) {
@@ -234,7 +255,7 @@ export async function PATCH(request: NextRequest) {
       .update(updates)
       .eq('owner_id', user.id)
       .select(
-        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, created_at, updated_at'
+        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, legal_name, trade_name, owner_first_name, owner_last_name, address_line1, address_line2, postal_code, region, website, created_at, updated_at'
       )
       .single();
 
