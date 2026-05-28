@@ -294,6 +294,18 @@ export default function CustomerDetailPage() {
   const [customerSaveState, setCustomerSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [customerSaveError, setCustomerSaveError] = useState<string | null>(null);
 
+  const [isAiSuggesting, setIsAiSuggesting] = useState(false);
+  const [aiSuggestError, setAiSuggestError] = useState<string | null>(null);
+  const [aiSuggestionActive, setAiSuggestionActive] = useState(false);
+  const [aiSuggestionWarnings, setAiSuggestionWarnings] = useState<string[]>([]);
+  const [aiSuggestionConfidence, setAiSuggestionConfidence] = useState<'low' | 'medium' | 'high' | null>(null);
+  const [aiPreviousMemory, setAiPreviousMemory] = useState<{
+    statusSummary: string | null;
+    businessNotes: string | null;
+    personalNotes: string | null;
+    nextBestAction: string | null;
+  } | null>(null);
+
   const [isRejectPanelOpen, setIsRejectPanelOpen] = useState(false);
   const [rejectDraftText, setRejectDraftText] = useState('');
   const [rejectSaveState, setRejectSaveState] = useState<'idle' | 'copying' | 'saving' | 'saved' | 'error'>('idle');
@@ -495,6 +507,11 @@ export default function CustomerDetailPage() {
 
   function startEditCustomer() {
     if (!customer) return;
+    setAiSuggestionActive(false);
+    setAiSuggestionWarnings([]);
+    setAiSuggestionConfidence(null);
+    setAiPreviousMemory(null);
+    setAiSuggestError(null);
     setCustomerDraft({
       name: customer.name,
       companyName: customer.companyName,
@@ -523,6 +540,89 @@ export default function CustomerDetailPage() {
     setCustomerDraft(null);
     setCustomerSaveError(null);
     setCustomerSaveState('idle');
+    setAiSuggestionActive(false);
+    setAiSuggestionWarnings([]);
+    setAiSuggestionConfidence(null);
+    setAiPreviousMemory(null);
+  }
+
+  async function suggestMemoryUpdate() {
+    if (!customer) return;
+    setIsAiSuggesting(true);
+    setAiSuggestError(null);
+    setAiSuggestionWarnings([]);
+    setAiSuggestionConfidence(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setAiSuggestError('Δεν βρέθηκε ενεργή σύνδεση. Δοκίμασε ξανά.');
+        return;
+      }
+      const res = await fetch('/api/ai/customer-memory', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ customerId: customer.id, triggerEvent: 'manual' }),
+      });
+      const json = await res.json() as {
+        ok?: boolean;
+        suggestion?: {
+          proposedStatusSummary: string | null;
+          proposedBusinessNotes: string | null;
+          proposedPersonalNotes: string | null;
+          proposedNextBestAction: string | null;
+          confidence: 'low' | 'medium' | 'high';
+          warnings: string[];
+        };
+        error?: string;
+      };
+      if (!res.ok || !json.ok || !json.suggestion) {
+        if (res.status === 429) {
+          setAiSuggestError('Πολλές αιτήσεις. Περίμενε λίγο και δοκίμασε ξανά.');
+        } else {
+          setAiSuggestError('Αδυναμία πρότασης από AI. Δοκίμασε ξανά.');
+        }
+        return;
+      }
+      const s = json.suggestion;
+      setAiPreviousMemory({
+        statusSummary: customer.statusSummary ?? null,
+        businessNotes: customer.businessNotes ?? null,
+        personalNotes: customer.personalNotes ?? null,
+        nextBestAction: customer.nextBestAction ?? null,
+      });
+      setCustomerDraft({
+        name: customer.name,
+        companyName: customer.companyName,
+        phone: customer.phone,
+        mobilePhone: customer.mobilePhone,
+        landlinePhone: customer.landlinePhone,
+        email: customer.email,
+        address: customer.address,
+        status: customer.status,
+        source: customer.source,
+        preferredContactMethod: customer.preferredContactMethod,
+        needsSummary: customer.needsSummary,
+        notes: customer.notes,
+        statusSummary: s.proposedStatusSummary ?? customer.statusSummary ?? null,
+        businessNotes: s.proposedBusinessNotes ?? customer.businessNotes ?? null,
+        personalNotes: s.proposedPersonalNotes ?? customer.personalNotes ?? null,
+        nextBestAction: s.proposedNextBestAction ?? customer.nextBestAction ?? null,
+      });
+      setIsEditingCustomer(true);
+      setAiSuggestionActive(true);
+      setAiSuggestionConfidence(s.confidence);
+      setAiSuggestionWarnings(s.warnings);
+      setCustomerSaveError(null);
+      setCustomerSaveState('idle');
+    } catch {
+      setAiSuggestError('Αδυναμία πρότασης από AI. Δοκίμασε ξανά.');
+    } finally {
+      setIsAiSuggesting(false);
+    }
   }
 
   async function saveCustomerDraft() {
@@ -551,6 +651,10 @@ export default function CustomerDetailPage() {
         setCustomerSaveState('saved');
         setIsEditingCustomer(false);
         setCustomerDraft(null);
+        setAiSuggestionActive(false);
+        setAiSuggestionWarnings([]);
+        setAiSuggestionConfidence(null);
+        setAiPreviousMemory(null);
         setTimeout(() => setCustomerSaveState('idle'), 2500);
       } else {
         setCustomerSaveState('error');
@@ -2077,24 +2181,62 @@ export default function CustomerDetailPage() {
 
       {/* Memory section */}
       <section id="ws-memory" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3 flex items-center justify-between gap-2">
+        <div className="border-b border-zinc-100 px-4 py-3 flex items-start justify-between gap-2">
           <div>
             <h2 className="text-sm font-semibold text-zinc-900">Μνήμη πελάτη</h2>
             <p className="mt-0.5 text-xs text-zinc-400">Χειροκίνητες σημειώσεις για καλύτερη κατανόηση του πελάτη.</p>
           </div>
           {!isEditingCustomer && (
-            <button
-              type="button"
-              onClick={startEditCustomer}
-              className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
-            >
-              Επεξεργασία
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={suggestMemoryUpdate}
+                disabled={isAiSuggesting}
+                className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isAiSuggesting ? 'Ανάλυση...' : 'Πρότεινε με AI'}
+              </button>
+              <button
+                type="button"
+                onClick={startEditCustomer}
+                className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+              >
+                Επεξεργασία
+              </button>
+            </div>
           )}
         </div>
 
+        {!isEditingCustomer && (
+          <div className="px-4 pt-2 pb-0">
+            <p className="text-[11px] text-zinc-400">Τα δεδομένα του πελάτη αποστέλλονται στο AI για πρόταση.</p>
+            {aiSuggestError && (
+              <p className="mt-1 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-100">{aiSuggestError}</p>
+            )}
+          </div>
+        )}
+
         {isEditingCustomer && customerDraft ? (
           <div className="space-y-4 px-4 py-4">
+            {aiSuggestionActive && (
+              <div className={`rounded-xl px-3 py-2 text-xs ring-1 ${
+                aiSuggestionConfidence === 'high'
+                  ? 'bg-green-50 text-green-800 ring-green-200'
+                  : aiSuggestionConfidence === 'medium'
+                  ? 'bg-indigo-50 text-indigo-800 ring-indigo-200'
+                  : 'bg-amber-50 text-amber-800 ring-amber-200'
+              }`}>
+                <span className="font-semibold">
+                  {aiSuggestionConfidence === 'high' ? 'AI: Υψηλή εμπιστοσύνη' : aiSuggestionConfidence === 'medium' ? 'AI: Μέτρια εμπιστοσύνη' : 'AI: Χαμηλή εμπιστοσύνη'}
+                </span>
+                <span className="ml-1">Προτεινόμενη ενημέρωση από AI. Έλεγξε και αποθήκευσε ή απόρριψε.</span>
+                {aiSuggestionWarnings.length > 0 && (
+                  <ul className="mt-1 list-disc list-inside space-y-0.5">
+                    {aiSuggestionWarnings.map((w, i) => <li key={i}>{w}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
             <div>
               <label className="block text-xs font-medium text-zinc-600 mb-1">Τρέχουσα κατάσταση</label>
               <textarea
@@ -2104,6 +2246,9 @@ export default function CustomerDetailPage() {
                 placeholder="Σύντομη περιγραφή της τρέχουσας κατάστασης του πελάτη."
                 className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
               />
+              {aiSuggestionActive && aiPreviousMemory?.statusSummary && aiPreviousMemory.statusSummary.trim() && (
+                <p className="mt-1 text-[11px] text-zinc-400">Προηγούμενο: {truncate(aiPreviousMemory.statusSummary.trim(), 160)}</p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-600 mb-1">Επαγγελματικές σημειώσεις</label>
@@ -2114,6 +2259,9 @@ export default function CustomerDetailPage() {
                 placeholder="Πληροφορίες για την επαγγελματική δραστηριότητα, ανάγκες, προτιμήσεις."
                 className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
               />
+              {aiSuggestionActive && aiPreviousMemory?.businessNotes && aiPreviousMemory.businessNotes.trim() && (
+                <p className="mt-1 text-[11px] text-zinc-400">Προηγούμενο: {truncate(aiPreviousMemory.businessNotes.trim(), 160)}</p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-600 mb-1">Προσωπικά που αξίζει να θυμόμαστε</label>
@@ -2124,7 +2272,11 @@ export default function CustomerDetailPage() {
                 placeholder="Κράτα εδώ ανθρώπινες λεπτομέρειες που βοηθούν στη σχέση με τον πελάτη. Όχι ευαίσθητα δεδομένα χωρίς λόγο."
                 className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
               />
-              <p className="mt-1 text-[11px] text-zinc-400">Κράτα εδώ ανθρώπινες λεπτομέρειες που βοηθούν στη σχέση με τον πελάτη. Όχι ευαίσθητα δεδομένα χωρίς λόγο.</p>
+              {aiSuggestionActive && aiPreviousMemory?.personalNotes && aiPreviousMemory.personalNotes.trim() ? (
+                <p className="mt-1 text-[11px] text-zinc-400">Προηγούμενο: {truncate(aiPreviousMemory.personalNotes.trim(), 160)}</p>
+              ) : (
+                <p className="mt-1 text-[11px] text-zinc-400">Κράτα εδώ ανθρώπινες λεπτομέρειες που βοηθούν στη σχέση με τον πελάτη. Όχι ευαίσθητα δεδομένα χωρίς λόγο.</p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-600 mb-1">Επόμενη ενέργεια</label>
@@ -2135,7 +2287,11 @@ export default function CustomerDetailPage() {
                 placeholder="Σύντομη υπενθύμιση για την επόμενη ενέργεια."
                 className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
               />
-              <p className="mt-1 text-[11px] text-zinc-400">Σύντομη υπενθύμιση. Για προθεσμία, χρησιμοποίησε task.</p>
+              {aiSuggestionActive && aiPreviousMemory?.nextBestAction && aiPreviousMemory.nextBestAction.trim() ? (
+                <p className="mt-1 text-[11px] text-zinc-400">Προηγούμενο: {truncate(aiPreviousMemory.nextBestAction.trim(), 160)}</p>
+              ) : (
+                <p className="mt-1 text-[11px] text-zinc-400">Σύντομη υπενθύμιση. Για προθεσμία, χρησιμοποίησε task.</p>
+              )}
             </div>
           </div>
         ) : (
