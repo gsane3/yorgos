@@ -1,10 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
-// Static notification items. Read state is held only in component useState.
-// No backend fetch, no persistence, no browser storage. Resets on page reload.
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+// Shape returned by GET /api/notifications
+interface ApiNotification {
+  id: string;
+  kind: 'offer' | 'appointment';
+  response: string;
+  title: string;
+  description: string;
+  customerId: string | null;
+  customerName: string;
+  href: string;
+  respondedAt: string;
+  isNew: boolean;
+}
+
+// Internal display shape
 interface Notification {
   id: string;
   title: string;
@@ -15,58 +33,97 @@ interface Notification {
   isNew: boolean;
 }
 
-const NOTIFICATIONS: Notification[] = [
-  {
-    id: 'appt-decline',
-    title: 'Ο πελάτης απάντησε στο ραντεβού',
-    description: 'Δήλωσε ότι δεν μπορεί να παρευρεθεί.',
-    href: '/appointments',
-    timeLabel: 'Τώρα',
-    typeLabel: 'Ραντεβού',
-    isNew: true,
-  },
-  {
-    id: 'appt-time-change',
-    title: 'Νέο αίτημα αλλαγής ώρας',
-    description: 'Πελάτης ζήτησε νέα ώρα για προγραμματισμένο ραντεβού.',
-    href: '/appointments',
-    timeLabel: '5 λεπτά πριν',
-    typeLabel: 'Ραντεβού',
-    isNew: true,
-  },
-  {
-    id: 'offer-followup',
-    title: 'Προσφορά χρειάζεται follow-up',
-    description: 'Υπάρχει ανοιχτή προσφορά που περιμένει απάντηση.',
-    href: '/offers',
-    timeLabel: 'Σήμερα',
-    typeLabel: 'Προσφορά',
-    isNew: true,
-  },
-  {
-    id: 'call-action',
-    title: 'Κλήση που θέλει ενέργεια',
-    description: 'Υπάρχει κλήση με επόμενο βήμα για έλεγχο.',
-    href: '/calls',
-    timeLabel: 'Σήμερα',
-    typeLabel: 'Κλήση',
-    isNew: false,
-  },
-  {
-    id: 'ai-review',
-    title: 'AI πρόταση για έλεγχο',
-    description: 'Έτοιμη ενέργεια που χρειάζεται έγκριση πριν αποθηκευτεί.',
-    href: '/cmd',
-    timeLabel: 'Σήμερα',
-    typeLabel: 'AI',
-    isNew: false,
-  },
-];
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatTimeLabel(respondedAt: string): string {
+  try {
+    const diff = Date.now() - new Date(respondedAt).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 2) return 'Μόλις τώρα';
+    if (minutes < 60) return `${minutes} λεπτά πριν`;
+    const hours = Math.floor(diff / 3600000);
+    if (hours < 24) return 'Σήμερα';
+    if (hours < 48) return 'Χθες';
+    const d = new Date(respondedAt);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${day}/${month}/${d.getFullYear()}`;
+  } catch {
+    return '';
+  }
+}
+
+function mapApiToNotification(n: ApiNotification): Notification {
+  return {
+    id: n.id,
+    title: n.title,
+    description: n.description,
+    href: n.href,
+    timeLabel: formatTimeLabel(n.respondedAt),
+    typeLabel: n.kind === 'offer' ? 'Προσφορά' : 'Ραντεβού',
+    isNew: n.isNew,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export default function AttentionInboxBar() {
   const [open, setOpen] = useState(false);
-  // readIds tracks notifications the user has clicked. Only clicking an item adds to this set.
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchNotifications() {
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session || cancelled) {
+          setLoading(false);
+          return;
+        }
+
+        const res = await fetch('/api/notifications', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+
+        if (cancelled) return;
+
+        if (!res.ok) {
+          setLoading(false);
+          return;
+        }
+
+        const json = (await res.json()) as {
+          ok?: boolean;
+          notifications?: ApiNotification[];
+        };
+
+        if (cancelled) return;
+
+        if (json.ok && Array.isArray(json.notifications)) {
+          setNotifications(json.notifications.map(mapApiToNotification));
+        }
+      } catch {
+        // Network error: show empty state, do not crash.
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    fetchNotifications();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function markRead(id: string) {
     setReadIds((prev) => {
@@ -76,11 +133,11 @@ export default function AttentionInboxBar() {
     });
   }
 
-  // Badge = isNew items not yet clicked/read.
-  const unreadCount = NOTIFICATIONS.filter((n) => n.isNew && !readIds.has(n.id)).length;
+  // Badge counts unread (isNew && not yet clicked) items.
+  const unreadCount = notifications.filter((n) => n.isNew && !readIds.has(n.id)).length;
 
-  // New/unread items first, then older items in original order.
-  const sorted = [...NOTIFICATIONS].sort((a, b) => {
+  // Unread items first, then the rest in original (already-sorted) order.
+  const sorted = [...notifications].sort((a, b) => {
     const aUnread = a.isNew && !readIds.has(a.id) ? 0 : 1;
     const bUnread = b.isNew && !readIds.has(b.id) ? 0 : 1;
     return aUnread - bUnread;
@@ -88,7 +145,7 @@ export default function AttentionInboxBar() {
 
   return (
     <div className="relative">
-      {/* Bell button - native, subtle */}
+      {/* Bell button */}
       <button
         type="button"
         title="Ειδοποιήσεις"
@@ -130,7 +187,6 @@ export default function AttentionInboxBar() {
                 </span>
               )}
             </div>
-            {/* X closes panel only; does not mark anything read */}
             <button
               type="button"
               onClick={() => setOpen(false)}
@@ -151,52 +207,64 @@ export default function AttentionInboxBar() {
 
           <p className="px-4 pb-1 pt-2 text-xs text-zinc-500">Τα νέα που χρειάζονται προσοχή.</p>
 
-          {/* Notification list */}
-          <ul className="space-y-1.5 px-3 pb-3 pt-1">
-            {sorted.map((n) => {
-              const isUnread = n.isNew && !readIds.has(n.id);
-              return (
-                <li key={n.id}>
-                  {/* Clicking a notification marks it read, closes panel, and navigates */}
-                  <Link
-                    href={n.href}
-                    onClick={() => { markRead(n.id); setOpen(false); }}
-                    className={`block rounded-xl px-3 py-2.5 transition ${
-                      isUnread
-                        ? 'bg-indigo-50 hover:bg-indigo-100'
-                        : 'bg-zinc-50 hover:bg-zinc-100'
-                    }`}
-                  >
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className={`text-xs font-semibold ${
-                            isUnread ? 'text-zinc-900' : 'text-zinc-500'
-                          }`}
-                        >
-                          {n.title}
-                        </span>
-                        {isUnread && (
-                          <span className="shrink-0 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                            Νέο
+          {/* Content area */}
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500" />
+            </div>
+          ) : sorted.length === 0 ? (
+            <p className="px-4 pb-6 pt-2 text-center text-sm text-zinc-400">
+              Δεν υπάρχουν νέες απαντήσεις.
+            </p>
+          ) : (
+            <ul className="space-y-1.5 px-3 pb-3 pt-1">
+              {sorted.map((n) => {
+                const isUnread = n.isNew && !readIds.has(n.id);
+                return (
+                  <li key={n.id}>
+                    <Link
+                      href={n.href}
+                      onClick={() => {
+                        markRead(n.id);
+                        setOpen(false);
+                      }}
+                      className={`block rounded-xl px-3 py-2.5 transition ${
+                        isUnread
+                          ? 'bg-indigo-50 hover:bg-indigo-100'
+                          : 'bg-zinc-50 hover:bg-zinc-100'
+                      }`}
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`text-xs font-semibold ${
+                              isUnread ? 'text-zinc-900' : 'text-zinc-500'
+                            }`}
+                          >
+                            {n.title}
                           </span>
-                        )}
+                          {isUnread && (
+                            <span className="shrink-0 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                              Νέο
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-xs ${isUnread ? 'text-zinc-600' : 'text-zinc-400'}`}>
+                          {n.description}
+                        </p>
+                        <div className="flex items-center justify-between pt-0.5">
+                          <span className="text-[10px] text-zinc-400">
+                            {n.typeLabel} · {n.timeLabel}
+                          </span>
+                          <span className="text-[10px] font-medium text-indigo-600">Άνοιγμα</span>
+                        </div>
                       </div>
-                      <p className={`text-xs ${isUnread ? 'text-zinc-600' : 'text-zinc-400'}`}>{n.description}</p>
-                      <div className="flex items-center justify-between pt-0.5">
-                        <span className="text-[10px] text-zinc-400">
-                          {n.typeLabel} · {n.timeLabel}
-                        </span>
-                        <span className="text-[10px] font-medium text-indigo-600">
-                          Άνοιγμα
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       )}
     </div>
