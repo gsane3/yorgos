@@ -320,6 +320,20 @@ export default function CustomerDetailPage() {
 
   const [offerSaveError, setOfferSaveError] = useState<string | null>(null);
 
+  interface OfferSendReview {
+    offerId: string;
+    offerNumber: string;
+    responseUrl: string | null;
+    message: string | null;
+    recipient: string | null;
+    loading: boolean;
+    sending: boolean;
+    sent: boolean;
+    error: string | null;
+    copied: boolean;
+  }
+  const [offerSendReview, setOfferSendReview] = useState<OfferSendReview | null>(null);
+
   const [selectedCall, setSelectedCall] = useState<CommunicationDto | null>(null);
 
   const [editingTask, setEditingTask] = useState<TaskDto | null>(null);
@@ -857,10 +871,66 @@ export default function CustomerDetailPage() {
         },
         body: JSON.stringify(body),
       });
-      const json = await res.json() as { ok?: boolean; error?: string };
-      if (res.ok && json.ok) {
+      const json = await res.json() as { ok?: boolean; error?: string; offer?: { id: string; offerNumber?: string } };
+      if (res.ok && json.ok && json.offer?.id) {
+        const savedOfferId = json.offer.id;
+        const savedOfferNumber = json.offer.offerNumber ?? '';
         closeQuickModal();
         setRefreshTick(t => t + 1);
+
+        // Always open the review modal immediately in loading state.
+        setOfferSendReview({
+          offerId: savedOfferId,
+          offerNumber: savedOfferNumber,
+          responseUrl: null,
+          message: null,
+          recipient: null,
+          loading: true,
+          sending: false,
+          sent: false,
+          error: null,
+          copied: false,
+        });
+
+        // Fetch draft to populate responseUrl, message and recipient.
+        try {
+          const draftRes = await fetch(`/api/offers/${savedOfferId}/notify`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ mode: 'draft' }),
+          });
+          const draftJson = await draftRes.json() as {
+            ok?: boolean;
+            responseUrl?: string;
+            message?: string;
+            recipient?: string | null;
+          };
+          if (draftRes.ok && draftJson.ok && draftJson.responseUrl && draftJson.message) {
+            setOfferSendReview(prev => prev ? {
+              ...prev,
+              responseUrl: draftJson.responseUrl!,
+              message: draftJson.message!,
+              recipient: draftJson.recipient ?? null,
+              loading: false,
+              error: null,
+            } : null);
+          } else {
+            setOfferSendReview(prev => prev ? {
+              ...prev,
+              loading: false,
+              error: 'Η προσφορά αποθηκεύτηκε, αλλά δεν δημιουργήθηκε μήνυμα Viber.',
+            } : null);
+          }
+        } catch {
+          setOfferSendReview(prev => prev ? {
+            ...prev,
+            loading: false,
+            error: 'Η προσφορά αποθηκεύτηκε, αλλά δεν δημιουργήθηκε μήνυμα Viber.',
+          } : null);
+        }
       } else {
         setOfferSaveError('Δεν αποθηκεύτηκε η προσφορά. Δοκίμασε ξανά.');
       }
@@ -2406,6 +2476,183 @@ export default function CustomerDetailPage() {
                 onCancel={closeQuickModal}
               />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Offer send review modal */}
+      {offerSendReview !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+          onClick={() => setOfferSendReview(null)}
+        >
+          <div
+            className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-zinc-900">
+                {offerSendReview.offerNumber
+                  ? `Αποστολή προσφοράς ${offerSendReview.offerNumber}`
+                  : 'Αποστολή προσφοράς'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setOfferSendReview(null)}
+                aria-label="Κλείσιμο"
+                className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+              >
+                <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Loading state */}
+            {offerSendReview.loading && (
+              <div className="flex items-center gap-3 py-4">
+                <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500" />
+                <p className="text-sm text-zinc-600">Δημιουργία link απάντησης...</p>
+              </div>
+            )}
+
+            {/* Draft failed -- no message was generated */}
+            {!offerSendReview.loading && !offerSendReview.message && offerSendReview.error && (
+              <>
+                <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
+                  {offerSendReview.error}
+                </p>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setOfferSendReview(null)}
+                    className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Κλείσιμο
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Main content: shown once message is available */}
+            {!offerSendReview.loading && offerSendReview.message && (
+              <>
+                {offerSendReview.recipient && (
+                  <p className="mb-2 text-xs text-zinc-500">
+                    {'Παραλήπτης Viber: '}
+                    <span className="font-medium text-zinc-700">{offerSendReview.recipient}</span>
+                  </p>
+                )}
+
+                <p className="mb-1 text-xs text-zinc-500">Μήνυμα:</p>
+                <div className="mb-4 break-words whitespace-pre-wrap rounded-xl bg-zinc-50 px-3 py-2.5 text-xs text-zinc-700">
+                  {offerSendReview.message}
+                </div>
+
+                {/* Success banner */}
+                {offerSendReview.sent && (
+                  <div className="mb-3 rounded-xl bg-green-50 px-3 py-2.5 text-sm font-medium text-green-700">
+                    Η προσφορά στάλθηκε με Viber.
+                  </div>
+                )}
+
+                {/* Send error / fallback banner */}
+                {offerSendReview.error && !offerSendReview.sent && (
+                  <div className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    {offerSendReview.error}
+                  </div>
+                )}
+
+                {/* Primary: Viber send button (hidden after success) */}
+                {!offerSendReview.sent && (
+                  <button
+                    type="button"
+                    disabled={offerSendReview.sending}
+                    onClick={async () => {
+                      const review = offerSendReview;
+                      const supabase = createBrowserSupabaseClient();
+                      const { data: { session: s } } = await supabase.auth.getSession();
+                      if (!s) {
+                        setOfferSendReview({ ...review, error: 'Δεν βρέθηκε session. Δοκίμασε ξανά.' });
+                        return;
+                      }
+                      setOfferSendReview({ ...review, sending: true, error: null });
+                      try {
+                        const res = await fetch(`/api/offers/${review.offerId}/notify`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${s.access_token}`,
+                          },
+                          body: JSON.stringify({ mode: 'send', responseUrl: review.responseUrl }),
+                        });
+                        const json = await res.json() as {
+                          ok?: boolean;
+                          sent?: boolean;
+                          reason?: string;
+                        };
+                        if (!res.ok || !json.ok) {
+                          setOfferSendReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
+                          return;
+                        }
+                        if (json.sent) {
+                          setOfferSendReview({ ...review, sending: false, sent: true, error: null });
+                        } else {
+                          const reason = json.reason;
+                          const fallbackMsg =
+                            reason === 'missing_mobile' || reason === 'missing_customer'
+                              ? 'Δεν υπάρχει διαθέσιμο κινητό για αποστολή Viber.'
+                              : reason === 'provider_unavailable'
+                              ? 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.'
+                              : 'Δεν έγινε αποστολή Viber. Δοκίμασε ξανά ή αντέγραψε το μήνυμα.';
+                          setOfferSendReview({ ...review, sending: false, error: fallbackMsg });
+                        }
+                      } catch {
+                        setOfferSendReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
+                      }
+                    }}
+                    className="mb-3 w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {offerSendReview.sending ? 'Αποστολή...' : 'Αποστολή με Viber'}
+                  </button>
+                )}
+
+                {/* Secondary buttons row */}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(offerSendReview.message ?? '');
+                        setOfferSendReview(prev => prev ? { ...prev, copied: true } : null);
+                      } catch {
+                        // clipboard unavailable
+                      }
+                    }}
+                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    {offerSendReview.copied ? 'Αντιγράφηκε!' : 'Αντιγραφή μηνύματος'}
+                  </button>
+                  {offerSendReview.responseUrl && (
+                    <button
+                      type="button"
+                      onClick={() => window.open(offerSendReview.responseUrl!, '_blank', 'noopener,noreferrer')}
+                      className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                    >
+                      Άνοιγμα προσφοράς
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setOfferSendReview(null)}
+                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Κλείσιμο
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
