@@ -6,6 +6,7 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { getEffectiveStatus } from '@/lib/types';
 import type { Customer, Task, Offer, CallRecord, TaskBaseStatus, CommunicationRecord } from '@/lib/types';
 import NextActionsSection from '@/components/dashboard/NextActionsSection';
+import RecentCommunicationsSection from '@/components/dashboard/RecentCommunicationsSection';
 import AttentionInboxBar from '@/components/layout/AttentionInboxBar';
 
 const LEAD_STATUSES = new Set<string>([
@@ -239,7 +240,42 @@ export default function DashboardPage() {
         Array.isArray(offersData) ? offersData : (offersData.offers ?? [])
       ).map(mapOffer);
 
-      setDashboardData({ customers, tasks, offers, calls: undefined, communications: [] });
+      // Communications: best-effort, never breaks the dashboard on failure.
+      let communications: CommunicationRecord[] = [];
+      try {
+        const commsResp = await fetch('/api/communications?limit=5', { headers });
+        if (commsResp.ok) {
+          const commsData = await commsResp.json();
+          if (Array.isArray(commsData.communications)) {
+            communications = (commsData.communications as Record<string, unknown>[]).map((c) => {
+              const rawStatus = c.status as string;
+              const status: CommunicationRecord['status'] =
+                rawStatus === 'started' || rawStatus === 'sent' ||
+                rawStatus === 'failed' || rawStatus === 'completed'
+                  ? rawStatus
+                  : 'completed';
+              return {
+                id: c.id as string,
+                customerId:
+                  typeof c.customerId === 'string' && c.customerId.length > 0
+                    ? c.customerId
+                    : undefined,
+                channel: c.channel === 'sms' ? ('sms' as const) : ('call' as const),
+                direction:
+                  c.direction === 'outbound' ? ('outbound' as const) : ('inbound' as const),
+                status,
+                phone: typeof c.phone === 'string' ? c.phone : undefined,
+                summary: typeof c.summary === 'string' ? c.summary : undefined,
+                createdAt: c.createdAt as string,
+              };
+            });
+          }
+        }
+      } catch {
+        // best-effort: leave communications as []
+      }
+
+      setDashboardData({ customers, tasks, offers, calls: undefined, communications });
       setHydrated(true);
     } catch {
       setActionError('Αποτυχία φόρτωσης dashboard. Δοκίμασε ξανά.');
@@ -291,7 +327,7 @@ export default function DashboardPage() {
     );
   }
 
-  const { customers, tasks, offers } = dashboardData;
+  const { customers, tasks, offers, communications } = dashboardData;
 
   async function handleCompleteTask(taskId: string) {
     const token = tokenRef.current;
@@ -611,6 +647,12 @@ export default function DashboardPage() {
           href="/tasks"
         />
       </div>
+
+      {/* Recent communications */}
+      <RecentCommunicationsSection
+        communications={communications}
+        customerMap={customerMap}
+      />
 
       {/* Priorities */}
       <NextActionsSection

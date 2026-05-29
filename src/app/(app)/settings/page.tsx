@@ -309,11 +309,6 @@ export default function SettingsPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Σύντομα</p>
           {[
             {
-              label: 'Επαγγελματικός αριθμός',
-              desc: 'Αγορά επαγγελματικού αριθμού, προώθηση κλήσεων και αυτόματος εντοπισμός χαμένων κλήσεων.',
-              helper: 'Απαιτεί cloud backend και σύνδεση με VoIP provider.',
-            },
-            {
               label: 'Αποστολή email από τον τομέα σου',
               desc: 'Επαλήθευση τομέα για αποστολή προσφορών και ραντεβού από τη δική σου επαγγελματική διεύθυνση.',
               helper: 'Σήμερα η αποστολή γίνεται μόνο όταν είναι ρυθμισμένο το υπάρχον email endpoint.',

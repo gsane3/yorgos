@@ -56,7 +56,14 @@ export default function RecentCommunicationsSection({ communications, customerMa
         <ul className="divide-y divide-zinc-100">
           {recent.map((comm) => {
             const customerName = comm.customerId ? customerMap[comm.customerId] : undefined;
-            const title = comm.channel === 'sms' ? 'SMS από CRM' : 'Κλήση από CRM';
+            const title =
+              comm.channel === 'sms'
+                ? 'SMS από CRM'
+                : comm.direction === 'inbound'
+                ? 'Εισερχόμενη κλήση'
+                : comm.direction === 'outbound'
+                ? 'Εξερχόμενη κλήση'
+                : 'Κλήση από CRM';
             const detail = [customerName, comm.phone].filter(Boolean).join(' · ');
             const timeLabel = formatTime(comm.createdAt);
             const icon = comm.channel === 'sms' ? <SmsCommIcon /> : <CallCommIcon />;
