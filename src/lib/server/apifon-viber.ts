@@ -50,6 +50,7 @@ export interface SendIntakeViberParams {
   customerId: string;
   tokenId?: string | null;
   referenceId?: string | null;
+  messageText?: string | null;
 }
 
 export type SendIntakeViberResult =
@@ -249,7 +250,7 @@ function buildApifonRequest(
     im_channels: [
       {
         sender_id: config.senderId,
-        text: buildIntakeViberText(params.intakeUrl),
+        text: params.messageText?.trim() || buildIntakeViberText(params.intakeUrl),
         actions: [
           {
             title: 'Συμπλήρωση',
