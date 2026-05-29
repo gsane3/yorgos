@@ -2677,12 +2677,11 @@ export default function CustomerDetailPage() {
             </p>
           </div>
         )}
-        <div className="border-t border-zinc-100 px-4 py-3">
-          {fileOpenError ? (
-            <p className="mb-1.5 text-xs text-red-500">{fileOpenError}</p>
-          ) : null}
-          <p className="text-xs text-zinc-400">Η απευθείας προσθήκη αρχείων θα ενεργοποιηθεί σε επόμενη έκδοση.</p>
-        </div>
+        {fileOpenError ? (
+          <div className="border-t border-zinc-100 px-4 py-3">
+            <p className="text-xs text-red-500">{fileOpenError}</p>
+          </div>
+        ) : null}
       </section>
 
       <div className="flex justify-center">
