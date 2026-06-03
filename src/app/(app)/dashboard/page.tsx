@@ -560,7 +560,7 @@ export default function DashboardPage() {
             Συνδέσου για να φορτωθούν τα πραγματικά δεδομένα.
           </p>
           <Link
-            href="/login/backend"
+            href="/login"
             className="mt-2 inline-block rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
           >
             Σύνδεση

@@ -556,9 +556,13 @@ export default function OfferPreview({ offerId }: Props) {
     const subject = `Πρόταση ραντεβού, προσφορά ${offer.offerNumber}`;
     const text = buildAppointmentEmailText();
     try {
+      const token = tokenRef.current;
       const res = await fetch('/api/email/send-offer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ to: customer.email, subject, text }),
       });
       const data = (await res.json()) as { ok: boolean; error?: string };

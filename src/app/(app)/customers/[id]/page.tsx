@@ -1508,7 +1508,7 @@ export default function CustomerDetailPage() {
             Συνδέσου για να δεις την καρτέλα πελάτη.
           </p>
           <Link
-            href="/login/backend"
+            href="/login"
             className="mt-4 inline-block rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
           >
             Σύνδεση

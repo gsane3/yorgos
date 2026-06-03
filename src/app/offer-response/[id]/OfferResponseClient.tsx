@@ -294,7 +294,9 @@ export default function OfferResponseClient({ token }: Props) {
           )}
           {(() => {
             if (!business) {
-              return <p className="text-lg font-bold text-zinc-900">Επωνυμία επιχείρησης</p>;
+              // No business identity loaded — hide the header rather than show a
+              // placeholder the customer would not trust.
+              return null;
             }
             const primaryName = business.legalName || business.name;
             const showTrade =
@@ -379,7 +381,7 @@ export default function OfferResponseClient({ token }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {offer.items.map((item, idx) => (
+                {(offer.items ?? []).map((item, idx) => (
                   <tr key={idx} className="border-b border-zinc-100">
                     <td className="py-2 pr-2 text-zinc-800 break-words">{item.description}</td>
                     <td className="py-2 text-right text-zinc-600">{item.quantity}</td>

@@ -96,6 +96,7 @@ interface OfferRow {
   customer_id: string | null;
   offer_number: string | null;
   status: string;
+  total: number | null;
 }
 
 interface CustomerRow {
@@ -195,7 +196,7 @@ export async function POST(
     // Fetch offer (business-scoped)
     const { data: offerData, error: offerError } = await supabase
       .from('offers')
-      .select('id, business_id, customer_id, offer_number, status')
+      .select('id, business_id, customer_id, offer_number, status, total')
       .eq('id', offerId)
       .eq('business_id', businessId)
       .maybeSingle();
@@ -436,6 +437,20 @@ export async function POST(
         });
       } catch {
         // intentionally swallowed
+      }
+    }
+
+    // Sent successfully → give the customer an opportunity value (the offer total)
+    // so we can build sales stats later. Non-fatal if it fails.
+    if (offer.customer_id && typeof offer.total === 'number' && offer.total > 0) {
+      try {
+        await supabase
+          .from('customers')
+          .update({ opportunity_value: offer.total, updated_at: new Date().toISOString() })
+          .eq('id', offer.customer_id)
+          .eq('business_id', businessId);
+      } catch {
+        // intentionally swallowed: the offer was already sent
       }
     }
 

@@ -278,6 +278,19 @@ export async function POST(request: NextRequest) {
         ? customer_id
         : null;
 
+    // Ownership validation: never attach a communication to another tenant's customer.
+    if (resolvedCustomerId) {
+      const { data: ownedCustomer } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('id', resolvedCustomerId)
+        .eq('business_id', businessId)
+        .maybeSingle();
+      if (!ownedCustomer) {
+        return jsonNoStore({ ok: false, error: 'customer_not_found' }, { status: 404 });
+      }
+    }
+
     const { data, error } = await supabase
       .from('communications')
       .insert({

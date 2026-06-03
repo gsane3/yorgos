@@ -3,9 +3,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { loadState } from '@/lib/storage';
+import { getBusinessProfile } from '@/lib/business-profile';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { generateDemoAiResult } from '@/lib/demo-data';
 import { calculateTotals, fmtEur } from '@/lib/offer-calculations';
 import type {
   CustomerStatus,
@@ -15,7 +14,7 @@ import type {
   PreferredContactMethod,
   BusinessProfile,
 } from '@/lib/types';
-import type { AiReviewResult } from '@/lib/ai/schema';
+import { parseAiResponse, type AiReviewResult } from '@/lib/ai/schema';
 import { STATUS_LABELS } from '@/components/customers/CustomerStatusBadge';
 import { SOURCE_LABELS } from '@/components/customers/CustomerCard';
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/components/tasks/TaskStatusBadge';
@@ -94,7 +93,8 @@ function getDictationExamples(businessType?: string): string[] {
 export default function AiReviewPage() {
   const router = useRouter();
 
-  const [init] = useState(generateDemoAiResult);
+  // Start from an empty, valid result (no demo/seed data).
+  const [init] = useState(() => parseAiResponse({ statusUpdate: 'new_lead' }));
   // Start as null so server render and first client render match.
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
 
@@ -184,18 +184,29 @@ export default function AiReviewPage() {
   // Load browser-only data after mount to avoid hydration mismatch.
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
   useEffect(() => {
-    const loadedBp = loadState().businessProfile ?? null;
+    let cancelled = false;
     const detectedSpeech = isSpeechSupported();
+    // Defer the synchronous setState out of the effect body (avoids cascading
+    // renders / hydration mismatch).
     const timer = window.setTimeout(() => {
-      setBusinessProfile(loadedBp);
+      if (cancelled) return;
       setSpeechSupported(detectedSpeech);
-      // Apply business default offer terms if the demo result has none.
-      if (!init.offer.terms && loadedBp?.defaultOfferTerms) {
-        setOfferTerms(loadedBp.defaultOfferTerms);
-      }
       setHydrated(true);
     }, 0);
-    return () => window.clearTimeout(timer);
+    // localStorage-first, with a server fallback so a fresh device still gets the
+    // business context (type, VAT, terms) for the AI brief and offer drafts.
+    getBusinessProfile().then((loadedBp) => {
+      if (cancelled || !loadedBp) return;
+      setBusinessProfile(loadedBp);
+      // Apply business default offer terms if the demo result has none.
+      if (!init.offer.terms && loadedBp.defaultOfferTerms) {
+        setOfferTerms(loadedBp.defaultOfferTerms);
+      }
+    });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ensure recognition stops on unmount  -  refs prevent restart in onend
@@ -324,9 +335,17 @@ export default function AiReviewPage() {
     setIsLoadingAi(true);
     setAiError('');
     try {
+      let authHeader: Record<string, string> = {};
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) authHeader = { Authorization: `Bearer ${session.access_token}` };
+      } catch {
+        // Fall through; the route returns 401 and we surface the standard error.
+      }
       const res = await fetch('/api/ai/review', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...authHeader },
         body: JSON.stringify({
           inputText: text,
           businessType: businessProfile?.businessType,
@@ -338,9 +357,9 @@ export default function AiReviewPage() {
       if (!res.ok || !data.result) {
         const err = data.error ?? 'unknown';
         if (err === 'no_api_key') {
-          setAiError('Δεν υπάρχει API key. Χρησιμοποιείται το demo αποτέλεσμα.');
+          setAiError('Η υπηρεσία AI δεν είναι ρυθμισμένη. Συμπλήρωσε χειροκίνητα.');
         } else if (err === 'invalid_response') {
-          setAiError('Μη έγκυρη απάντηση AI. Χρησιμοποιείται το demo αποτέλεσμα.');
+          setAiError('Μη έγκυρη απάντηση AI. Δοκίμασε ξανά ή συμπλήρωσε χειροκίνητα.');
         } else {
           setAiError('Η επεξεργασία AI απέτυχε. Δοκίμασε ξανά ή χρησιμοποίησε το demo.');
         }
@@ -616,7 +635,7 @@ export default function AiReviewPage() {
             </span>
           ) : (
             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
-              Demo αποτέλεσμα
+              Πρόχειρο
             </span>
           )}
         </div>
@@ -709,7 +728,7 @@ export default function AiReviewPage() {
               onClick={handleResetToDemo}
               className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
             >
-              Επαναφορά Demo
+              Καθαρισμός
             </button>
           )}
         </div>
@@ -724,7 +743,7 @@ export default function AiReviewPage() {
         </p>
         {resultSource === 'demo' && !aiError && (
           <p className="text-xs text-zinc-400">
-            Χωρίς API key τρέχει σε demo λειτουργία.
+            Συμπλήρωσε τα στοιχεία χειροκίνητα ή δημιούργησε με AI.
           </p>
         )}
       </div>

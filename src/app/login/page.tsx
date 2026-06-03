@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import OAuthButtons from '@/components/auth/OAuthButtons';
 
 function mapSignInError(err: unknown): string {
   const e = err as { status?: number; code?: string; name?: string; message?: string };
@@ -79,6 +80,13 @@ export default function LoginPage() {
         <p className="text-sm text-zinc-500 mb-6">
           Συνδέσου με email και κωδικό.
         </p>
+
+        <OAuthButtons />
+        <div className="my-5 flex items-center gap-3">
+          <span className="h-px flex-1 bg-zinc-200" />
+          <span className="text-xs text-zinc-400">ή με email</span>
+          <span className="h-px flex-1 bg-zinc-200" />
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

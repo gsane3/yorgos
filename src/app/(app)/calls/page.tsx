@@ -1593,7 +1593,7 @@ export default function CallsPage() {
             Συνδέσου για να φορτωθούν οι κλήσεις και οι πελάτες.
           </p>
           <Link
-            href="/login/backend"
+            href="/login"
             className="mt-2 inline-block rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
           >
             Σύνδεση

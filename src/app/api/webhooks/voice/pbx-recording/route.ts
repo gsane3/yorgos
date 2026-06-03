@@ -30,13 +30,19 @@ function getString(value: FormDataEntryValue | null): string | null {
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
-  // Shared secret guard -- same mechanism as the JSON PBX webhook.
+  // Shared secret guard -- same mechanism as the JSON PBX webhook. Fail closed in
+  // production unless ALLOW_INSECURE_WEBHOOKS=1 is set explicitly.
   const webhookSecret = process.env.PBX_WEBHOOK_SECRET ?? '';
   if (webhookSecret) {
     const headerSecret = request.headers.get('x-pbx-webhook-secret') ?? '';
     if (headerSecret !== webhookSecret) {
       return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
     }
+  } else if (process.env.NODE_ENV === 'production' && process.env.ALLOW_INSECURE_WEBHOOKS !== '1') {
+    console.error('[pbx-recording webhook] PBX_WEBHOOK_SECRET is not set in production — rejecting. Set the secret (or ALLOW_INSECURE_WEBHOOKS=1 to override).');
+    return NextResponse.json({ ok: false, error: 'webhook_not_configured' }, { status: 503 });
+  } else {
+    console.warn('[pbx-recording webhook] PBX_WEBHOOK_SECRET is not set — endpoint is UNAUTHENTICATED.');
   }
 
   const businessId = process.env.PBX_BUSINESS_ID?.trim() ?? '';

@@ -19,6 +19,18 @@ function getBearerToken(req: NextRequest): string | null {
   return h.slice(7);
 }
 
+async function getBusinessId(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  userId: string
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('businesses')
+    .select('id')
+    .eq('owner_id', userId)
+    .maybeSingle();
+  return (data as { id?: string } | null)?.id ?? null;
+}
+
 function getClientIp(req: NextRequest): string {
   const forwarded = req.headers.get('x-forwarded-for');
   if (forwarded) return forwarded.split(',')[0].trim();
@@ -60,6 +72,11 @@ export async function POST(req: NextRequest) {
 
   if (authError || !user) {
     return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
+  }
+
+  const businessId = await getBusinessId(supabase, user.id);
+  if (!businessId) {
+    return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
   }
 
   if (isRateLimited(getClientIp(req))) {
@@ -106,6 +123,25 @@ export async function POST(req: NextRequest) {
   if (typeof to !== 'string' || !EMAIL_RE.test(to.trim())) {
     return NextResponse.json({ ok: false, error: 'invalid_email' }, { status: 400 });
   }
+
+  // Constrain the recipient to one of the caller's own customers, so the
+  // company's verified sender domain cannot be abused as an open relay.
+  const recipientEmail = to.trim();
+  const likePattern = recipientEmail.replace(/([\\%_])/g, '\\$1');
+  try {
+    const { data: recipientMatch } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('business_id', businessId)
+      .ilike('email', likePattern)
+      .limit(1)
+      .maybeSingle();
+    if (!recipientMatch) {
+      return NextResponse.json({ ok: false, error: 'recipient_not_allowed' }, { status: 403 });
+    }
+  } catch {
+    return NextResponse.json({ ok: false, error: 'recipient_check_failed' }, { status: 500 });
+  }
   if (typeof subject !== 'string' || !subject.trim()) {
     return NextResponse.json({ ok: false, error: 'missing_subject' }, { status: 400 });
   }
@@ -144,10 +180,7 @@ export async function POST(req: NextRequest) {
     const data = (await res.json()) as { id?: string; message?: string };
 
     if (!res.ok) {
-      return NextResponse.json(
-        { ok: false, error: data.message ?? 'provider_error' },
-        { status: 502 }
-      );
+      return NextResponse.json({ ok: false, error: 'provider_error' }, { status: 502 });
     }
 
     return NextResponse.json({ ok: true, id: data.id });

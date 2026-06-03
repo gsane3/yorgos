@@ -558,9 +558,20 @@ export default function CmdPage() {
     setOfferPreviewData(null);
 
     try {
+      let authHeader: Record<string, string> = {};
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) authHeader = { Authorization: `Bearer ${session.access_token}` };
+      } catch {
+        // Fall through; the route returns 401 and we surface the standard error.
+      }
       const res = await fetch('/api/ai/cmd', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeader,
+        },
         body: JSON.stringify({
           inputText: text,
           businessType: businessProfile?.businessType,

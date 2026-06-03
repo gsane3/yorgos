@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { buildAppointmentIcs, downloadIcs } from '@/lib/ics';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -346,6 +347,24 @@ export default function AppointmentResponseClient({ token }: Props) {
         .trim() || null
     : null;
 
+  function handleAddToCalendar() {
+    if (!appointment.dueDate || !appointment.dueTime) return;
+    const location = customer?.address || business?.address || undefined;
+    const descParts: string[] = [];
+    if (business?.name) descParts.push(`Ραντεβού με ${business.name}`);
+    if (business?.phone) descParts.push(`Τηλ: ${business.phone}`);
+    if (visibleNote) descParts.push(visibleNote);
+    const ics = buildAppointmentIcs({
+      uid: `${token.slice(0, 16)}@yorgos.ai`,
+      title: appointment.title,
+      date: appointment.dueDate,
+      time: appointment.dueTime,
+      description: descParts.join('\n') || undefined,
+      location,
+    });
+    downloadIcs('rantevou.ics', ics);
+  }
+
   return (
     <div className="min-h-screen bg-zinc-50 py-8">
       <div className="mx-auto max-w-lg space-y-5 px-4">
@@ -668,11 +687,25 @@ export default function AppointmentResponseClient({ token }: Props) {
 
             {/* Accepted */}
             {action === 'accepted' && (
-              <div className="rounded-xl bg-green-50 px-4 py-5 ring-1 ring-green-200 text-center space-y-1">
-                <p className="text-base font-bold text-green-700">Το ραντεβού επιβεβαιώθηκε.</p>
-                <p className="text-sm text-green-600">
-                  Η επιχείρηση θα δει την αποδοχή σας στο σύστημά της.
-                </p>
+              <div className="rounded-xl bg-green-50 px-4 py-5 ring-1 ring-green-200 text-center space-y-3">
+                <div className="space-y-1">
+                  <p className="text-base font-bold text-green-700">Το ραντεβού επιβεβαιώθηκε.</p>
+                  <p className="text-sm text-green-600">
+                    Η επιχείρηση θα δει την αποδοχή σας στο σύστημά της.
+                  </p>
+                </div>
+                {appointment.dueDate && appointment.dueTime && (
+                  <button
+                    type="button"
+                    onClick={handleAddToCalendar}
+                    className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-green-700 ring-1 ring-green-300 transition hover:bg-green-100"
+                  >
+                    <svg className="h-4 w-4" fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                    </svg>
+                    Προσθήκη στο ημερολόγιο
+                  </button>
+                )}
                 <p className="text-xs text-zinc-400">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
               </div>
             )}
@@ -719,7 +752,7 @@ export default function AppointmentResponseClient({ token }: Props) {
 
         {/* Disclaimer */}
         <p className="text-center text-xs text-zinc-400">
-          Η απάντηση καταγράφεται από την επιχείρηση. Δεν στέλνεται αυτόματα μήνυμα ή πρόσκληση ημερολογίου.
+          Η απάντηση καταγράφεται από την επιχείρηση. Μετά την αποδοχή μπορείτε να προσθέσετε το ραντεβού στο ημερολόγιό σας.
         </p>
       </div>
     </div>

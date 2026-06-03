@@ -218,7 +218,7 @@ export default function DesktopSidebar() {
             </Link>
           );
         })()}
-        <p className="mt-2 px-3 text-xs text-zinc-400">Εσωτερικό CRM</p>
+        <p className="mt-2 px-3 text-xs text-zinc-400">Επαγγελματικό τηλέφωνο & AI βοηθός</p>
       </div>
     </aside>
   );

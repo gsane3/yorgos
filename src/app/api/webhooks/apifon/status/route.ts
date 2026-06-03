@@ -199,6 +199,11 @@ export async function POST(request: NextRequest) {
     if (querySecret !== webhookSecret && headerSecret !== webhookSecret) {
       return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
     }
+  } else if (process.env.NODE_ENV === 'production' && process.env.ALLOW_INSECURE_WEBHOOKS !== '1') {
+    console.error('[apifon status webhook] APIFON_WEBHOOK_SECRET is not set in production — rejecting. Set the secret (or ALLOW_INSECURE_WEBHOOKS=1 to override).');
+    return NextResponse.json({ ok: false, error: 'webhook_not_configured' }, { status: 503 });
+  } else {
+    console.warn('[apifon status webhook] APIFON_WEBHOOK_SECRET is not set — endpoint is UNAUTHENTICATED.');
   }
 
   // Parse body based on content-type.

@@ -422,7 +422,7 @@ function OnboardingPageContent() {
         </div>
       </div>
 
-      <div className="sticky bottom-0 border-t border-zinc-100 bg-white px-4 py-4">
+      <div className="sticky bottom-0 border-t border-zinc-100 bg-white px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-lg gap-3">
           {step > 0 && (
             <button

@@ -144,6 +144,20 @@ async function validateCustomerBelongsToBusiness(
   return data !== null;
 }
 
+async function validateOfferBelongsToBusiness(
+  supabase: SupabaseClient,
+  offerId: string,
+  businessId: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from('offers')
+    .select('id')
+    .eq('id', offerId)
+    .eq('business_id', businessId)
+    .maybeSingle();
+  return data !== null;
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/tasks
 // ---------------------------------------------------------------------------
@@ -314,6 +328,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Offer ownership validation (prevents attaching a task to another tenant's offer).
+    const rawOfferId = raw.offerId != null ? str(raw.offerId) : null;
+    const offerIdClean = rawOfferId && rawOfferId.length > 0 ? rawOfferId : null;
+    if (offerIdClean) {
+      const offerBelongs = await validateOfferBelongsToBusiness(supabase, offerIdClean, businessId);
+      if (!offerBelongs) {
+        return NextResponse.json({ ok: false, error: 'offer_not_found' }, { status: 404 });
+      }
+    }
+
     const status = isValidEnum(raw.status, VALID_STATUSES_WRITE) ? raw.status : 'open';
     const completedAt = status === 'completed' ? new Date().toISOString() : null;
 
@@ -322,7 +346,7 @@ export async function POST(request: NextRequest) {
       .insert({
         business_id: businessId,
         customer_id: customerId,
-        offer_id: raw.offerId != null ? str(raw.offerId) : null,
+        offer_id: offerIdClean,
         title,
         type: raw.type,
         status,

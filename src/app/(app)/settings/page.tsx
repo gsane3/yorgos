@@ -5,8 +5,9 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { getBusinessProfile, saveBusinessProfile } from '@/lib/storage';
 import type { BusinessProfile } from '@/lib/types';
 import BusinessForm from '@/components/settings/BusinessForm';
+import ImportExportPanel from '@/components/settings/ImportExportPanel';
 
-type SettingsSection = 'business' | 'providers';
+type SettingsSection = 'business' | 'providers' | 'data';
 
 type BusinessMeResponse = {
   ok?: boolean;
@@ -47,6 +48,7 @@ type BusinessMeResponse = {
 const SECTION_LABELS: Record<SettingsSection, string> = {
   business: 'Επιχείρηση',
   providers: 'Πάροχοι',
+  data: 'Δεδομένα',
 };
 
 const PLAN_NAMES: Record<string, string> = {
@@ -334,6 +336,10 @@ export default function SettingsPage() {
     );
   }
 
+  function renderData() {
+    return <ImportExportPanel />;
+  }
+
   // Settings content
 
   if (!hydrated) {
@@ -376,6 +382,17 @@ export default function SettingsPage() {
                 icon: (
                   <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
+                  </svg>
+                ),
+                bg: 'bg-indigo-50',
+              },
+              {
+                id: 'data' as SettingsSection,
+                label: 'Δεδομένα',
+                subtitle: 'Εισαγωγή & εξαγωγή πελατών (CSV)',
+                icon: (
+                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75" />
                   </svg>
                 ),
                 bg: 'bg-indigo-50',
@@ -492,6 +509,7 @@ export default function SettingsPage() {
           </div>
           {activeSection === 'business' && renderBusiness()}
           {activeSection === 'providers' && renderProviders()}
+          {activeSection === 'data' && renderData()}
         </>
       )}
     </div>

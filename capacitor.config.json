@@ -1,0 +1,16 @@
+{
+  "appId": "ai.yorgos.app",
+  "appName": "yorgos.ai",
+  "webDir": "public",
+  "server": {
+    "url": "https://app.yorgos.ai",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "always"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { buildPrompt } from '@/lib/ai/prompt';
 import { parseAiResponse } from '@/lib/ai/schema';
 import type { BusinessType } from '@/lib/types';
+
+export const runtime = 'nodejs';
 
 const AI_PROVIDER_TIMEOUT_MS = 20_000;
 const AI_REVIEW_MAX_BODY_BYTES = 32_000;
@@ -30,6 +33,32 @@ function isRateLimited(ip: string): boolean {
   return false;
 }
 
+function getBearerToken(request: NextRequest): string | null {
+  const h = request.headers.get('authorization');
+  if (!h || !h.startsWith('Bearer ')) return null;
+  return h.slice(7);
+}
+
+// Require a valid signed-in user so the server-side ANTHROPIC_API_KEY cannot be
+// burned (cost/DoS) by anonymous callers.
+async function requireUser(request: NextRequest): Promise<NextResponse | null> {
+  const token = getBearerToken(request);
+  if (!token) return NextResponse.json({ error: 'missing_auth' }, { status: 401 });
+  let supabase: ReturnType<typeof createServerSupabaseClient>;
+  try {
+    supabase = createServerSupabaseClient();
+  } catch {
+    return NextResponse.json({ error: 'missing_supabase_config' }, { status: 503 });
+  }
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) return NextResponse.json({ error: 'invalid_auth' }, { status: 401 });
+  } catch {
+    return NextResponse.json({ error: 'invalid_auth' }, { status: 401 });
+  }
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
   if (isRateLimited(ip)) {
@@ -48,6 +77,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'payload_too_large' }, { status: 413 });
     }
   }
+
+  const authError = await requireUser(request);
+  if (authError) return authError;
 
   // API key is server-only — never sent to client
   const apiKey = process.env.ANTHROPIC_API_KEY;

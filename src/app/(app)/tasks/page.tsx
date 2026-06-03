@@ -476,7 +476,7 @@ export default function TasksPage() {
         <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="mb-4 text-sm text-zinc-600">Συνδέσου για να δεις τα tasks.</p>
           <Link
-            href="/login/backend"
+            href="/login"
             className="inline-block rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
           >
             Σύνδεση

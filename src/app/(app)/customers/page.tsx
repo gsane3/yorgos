@@ -242,7 +242,7 @@ export default function CustomersPage() {
         <div className="rounded-[28px] bg-white px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="text-sm font-medium text-zinc-600">Συνδέσου για να δεις τους πελάτες.</p>
           <Link
-            href="/login/backend"
+            href="/login"
             className="mt-4 inline-block rounded-2xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
           >
             Σύνδεση
