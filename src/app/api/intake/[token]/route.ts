@@ -131,11 +131,8 @@ export async function GET(
       ok: true,
       customer: publicCustomer(customer),
     });
-  } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : 'intake_load_failed' },
-      { status: 500 }
-    );
+  } catch {
+    return NextResponse.json({ ok: false, error: 'intake_load_failed' }, { status: 500 });
   }
 }
 
@@ -248,10 +245,7 @@ export async function POST(
       ok: true,
       customer: publicCustomer(asCustomerRow(data)),
     });
-  } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : 'intake_submit_failed' },
-      { status: 500 }
-    );
+  } catch {
+    return NextResponse.json({ ok: false, error: 'intake_submit_failed' }, { status: 500 });
   }
 }

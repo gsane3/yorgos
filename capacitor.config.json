@@ -1,0 +1,16 @@
+{
+  "appId": "ai.deskop.app",
+  "appName": "deskop",
+  "webDir": "public",
+  "server": {
+    "url": "https://deskop.ai",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "always"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

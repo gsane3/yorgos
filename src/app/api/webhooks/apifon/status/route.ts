@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { timingSafeEqualSecret } from '@/lib/server/webhook-secret';
 
 export const runtime = 'nodejs';
 
@@ -196,9 +197,14 @@ export async function POST(request: NextRequest) {
     const url = new URL(request.url);
     const querySecret = url.searchParams.get('secret') ?? '';
     const headerSecret = request.headers.get('x-apifon-webhook-secret') ?? '';
-    if (querySecret !== webhookSecret && headerSecret !== webhookSecret) {
+    if (!timingSafeEqualSecret(querySecret, webhookSecret) && !timingSafeEqualSecret(headerSecret, webhookSecret)) {
       return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
     }
+  } else if (process.env.NODE_ENV === 'production' && process.env.ALLOW_INSECURE_WEBHOOKS !== '1') {
+    console.error('[apifon status webhook] APIFON_WEBHOOK_SECRET is not set in production — rejecting. Set the secret (or ALLOW_INSECURE_WEBHOOKS=1 to override).');
+    return NextResponse.json({ ok: false, error: 'webhook_not_configured' }, { status: 503 });
+  } else {
+    console.warn('[apifon status webhook] APIFON_WEBHOOK_SECRET is not set — endpoint is UNAUTHENTICATED.');
   }
 
   // Parse body based on content-type.

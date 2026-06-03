@@ -10,6 +10,7 @@
 // rendered in the UI.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { CallRecorder } from '@/lib/call-recorder';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -37,6 +38,10 @@ export interface BrowserPhoneProps {
   onDialConsumed?: () => void;
   /** When true, hides the internal dial input and small Κλήση button. Use when an external numpad provides the dial trigger. All call handling and pendingDialTarget remain unchanged. */
   externalDialer?: boolean;
+  /** Opt-in: record the call (mixed local + remote audio) for a transcript brief. */
+  recordingEnabled?: boolean;
+  /** Fires once after a recorded call completes, with the audio blob. Best-effort. */
+  onCallRecorded?: (blob: Blob, mimeType: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +90,15 @@ function normalizePhoneForSip(raw: string): string | null {
   return null;
 }
 
+// Best-effort extraction of the RTCPeerConnection from a JsSIP session.
+function getSessionPc(session: Loose): RTCPeerConnection | null {
+  const pc =
+    (session?.connection as RTCPeerConnection | null | undefined) ??
+    (session?._connection as RTCPeerConnection | null | undefined) ??
+    null;
+  return pc ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -100,6 +114,8 @@ export default function BrowserPhone({
   pendingDialTarget,
   onDialConsumed,
   externalDialer,
+  recordingEnabled,
+  onCallRecorded,
 }: BrowserPhoneProps) {
   const [phoneState, setPhoneState] = useState<PhoneState>(
     ready ? 'disconnected' : 'not_configured'
@@ -147,6 +163,13 @@ export default function BrowserPhone({
   // the parent resets pendingDialTarget to null.
   const consumedDialTargetRef = useRef<string | null>(null);
 
+  // Call-recording (opt-in) state. All recording is best-effort and guarded so
+  // it can never disrupt the live call.
+  const recordingEnabledRef = useRef<boolean>(!!recordingEnabled);
+  const onCallRecordedRef = useRef(onCallRecorded);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<CallRecorder | null>(null);
+
   // Helper: update both state and ref atomically.
   const transition = useCallback((next: PhoneState) => {
     phoneStateRef.current = next;
@@ -162,6 +185,15 @@ export default function BrowserPhone({
   useEffect(() => {
     onDialConsumedRef.current = onDialConsumed;
   }, [onDialConsumed]);
+
+  // Keep the recording refs current whenever those props change.
+  useEffect(() => {
+    recordingEnabledRef.current = !!recordingEnabled;
+  }, [recordingEnabled]);
+
+  useEffect(() => {
+    onCallRecordedRef.current = onCallRecorded;
+  }, [onCallRecorded]);
 
   // Sync not_configured / disconnected when the ready prop changes.
   // setTimeout defers the state update out of the render cycle, satisfying
@@ -180,6 +212,9 @@ export default function BrowserPhone({
   // Cleanup UA and session on unmount.
   useEffect(() => {
     return () => {
+      const rec = recorderRef.current;
+      recorderRef.current = null;
+      if (rec) rec.stop().catch(() => { /* ignore */ });
       const s = sessionRef.current;
       if (s) { try { s.terminate(); } catch { /* ignore */ } }
       const u = uaRef.current;
@@ -202,6 +237,9 @@ export default function BrowserPhone({
     // peerconnection event and the direct-PC fallback below.
     // Using a named reference ensures addEventListener deduplicates correctly.
     const onTrack = (evt: RTCTrackEvent) => {
+      if (evt.streams[0]) {
+        remoteStreamRef.current = evt.streams[0];
+      }
       if (audioRef.current && evt.streams[0]) {
         audioRef.current.srcObject = evt.streams[0];
         // Play may need a prior user gesture; failures are silent.
@@ -237,6 +275,26 @@ export default function BrowserPhone({
       // Call was answered (outbound or inbound answered via answer()).
       setStatusMessage(null);
       transition('in_call');
+
+      // Best-effort, opt-in call recording. Never affects the live call.
+      if (recordingEnabledRef.current && !recorderRef.current) {
+        try {
+          const pc = getSessionPc(session);
+          const localTracks = pc
+            ? pc
+                .getSenders()
+                .map((sender) => sender.track)
+                .filter((t): t is MediaStreamTrack => !!t && t.kind === 'audio')
+            : [];
+          const localStream = localTracks.length > 0 ? new MediaStream(localTracks) : null;
+          const rec = new CallRecorder();
+          if (rec.start(remoteStreamRef.current, localStream)) {
+            recorderRef.current = rec;
+          }
+        } catch {
+          // recording is optional; ignore any failure
+        }
+      }
     });
 
     session.on('ended', () => {
@@ -253,6 +311,19 @@ export default function BrowserPhone({
       setCallerInfo(null);
       setOutboundInput('');
       transition('registered');
+
+      // Stop + emit any in-progress recording (best-effort, async).
+      const rec = recorderRef.current;
+      recorderRef.current = null;
+      remoteStreamRef.current = null;
+      if (rec) {
+        rec
+          .stop()
+          .then((blob) => {
+            if (blob && blob.size > 0) onCallRecordedRef.current?.(blob, rec.mediaType);
+          })
+          .catch(() => { /* ignore */ });
+      }
     });
 
     session.on('failed', (e: { cause?: string }) => {
@@ -274,6 +345,12 @@ export default function BrowserPhone({
       );
       // Return to registered so the status message is visible with the dial input.
       transition('registered');
+
+      // Discard any recording on a failed call.
+      const rec = recorderRef.current;
+      recorderRef.current = null;
+      remoteStreamRef.current = null;
+      if (rec) rec.stop().catch(() => { /* ignore */ });
     });
   }, [transition]);
 
@@ -799,6 +876,12 @@ export default function BrowserPhone({
               <p className="mt-0.5 text-xs font-medium text-zinc-700">
                 {callerInfo ?? 'Κλήση σε εξέλιξη'}
               </p>
+              {recordingEnabled && (
+                <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-red-600">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                  Ηχογράφηση — ενημέρωσε τον πελάτη
+                </p>
+              )}
               <button
                 type="button"
                 onClick={handleHangUp}

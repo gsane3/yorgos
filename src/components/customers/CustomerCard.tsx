@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Customer } from '@/lib/types';
 import { isLikelyMobile } from '@/lib/phone';
+import { buildMapsUrl } from '@/lib/maps';
 import CustomerStatusBadge from './CustomerStatusBadge';
 
 export const SOURCE_LABELS: Record<string, string> = {
@@ -35,7 +36,8 @@ export default function CustomerCard({ customer }: Props) {
   const displayPhone = mobilePhone || landlinePhone;
 
   return (
-    <Link
+    <div className="relative">
+      <Link
       href={`/customers/${customer.id}`}
       className="block rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 transition hover:ring-indigo-200 active:bg-zinc-50"
     >
@@ -45,11 +47,6 @@ export default function CustomerCard({ customer }: Props) {
         {customer.crmNumber && (
           <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-400">
             {customer.crmNumber}
-          </span>
-        )}
-        {customer.isDemo && (
-          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
-            Demo
           </span>
         )}
       </div>
@@ -98,6 +95,23 @@ export default function CustomerCard({ customer }: Props) {
           Τελευταία επικοινωνία: {formatDate(customer.lastContactAt)}
         </p>
       )}
-    </Link>
+      </Link>
+
+      {/* Maps / navigate shortcut (sibling of the Link so it stays tappable) */}
+      {customer.address && (
+        <a
+          href={buildMapsUrl(customer.address)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Πλοήγηση στη διεύθυνση"
+          className="absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-zinc-50 text-zinc-400 ring-1 ring-zinc-200/70 transition hover:bg-indigo-50 hover:text-indigo-600 active:bg-indigo-100"
+        >
+          <svg className="h-[18px] w-[18px]" fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+          </svg>
+        </a>
+      )}
+    </div>
   );
 }

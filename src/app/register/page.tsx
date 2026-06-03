@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import OAuthButtons from '@/components/auth/OAuthButtons';
 
 function mapSignUpError(err: unknown): string {
   const e = err as { status?: number; code?: string; name?: string; message?: string };
@@ -91,7 +92,7 @@ export default function RegisterPage() {
 
     try {
       localStorage.setItem(
-        'yorgos_onboarding_prefill',
+        'deskop_onboarding_prefill',
         JSON.stringify({ ownerName: name.trim(), email: trimmedEmail })
       );
     } catch {
@@ -107,7 +108,7 @@ export default function RegisterPage() {
         {/* Wordmark */}
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-1">
-            <span className="text-[22px] font-bold tracking-tight text-zinc-900">yorgos</span>
+            <span className="text-[22px] font-bold tracking-tight text-zinc-900">deskop</span>
             <span className="text-[22px] font-bold tracking-tight text-indigo-600">.ai</span>
             <svg
               className="ml-0.5 h-3.5 w-3.5 text-indigo-400"
@@ -119,11 +120,18 @@ export default function RegisterPage() {
             </svg>
           </div>
           <h1 className="mt-6 text-2xl font-bold text-zinc-900 text-center leading-snug">
-            Καλωσόρισες στο yorgos.ai
+            Καλωσόρισες στο deskop.ai
           </h1>
           <p className="mt-2 text-sm text-zinc-500 text-center">
             Δημιούργησε τον λογαριασμό σου σε λίγα δευτερόλεπτα.
           </p>
+        </div>
+
+        <OAuthButtons />
+        <div className="my-5 flex items-center gap-3">
+          <span className="h-px flex-1 bg-zinc-200" />
+          <span className="text-xs text-zinc-400">ή με email</span>
+          <span className="h-px flex-1 bg-zinc-200" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -208,9 +216,9 @@ export default function RegisterPage() {
             />
             <span className="text-xs text-zinc-500 leading-relaxed">
               Συμφωνώ με τους{' '}
-              <span className="font-medium text-indigo-600">Όρους Χρήσης</span>
+              <Link href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="font-medium text-indigo-600 hover:text-indigo-700">Όρους Χρήσης</Link>
               {' '}και την{' '}
-              <span className="font-medium text-indigo-600">Πολιτική Απορρήτου</span>
+              <Link href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="font-medium text-indigo-600 hover:text-indigo-700">Πολιτική Απορρήτου</Link>
               .
             </span>
           </label>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authenticateBusinessRequest } from '@/lib/api/auth';
 
 export const runtime = 'nodejs';
 
@@ -12,12 +12,6 @@ const EMAIL_PROVIDER_TIMEOUT_MS = 15_000;
 const EMAIL_SEND_RATE_LIMIT_MAX = 5;
 const EMAIL_SEND_RATE_LIMIT_WINDOW_MS = 60_000;
 const emailSendRateLimitStore = new Map<string, { count: number; resetAt: number }>();
-
-function getBearerToken(req: NextRequest): string | null {
-  const h = req.headers.get('authorization');
-  if (!h || !h.startsWith('Bearer ')) return null;
-  return h.slice(7);
-}
 
 function getClientIp(req: NextRequest): string {
   const forwarded = req.headers.get('x-forwarded-for');
@@ -38,29 +32,9 @@ function isRateLimited(ip: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  const token = getBearerToken(req);
-  if (!token) {
-    return NextResponse.json({ ok: false, error: 'missing_auth' }, { status: 401 });
-  }
-
-  let supabase: ReturnType<typeof createServerSupabaseClient>;
-  try {
-    supabase = createServerSupabaseClient();
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('Missing Supabase server')) {
-      return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
-    }
-    return NextResponse.json({ ok: false, error: 'email_send_failed' }, { status: 500 });
-  }
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser(token);
-
-  if (authError || !user) {
-    return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
-  }
+  const auth = await authenticateBusinessRequest(req);
+  if ('error' in auth) return auth.error;
+  const { supabase, businessId } = auth.ctx;
 
   if (isRateLimited(getClientIp(req))) {
     return NextResponse.json({ ok: false, error: 'rate_limited' }, { status: 429 });
@@ -106,6 +80,25 @@ export async function POST(req: NextRequest) {
   if (typeof to !== 'string' || !EMAIL_RE.test(to.trim())) {
     return NextResponse.json({ ok: false, error: 'invalid_email' }, { status: 400 });
   }
+
+  // Constrain the recipient to one of the caller's own customers, so the
+  // company's verified sender domain cannot be abused as an open relay.
+  const recipientEmail = to.trim();
+  const likePattern = recipientEmail.replace(/([\\%_])/g, '\\$1');
+  try {
+    const { data: recipientMatch } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('business_id', businessId)
+      .ilike('email', likePattern)
+      .limit(1)
+      .maybeSingle();
+    if (!recipientMatch) {
+      return NextResponse.json({ ok: false, error: 'recipient_not_allowed' }, { status: 403 });
+    }
+  } catch {
+    return NextResponse.json({ ok: false, error: 'recipient_check_failed' }, { status: 500 });
+  }
   if (typeof subject !== 'string' || !subject.trim()) {
     return NextResponse.json({ ok: false, error: 'missing_subject' }, { status: 400 });
   }
@@ -136,7 +129,7 @@ export async function POST(req: NextRequest) {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'yorgos-ai-mvp/0.1',
+        'User-Agent': 'deskop-mvp/0.1',
       },
       body: JSON.stringify(payload),
     });
@@ -144,10 +137,7 @@ export async function POST(req: NextRequest) {
     const data = (await res.json()) as { id?: string; message?: string };
 
     if (!res.ok) {
-      return NextResponse.json(
-        { ok: false, error: data.message ?? 'provider_error' },
-        { status: 502 }
-      );
+      return NextResponse.json({ ok: false, error: 'provider_error' }, { status: 502 });
     }
 
     return NextResponse.json({ ok: true, id: data.id });

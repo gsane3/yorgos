@@ -8,6 +8,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createCustomerIntakeToken, markIntakeTokenSent } from '@/lib/server/intake-tokens';
 import { sendIntakeViberMessage } from '@/lib/server/apifon-viber';
 import { generateCallBrief } from '@/lib/server/call-brief';
+import { timingSafeEqualSecret } from '@/lib/server/webhook-secret';
 
 export const runtime = 'nodejs';
 
@@ -154,14 +155,21 @@ export async function GET() {
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
-  // Shared secret guard. Set PBX_WEBHOOK_SECRET in env to require the header.
-  // Leave unset during local/dev PoC to allow unauthenticated requests through.
+  // Shared secret guard. Set PBX_WEBHOOK_SECRET to require the header. In
+  // production the secret is mandatory (fail closed) unless ALLOW_INSECURE_WEBHOOKS=1
+  // is set, so a misconfigured deploy cannot leave this customer-/Viber-writing
+  // endpoint open to the internet.
   const webhookSecret = process.env.PBX_WEBHOOK_SECRET ?? '';
   if (webhookSecret) {
     const headerSecret = request.headers.get('x-pbx-webhook-secret') ?? '';
-    if (headerSecret !== webhookSecret) {
+    if (!timingSafeEqualSecret(headerSecret, webhookSecret)) {
       return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
     }
+  } else if (process.env.NODE_ENV === 'production' && process.env.ALLOW_INSECURE_WEBHOOKS !== '1') {
+    console.error('[pbx webhook] PBX_WEBHOOK_SECRET is not set in production — rejecting. Set the secret (or ALLOW_INSECURE_WEBHOOKS=1 to override).');
+    return NextResponse.json({ ok: false, error: 'webhook_not_configured' }, { status: 503 });
+  } else {
+    console.warn('[pbx webhook] PBX_WEBHOOK_SECRET is not set — endpoint is UNAUTHENTICATED.');
   }
 
   // Read raw body before parse -- preserves option for future HMAC verification.

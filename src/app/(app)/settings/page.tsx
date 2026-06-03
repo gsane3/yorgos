@@ -5,8 +5,10 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { getBusinessProfile, saveBusinessProfile } from '@/lib/storage';
 import type { BusinessProfile } from '@/lib/types';
 import BusinessForm from '@/components/settings/BusinessForm';
+import ImportExportPanel from '@/components/settings/ImportExportPanel';
+import AccountPanel from '@/components/settings/AccountPanel';
 
-type SettingsSection = 'business' | 'providers';
+type SettingsSection = 'business' | 'providers' | 'data' | 'account';
 
 type BusinessMeResponse = {
   ok?: boolean;
@@ -47,6 +49,8 @@ type BusinessMeResponse = {
 const SECTION_LABELS: Record<SettingsSection, string> = {
   business: 'Επιχείρηση',
   providers: 'Πάροχοι',
+  data: 'Δεδομένα',
+  account: 'Λογαριασμός',
 };
 
 const PLAN_NAMES: Record<string, string> = {
@@ -334,6 +338,14 @@ export default function SettingsPage() {
     );
   }
 
+  function renderData() {
+    return <ImportExportPanel />;
+  }
+
+  function renderAccount() {
+    return <AccountPanel />;
+  }
+
   // Settings content
 
   if (!hydrated) {
@@ -376,6 +388,28 @@ export default function SettingsPage() {
                 icon: (
                   <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
+                  </svg>
+                ),
+                bg: 'bg-indigo-50',
+              },
+              {
+                id: 'data' as SettingsSection,
+                label: 'Δεδομένα',
+                subtitle: 'Εισαγωγή & εξαγωγή πελατών (CSV)',
+                icon: (
+                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75" />
+                  </svg>
+                ),
+                bg: 'bg-indigo-50',
+              },
+              {
+                id: 'account' as SettingsSection,
+                label: 'Λογαριασμός',
+                subtitle: 'Συνδρομή & διαγραφή λογαριασμού',
+                icon: (
+                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                   </svg>
                 ),
                 bg: 'bg-indigo-50',
@@ -454,12 +488,12 @@ export default function SettingsPage() {
                       {phoneInfo.business.business_phone_number}
                     </p>
                     <p className="mt-0.5 text-xs text-zinc-400">
-                      Ο αριθμός ενεργοποιείται αυτόματα από το yorgos.ai. Δεν χρειάζεται χειροκίνητη ρύθμιση.
+                      Ο αριθμός ενεργοποιείται αυτόματα από το deskop.ai. Δεν χρειάζεται χειροκίνητη ρύθμιση.
                     </p>
                   </>
                 ) : (
                   <p className="mt-0.5 text-xs text-zinc-400">
-                    Ο αριθμός ενεργοποιείται αυτόματα από το yorgos.ai. Δεν χρειάζεται χειροκίνητη ρύθμιση.
+                    Ο αριθμός ενεργοποιείται αυτόματα από το deskop.ai. Δεν χρειάζεται χειροκίνητη ρύθμιση.
                   </p>
                 )}
               </div>
@@ -492,6 +526,8 @@ export default function SettingsPage() {
           </div>
           {activeSection === 'business' && renderBusiness()}
           {activeSection === 'providers' && renderProviders()}
+          {activeSection === 'data' && renderData()}
+          {activeSection === 'account' && renderAccount()}
         </>
       )}
     </div>

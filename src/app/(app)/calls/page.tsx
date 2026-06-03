@@ -6,6 +6,7 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { norm } from '@/lib/search';
 import type { Customer } from '@/lib/types';
 import BrowserPhone, { type CallEndedEvent } from '@/components/phone/BrowserPhone';
+import { recordingFileName } from '@/lib/call-recorder';
 import { findCustomerByPhone, phonesMatch } from '@/lib/phone';
 
 // ---------------------------------------------------------------------------
@@ -1245,12 +1246,18 @@ function CallReviewModal({
   event,
   busy,
   error,
+  saved,
+  brief,
+  transcribing,
   onSave,
   onSkip,
 }: {
   event: CallEndedEvent;
   busy: boolean;
   error: string | null;
+  saved: boolean;
+  brief: string | null;
+  transcribing: boolean;
   onSave: () => void;
   onSkip: () => void;
 }) {
@@ -1273,8 +1280,10 @@ function CallReviewModal({
 
         {/* Header */}
         <div className="px-5 pb-4 pt-1 text-center">
-          <p className="text-base font-semibold text-zinc-900">Η κλήση ολοκληρώθηκε.</p>
-          <p className="mt-1 text-sm text-zinc-500">Να εισαχθεί στο CRM;</p>
+          <p className="text-base font-semibold text-zinc-900">
+            {saved ? 'Η κλήση εισήχθη στο CRM.' : 'Η κλήση ολοκληρώθηκε.'}
+          </p>
+          {!saved && <p className="mt-1 text-sm text-zinc-500">Να εισαχθεί στο CRM;</p>}
           <p className="mt-2 text-xs text-zinc-400">
             {dirLabel}
             {' · '}
@@ -1288,24 +1297,54 @@ function CallReviewModal({
           )}
         </div>
 
+        {saved && transcribing && (
+          <p className="px-5 pb-2 text-center text-xs text-zinc-500">Μεταγραφή ηχογράφησης...</p>
+        )}
+        {/* AI brief draft (review-first), shown after the call is saved */}
+        {saved && brief && (
+          <div className="px-4 pb-4">
+            <p className="mb-1 px-1 text-xs font-medium text-zinc-500">AI brief (πρόχειρο για έλεγχο)</p>
+            <div className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-zinc-50 px-4 py-3 text-xs text-zinc-700 ring-1 ring-zinc-200/60">
+              {brief}
+            </div>
+          </div>
+        )}
+        {saved && !brief && !transcribing && (
+          <p className="px-5 pb-4 text-center text-xs text-zinc-400">
+            Η κλήση καταγράφηκε. Δεν δημιουργήθηκε AI brief αυτή τη φορά.
+          </p>
+        )}
+
         {/* Buttons */}
         <div className="space-y-2.5 px-4">
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={busy}
-            className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50"
-          >
-            Ναι, εισαγωγή
-          </button>
-          <button
-            type="button"
-            onClick={onSkip}
-            disabled={busy}
-            className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-50"
-          >
-            Όχι
-          </button>
+          {saved ? (
+            <button
+              type="button"
+              onClick={onSkip}
+              className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+            >
+              Κλείσιμο
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={busy}
+                className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50"
+              >
+                {busy ? 'Αποθήκευση...' : 'Ναι, εισαγωγή'}
+              </button>
+              <button
+                type="button"
+                onClick={onSkip}
+                disabled={busy}
+                className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-50"
+              >
+                Όχι
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -1336,6 +1375,12 @@ export default function CallsPage() {
   const [pendingCallReview, setPendingCallReview] = useState<CallEndedEvent | null>(null);
   const [callReviewBusy, setCallReviewBusy] = useState(false);
   const [callReviewError, setCallReviewError] = useState<string | null>(null);
+  const [callReviewSaved, setCallReviewSaved] = useState(false);
+  const [callReviewBrief, setCallReviewBrief] = useState<string | null>(null);
+  const [callReviewTranscribing, setCallReviewTranscribing] = useState(false);
+  const [recordCalls, setRecordCalls] = useState(false);
+  const [recordConsentOpen, setRecordConsentOpen] = useState(false);
+  const recordedBlobRef = useRef<{ blob: Blob; mimeType: string } | null>(null);
   const [pendingDialTarget, setPendingDialTarget] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -1485,37 +1530,60 @@ export default function CallsPage() {
         : null;
     const customerId = customer?.id ?? null;
 
-    const summary =
-      event.direction === 'inbound'
-        ? event.status === 'completed'
-          ? 'Εισερχόμενη κλήση'
-          : 'Αποτυχημένη εισερχόμενη κλήση'
-        : event.status === 'completed'
-        ? 'Εξερχόμενη κλήση'
-        : 'Αποτυχημένη εξερχόμενη κλήση';
-
     setCallReviewBusy(true);
     setCallReviewError(null);
     try {
-      const resp = await fetch('/api/communications', {
+      // /api/calls/log records the call AND attaches a review-first AI brief
+      // (metadata-only, no transcript) to it — parity with the PBX webhook path.
+      const resp = await fetch('/api/calls/log', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          channel: 'call',
           direction: event.direction,
           status: event.status,
           phone: event.phone,
           customerId,
-          summary,
         }),
       });
       const json = await resp.json();
       if (json.ok === true) {
-        setPendingCallReview(null);
+        // Keep the modal open to surface the AI brief draft for review.
+        setCallReviewSaved(true);
+        setCallReviewBrief(typeof json.brief === 'string' ? json.brief : null);
         setCallReviewError(null);
+
+        // If the call was recorded (opt-in), upload the audio for a transcript
+        // brief that replaces the metadata one. Best-effort; the server discards
+        // the audio after transcription.
+        const commId = typeof json.communicationId === 'string' ? json.communicationId : null;
+        const recorded = recordedBlobRef.current;
+        recordedBlobRef.current = null;
+        if (commId && recorded && recorded.blob.size > 0) {
+          setCallReviewTranscribing(true);
+          try {
+            const fd = new FormData();
+            fd.append('audio', recorded.blob, recordingFileName(recorded.mimeType));
+            fd.append('communicationId', commId);
+            if (event.phone) fd.append('phone', event.phone);
+            fd.append('status', event.status);
+            const rResp = await fetch('/api/calls/recording', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+              body: fd,
+            });
+            const rJson = await rResp.json();
+            if (rJson.ok === true && typeof rJson.brief === 'string') {
+              setCallReviewBrief(rJson.brief);
+            }
+          } catch {
+            // keep the metadata brief on any failure
+          } finally {
+            setCallReviewTranscribing(false);
+          }
+        }
       } else {
         setCallReviewError('save_failed');
       }
@@ -1534,16 +1602,53 @@ export default function CallsPage() {
   function handleSkipReviewedCall() {
     setPendingCallReview(null);
     setCallReviewError(null);
+    setCallReviewSaved(false);
+    setCallReviewBrief(null);
+    setCallReviewTranscribing(false);
+    recordedBlobRef.current = null;
   }
 
   // Shows the after-call review modal instead of immediately saving.
   const handleCallEnded = useCallback(
     (event: CallEndedEvent) => {
       setCallReviewError(null);
+      setCallReviewSaved(false);
+      setCallReviewBrief(null);
+      setCallReviewTranscribing(false);
+      recordedBlobRef.current = null;
       setPendingCallReview(event);
     },
     []
   );
+
+  // Stores the recorded audio (if any) until the call is saved + uploaded.
+  const handleCallRecorded = useCallback((blob: Blob, mimeType: string) => {
+    recordedBlobRef.current = { blob, mimeType };
+  }, []);
+
+  // Load the opt-in call-recording preference (client-only). setState is deferred
+  // out of the effect body (react-hooks/set-state-in-effect).
+  useEffect(() => {
+    let on = false;
+    try {
+      on = localStorage.getItem('deskop_record_calls') === '1';
+    } catch {
+      // ignore storage access errors
+    }
+    const id = window.setTimeout(() => setRecordCalls(on), 0);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  function enableRecording() {
+    setRecordCalls(true);
+    try { localStorage.setItem('deskop_record_calls', '1'); } catch { /* ignore */ }
+    setRecordConsentOpen(false);
+  }
+
+  function disableRecording() {
+    setRecordCalls(false);
+    try { localStorage.setItem('deskop_record_calls', '0'); } catch { /* ignore */ }
+  }
 
   async function checkMicrophonePermission() {
     if (
@@ -1593,7 +1698,7 @@ export default function CallsPage() {
             Συνδέσου για να φορτωθούν οι κλήσεις και οι πελάτες.
           </p>
           <Link
-            href="/login/backend"
+            href="/login"
             className="mt-2 inline-block rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
           >
             Σύνδεση
@@ -1666,12 +1771,64 @@ export default function CallsPage() {
             sipRealm={phoneToken.sipRealm}
             disabledReason={phoneToken.ready ? undefined : 'Το browser τηλέφωνο δεν είναι έτοιμο ακόμα.'}
             onCallEnded={handleCallEnded}
+            onCallRecorded={handleCallRecorded}
+            recordingEnabled={recordCalls}
             pendingDialTarget={pendingDialTarget}
             onDialConsumed={() => setPendingDialTarget(null)}
             externalDialer
           />
         )}
       </div>
+
+      {/* Call-recording toggle (opt-in, consent-first) */}
+      {phoneToken.ready && (
+        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-zinc-900">Ηχογράφηση κλήσεων</p>
+              <p className="mt-0.5 text-xs text-zinc-400">
+                Αυτόματη μεταγραφή & AI brief από την κλήση. Επιτρέπεται μόνο με ενημέρωση του πελάτη.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={recordCalls}
+              aria-label="Ηχογράφηση κλήσεων"
+              onClick={() => (recordCalls ? disableRecording() : setRecordConsentOpen(true))}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${recordCalls ? 'bg-indigo-600' : 'bg-zinc-200'}`}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${recordCalls ? 'left-[22px]' : 'left-0.5'}`}
+              />
+            </button>
+          </div>
+
+          {recordConsentOpen && (
+            <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
+              <p className="text-xs text-amber-800">
+                Η ηχογράφηση επιτρέπεται μόνο με ενημέρωση/συγκατάθεση του πελάτη. Ξεκίνα κάθε κλήση λέγοντας ότι ηχογραφείται. Ο ήχος γίνεται μεταγραφή και διαγράφεται — δεν αποθηκεύεται.
+              </p>
+              <div className="mt-2.5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={enableRecording}
+                  className="rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
+                >
+                  Κατάλαβα, ενεργοποίηση
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRecordConsentOpen(false)}
+                  className="rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                >
+                  Άκυρο
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Inline numpad - visible immediately when browser phone token is ready */}
       {!phoneToken.loading && phoneToken.ready && (
@@ -1856,6 +2013,9 @@ export default function CallsPage() {
           event={pendingCallReview}
           busy={callReviewBusy}
           error={callReviewError}
+          saved={callReviewSaved}
+          brief={callReviewBrief}
+          transcribing={callReviewTranscribing}
           onSave={handleSaveReviewedCall}
           onSkip={handleSkipReviewedCall}
         />

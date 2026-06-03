@@ -138,7 +138,7 @@ export default function IntakeFormClient({
       <div className="mx-auto max-w-lg">
         <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-zinc-100">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-            Yorgos CRM
+            Ασφαλής φόρμα στοιχείων
           </p>
           <h1 className="mt-2 text-2xl font-bold text-zinc-900">
             Συμπλήρωση στοιχείων
@@ -183,6 +183,7 @@ export default function IntakeFormClient({
                     name="firstName"
                     value={firstName}
                     onChange={(event) => setFirstName(event.target.value)}
+                    autoComplete="given-name"
                     className="mt-1 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-indigo-400"
                     placeholder="π.χ. Γιώργος"
                   />
@@ -194,6 +195,7 @@ export default function IntakeFormClient({
                     name="lastName"
                     value={lastName}
                     onChange={(event) => setLastName(event.target.value)}
+                    autoComplete="family-name"
                     className="mt-1 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-indigo-400"
                     placeholder="π.χ. Παπαδόπουλος"
                   />
@@ -207,6 +209,9 @@ export default function IntakeFormClient({
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="email"
+                  inputMode="email"
+                  autoCapitalize="none"
                   className="mt-1 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-indigo-400"
                   placeholder="name@example.com"
                 />
@@ -218,6 +223,7 @@ export default function IntakeFormClient({
                   name="address"
                   value={address}
                   onChange={(event) => setAddress(event.target.value)}
+                  autoComplete="street-address"
                   className="mt-1 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-indigo-400"
                   placeholder="Οδός, αριθμός, περιοχή"
                 />
@@ -237,7 +243,7 @@ export default function IntakeFormClient({
               <button
                 type="submit"
                 disabled={saving}
-                className="w-full rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? 'Αποθήκευση...' : 'Αποστολή στοιχείων'}
               </button>

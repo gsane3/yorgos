@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
 type PageState = 'loading' | 'no_config' | 'no_params' | 'success' | 'error';
@@ -17,6 +18,15 @@ function isOtpType(s: string): s is OtpType {
 
 export default function AuthConfirmPage() {
   const [state, setState] = useState<PageState>('loading');
+  const router = useRouter();
+
+  // After a successful confirmation the user already has a session — continue
+  // them into the activation/onboarding flow instead of dead-ending on a link.
+  useEffect(() => {
+    if (state !== 'success') return;
+    const t = setTimeout(() => router.replace('/package'), 1500);
+    return () => clearTimeout(t);
+  }, [state, router]);
 
   useEffect(() => {
     async function confirm() {
@@ -77,7 +87,7 @@ export default function AuthConfirmPage() {
 
         {state === 'success' && (
           <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-green-800 text-sm">
-            Το email σου επιβεβαιώθηκε. Μπορείς να συνδεθείς και να συνεχίσεις.
+            Το email σου επιβεβαιώθηκε. Σε πάμε στη ρύθμιση του λογαριασμού σου...
           </div>
         )}
 
@@ -88,9 +98,15 @@ export default function AuthConfirmPage() {
         )}
 
         <div className="mt-6 text-center text-sm">
-          <Link href="/login" className="font-semibold text-indigo-600 hover:text-indigo-700 transition">
-            Σύνδεση
-          </Link>
+          {state === 'success' ? (
+            <Link href="/package" className="font-semibold text-indigo-600 hover:text-indigo-700 transition">
+              Συνέχεια
+            </Link>
+          ) : (
+            <Link href="/login" className="font-semibold text-indigo-600 hover:text-indigo-700 transition">
+              Σύνδεση
+            </Link>
+          )}
         </div>
       </div>
     </main>

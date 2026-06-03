@@ -1,7 +1,39 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: var(--font-geist-sans);
+  /* Geist covers Latin; Greek glyphs fall back to the native system font so the
+     UI looks right on every platform (and "native" inside an app wrapper). */
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
+/* Mobile-app baseline. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  /* Kill the grey/blue tap flash so taps feel native. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS safe-area helpers (active when viewport-fit=cover). */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Prevent iOS from auto-zooming when a form control is focused: keep all text
+   inputs at >=16px on phones. Applies app-wide and to public customer pages. */
+@media (max-width: 640px) {
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 @media print {
