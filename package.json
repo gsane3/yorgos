@@ -7,9 +7,18 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "cap:sync": "cap sync",
+    "cap:assets": "capacitor-assets generate",
+    "cap:android": "cap open android",
+    "cap:add:ios": "cap add ios",
+    "cap:ios": "cap open ios"
   },
   "dependencies": {
+    "@capacitor/android": "^7.6.6",
+    "@capacitor/cli": "^7.6.6",
+    "@capacitor/core": "^7.6.6",
+    "@capacitor/ios": "^7.6.6",
     "@supabase/supabase-js": "^2.106.0",
     "jssip": "^3.13.8",
     "next": "16.2.6",
@@ -17,6 +26,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

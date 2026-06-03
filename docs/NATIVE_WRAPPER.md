@@ -4,34 +4,33 @@ The web app is already **native-wrapper ready** (installable PWA, mobile viewpor
 
 A `capacitor.config.json` is already in the repo. It points the native shell at the production URL (`server.url`). **Change `appId` and `server.url` to your real values before building.**
 
-## One-time setup (needs a Mac for iOS)
+## What's already set up in this repo
+
+- **Capacitor 7** is installed (`@capacitor/core/cli/android/ios` in `package.json`). Cap 7 needs **Node ≥ 20**; Cap 8 would force Node ≥ 22.
+- **`capacitor.config.json`** points the shell at the production URL (`server.url = https://deskop.ai`). Change it to your real domain before building.
+- The **Android project is scaffolded** in `android/`, with:
+  - app icons + splash generated from `assets/icon.png` / `assets/splash.png`,
+  - **microphone permissions** (`RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS`) — required for in-app calls + recording,
+  - an **App-Links `intent-filter`** for `https://deskop.ai` (activates once the site serves `/.well-known/assetlinks.json` — see Deep links below).
+- Convenience scripts: `npm run cap:sync`, `npm run cap:assets`, `npm run cap:android`, `npm run cap:add:ios`, `npm run cap:ios`.
+
+## Build Android (any OS with Android Studio + a JDK)
 
 ```bash
-# 1. Install Capacitor + platforms
-npm i @capacitor/core
-npm i -D @capacitor/cli
-npm i @capacitor/android @capacitor/ios
-
-# 2. Add the native projects (creates /android and /ios)
-npx cap add android
-npx cap add ios        # macOS + Xcode only
-
-# 3. App icons + splash. Source assets are already committed in assets/
-#    (icon.png 1024, splash.png 2732), generated from public/icon.svg by
-#    `node scripts/generate-icons.cjs`. Generate the native icon/splash sets:
-npm i -D @capacitor/assets
-npx @capacitor/assets generate --iconBackgroundColor '#4f46e5' --splashBackgroundColor '#f5f5f7'
-
-# 4. Sync config into the native projects whenever config changes
-npx cap sync
+npm run cap:sync       # copy web assets + config into android/ (run after any change)
+npm run cap:android    # opens Android Studio → Run on device, or Build > Generate Signed Bundle/APK (.aab)
 ```
+The Gradle build needs a JDK / Android Studio (not installed in this repo's dev box, so the bundle is produced on your machine).
 
-## Build & run
+## Add iOS (needs a Mac with Xcode + CocoaPods)
 
 ```bash
-npx cap open android   # opens Android Studio → Run / Build → Generate Signed Bundle (.aab)
-npx cap open ios       # opens Xcode → Product > Archive → Distribute
+npm run cap:add:ios            # creates ios/ (Mac only)
+npm run cap:assets             # icons + splash for iOS
+npm run cap:sync
+npm run cap:ios                # opens Xcode → Product > Archive → Distribute
 ```
+Then in Xcode add `NSMicrophoneUsageDescription` to `Info.plist` (for calls/recording) and the **Associated Domains** capability `applinks:deskop.ai`.
 
 ## Submitting
 
