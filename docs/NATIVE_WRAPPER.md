@@ -16,10 +16,11 @@ npm i @capacitor/android @capacitor/ios
 npx cap add android
 npx cap add ios        # macOS + Xcode only
 
-# 3. App icons + splash from the existing brand icon
+# 3. App icons + splash. Source assets are already committed in assets/
+#    (icon.png 1024, splash.png 2732), generated from public/icon.svg by
+#    `node scripts/generate-icons.cjs`. Generate the native icon/splash sets:
 npm i -D @capacitor/assets
-# put a 1024x1024 PNG at assets/icon.png and assets/splash.png, then:
-npx cap assets generate
+npx @capacitor/assets generate --iconBackgroundColor '#4f46e5' --splashBackgroundColor '#f5f5f7'
 
 # 4. Sync config into the native projects whenever config changes
 npx cap sync
@@ -40,7 +41,11 @@ npx cap open ios       # opens Xcode → Product > Archive → Distribute
 ## Important notes
 
 - **Apple guideline 4.2 (minimum functionality):** a pure web-view wrapper can be rejected for public release. For internal pilots use **TestFlight** (no review friction). For public release, add native value first — the obvious candidates here are **native push notifications** (`@capacitor/push-notifications`) for offer/appointment responses, and later a **native calling layer**.
-- **Deep links:** register the public link routes so Viber links open cleanly — `/intake/*`, `/offer-response/*`, `/appointment-response/*`, `/upload/*`. Use Android App Links + iOS Universal Links (associate your domain) so taps can open in-app; otherwise they open in the mobile browser (which is fine — those pages are standalone).
+- **Icons:** the PWA icons (`public/icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png`) and native sources (`assets/icon.png`, `assets/splash.png`) are committed, generated from `public/icon.svg` + `public/icon-maskable.svg` via `node scripts/generate-icons.cjs`. Re-run that after changing the brand mark.
+- **Deep links (Universal / App Links):** the app serves the association files itself, env-gated, so taps on `deskop.ai` links open the installed app instead of the browser:
+  - **iOS** — `GET /.well-known/apple-app-site-association`: set `APPLE_APP_ID` to `<TeamID>.ai.deskop.app`, then add the Associated Domain `applinks:deskop.ai` in Xcode → Signing & Capabilities.
+  - **Android** — `GET /.well-known/assetlinks.json`: set `ANDROID_SHA256_CERT_FINGERPRINTS` (comma-separated, from `keytool -list -v …` or Play Console → App signing) and optionally `ANDROID_PACKAGE_NAME` (defaults to `ai.deskop.app`), then add the `<intent-filter … android:autoVerify="true">` for `https://deskop.ai` to `AndroidManifest.xml`.
+  - Until those env vars are set the routes return **404** — no broken association is ever published. The customer token pages (`/intake/*`, `/offer-response/*`, `/appointment-response/*`, `/upload/*`) still work as plain mobile-web for recipients who don't have the app.
 - **Store badges:** the landing page badges (`src/components/marketing/StoreBadges.tsx`) currently link to `/register`. Replace `PLAY_STORE_URL` / `APP_STORE_URL` with the real store URLs after publishing.
 - **Auth in the wrapper:** Supabase OAuth redirects must include the app's origin. Add your production domain (and any custom scheme) to Supabase → Authentication → URL Configuration → Redirect URLs.
 
