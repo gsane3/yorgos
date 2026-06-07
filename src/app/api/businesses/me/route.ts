@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { resolveBusinessContext } from '@/lib/api/auth';
 
 const PATCH_VALID_TYPES = ['technical_services', 'sales_services', 'projects_construction', 'other'] as const;
 const PATCH_VALID_CONTACT_METHODS = ['phone', 'email', 'viber'] as const;
@@ -33,12 +34,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
     }
 
+    // Membership-aware: resolves the owner OR any invited team member to their
+    // business (falls back to owner_id for legacy businesses).
+    const resolved = await resolveBusinessContext(supabase, user.id);
+    if (!resolved) {
+      return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
+    }
+
     const { data: business, error: queryError } = await supabase
       .from('businesses')
       .select(
         'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, legal_name, trade_name, owner_first_name, owner_last_name, address_line1, address_line2, postal_code, region, website, created_at, updated_at'
       )
-      .eq('owner_id', user.id)
+      .eq('id', resolved.businessId)
       .maybeSingle();
 
     if (queryError) {
