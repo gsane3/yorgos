@@ -3,7 +3,7 @@ import type { OfferStatus } from '@/lib/types';
 export const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
   draft: 'Πρόχειρη',
   ready_to_send: 'Έτοιμη για αποστολή',
-  sent_manually: 'Στάλθηκε χειροκίνητα',
+  sent_manually: 'Στάλθηκε',
   accepted: 'Αποδεκτή',
   rejected: 'Απορρίφθηκε',
   expired: 'Έληξε',

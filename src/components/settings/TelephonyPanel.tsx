@@ -122,7 +122,12 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
 
       {/* Presence */}
       <div className="mt-3">
-        <p className="text-xs font-medium text-zinc-500">Διαθεσιμότητα</p>
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-medium text-zinc-500">Διαθεσιμότητα</p>
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-200">
+            Σύντομα
+          </span>
+        </div>
         <div className="mt-2 flex flex-wrap gap-2">
           {PRESENCE.map((p) => {
             const active = presence === p.key;
@@ -142,7 +147,7 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
           })}
         </div>
         <p className="mt-1.5 text-[11px] text-zinc-400">
-          Όταν δεν είσαι «Διαθέσιμος», οι εισερχόμενες προωθούνται σε AI/φωνητικό και κρατούν task για επιστροφή κλήσης.
+          Η διαθεσιμότητά σου αποθηκεύεται. Η αυτόματη δρομολόγηση εισερχομένων (AI/φωνητικό &amp; επιστροφή κλήσης όταν δεν είσαι διαθέσιμος) έρχεται σύντομα.
         </p>
       </div>
 

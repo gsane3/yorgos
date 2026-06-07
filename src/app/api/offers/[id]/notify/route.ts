@@ -419,6 +419,21 @@ export async function POST(
       }
     }
 
+    // Advance the OFFER's own status so it no longer reads as "Πρόχειρη" after a
+    // real send. Best-effort & non-fatal; never regress an offer that already
+    // reached a final state (accepted/rejected/expired) or was already sent.
+    try {
+      if (offer.status === 'draft' || offer.status === 'ready_to_send') {
+        await supabase
+          .from('offers')
+          .update({ status: 'sent_manually', updated_at: new Date().toISOString() })
+          .eq('id', offer.id)
+          .eq('business_id', businessId);
+      }
+    } catch {
+      // intentionally swallowed: the Viber message was already sent
+    }
+
     return NextResponse.json({
       ok: true,
       sent: true,
