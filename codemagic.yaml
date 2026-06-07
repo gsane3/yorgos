@@ -39,6 +39,10 @@ workflows:
         script: npx cap sync android
       - name: Build debug APK
         script: |
+          set -e
+          # Capacitor 7 compiles its Android modules at Java 21.
+          export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+          echo "Using JAVA_HOME=$JAVA_HOME"; java -version
           cd android
           chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon
