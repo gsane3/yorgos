@@ -11,6 +11,7 @@ import {
   markAppointmentResponseTokenResponded,
 } from '@/lib/server/appointment-response-tokens';
 import type { AppointmentResponseTokenRow } from '@/lib/server/appointment-response-tokens';
+import { sendPushToBusinessOwner } from '@/lib/server/push';
 
 export const runtime = 'nodejs';
 
@@ -653,6 +654,20 @@ export async function POST(
       { status: 500 }
     );
   }
+
+  // Notify the business owner's native devices. Best-effort and INERT until the
+  // FCM service account is configured (returns instantly, never throws).
+  await sendPushToBusinessOwner(tokenRow.business_id, {
+    title:
+      response === 'accepted'
+        ? 'Ραντεβού: Επιβεβαίωση ✅'
+        : response === 'declined'
+          ? 'Ραντεβού: Ακύρωση'
+          : 'Ραντεβού: Αίτημα αλλαγής ώρας',
+    body: commSummary,
+    ...(task.customer_id ? { url: `/customers/${task.customer_id}` } : {}),
+    data: { type: 'appointment_response', taskId: task.id, response },
+  });
 
   return NextResponse.json({
     ok: true,
