@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { registerNativePush } from '@/lib/native/push';
 import BottomNav from './BottomNav';
 import DesktopSidebar from './DesktopSidebar';
 
@@ -58,6 +59,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         if (cancelled) return;
         setAuthChecked(true);
+
+        // Native push: register this device once the session is confirmed.
+        // No-op on web; failures are swallowed inside the helper.
+        void registerNativePush((url) => router.push(url));
       } catch {
         // Auth client not configured or network error: redirect to login.
         if (!cancelled) {

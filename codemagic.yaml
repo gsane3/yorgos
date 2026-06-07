@@ -1,0 +1,103 @@
+# Codemagic CI/CD — Opiflow native builds (Capacitor wrapper).
+#
+# Why this exists: the local dev box has no Mac, so iOS is built on Codemagic's
+# cloud-Mac. Android can build here too (no Android Studio needed locally).
+#
+# The Capacitor shell loads the LIVE web app (https://opiflow.vercel.app), so
+# these workflows do NOT build the Next.js app — they only wrap it. The web app
+# is shipped separately via Vercel.
+#
+# Setup on codemagic.io (one-time):
+#   1. Connect the GitHub repo (gsane3/opiflow).
+#   2. iOS: enable automatic code signing (App Store Connect API key) + create
+#      the bundle id `ai.opiflow.app`. Add the APNs key in Firebase for push.
+#   3. Android: upload the keystore to Codemagic and reference it (see below).
+#   4. Put google-services.json (Android) / GoogleService-Info.plist (iOS) in
+#      Codemagic "Environment variables" as base64, or commit them, before push.
+#
+# Docs: docs/NATIVE_WRAPPER.md
+
+workflows:
+  # -------------------------------------------------------------------------
+  # Android — builds a signed .aab for Google Play
+  # -------------------------------------------------------------------------
+  android-release:
+    name: Opiflow Android (release .aab)
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      node: 20
+      groups:
+        - opiflow_android # define KEYSTORE_PATH, CM_KEYSTORE_PASSWORD, etc. in this group
+    scripts:
+      - name: Install JS deps
+        script: npm ci
+      - name: Restore google-services.json
+        script: |
+          # Optional: if you stored it as a base64 env var GOOGLE_SERVICES_JSON
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            echo "$GOOGLE_SERVICES_JSON" | base64 --decode > android/app/google-services.json
+          fi
+      - name: Capacitor sync (Android)
+        script: npx cap sync android
+      - name: Build release bundle
+        script: |
+          cd android
+          ./gradlew bundleRelease
+    artifacts:
+      - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/*.apk
+    publishing:
+      # Add an App Store Connect / Google Play integration in Codemagic to
+      # auto-upload to the internal testing track.
+      email:
+        recipients:
+          - georgiostsipos@gmail.com
+
+  # -------------------------------------------------------------------------
+  # iOS — builds a signed .ipa for TestFlight / App Store
+  # -------------------------------------------------------------------------
+  ios-release:
+    name: Opiflow iOS (release .ipa)
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    integrations:
+      app_store_connect: opiflow_asc # App Store Connect API key added in Codemagic
+    environment:
+      node: 20
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: ai.opiflow.app
+    scripts:
+      - name: Install JS deps
+        script: npm ci
+      - name: Add iOS platform (idempotent)
+        script: |
+          if [ ! -d "ios" ]; then
+            npx cap add ios
+          fi
+      - name: Restore GoogleService-Info.plist
+        script: |
+          if [ -n "$GOOGLE_SERVICE_INFO_PLIST" ]; then
+            echo "$GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > ios/App/App/GoogleService-Info.plist
+          fi
+      - name: Capacitor sync (iOS)
+        script: npx cap sync ios
+      - name: Set up signing
+        script: xcode-project use-profiles
+      - name: Build .ipa
+        script: |
+          xcode-project build-ipa \
+            --workspace "ios/App/App.xcworkspace" \
+            --scheme "App"
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+      email:
+        recipients:
+          - georgiostsipos@gmail.com

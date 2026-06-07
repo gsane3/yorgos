@@ -11,6 +11,7 @@ import {
   markOfferResponseTokenResponded,
 } from '@/lib/server/offer-response-tokens';
 import type { OfferResponseTokenRow } from '@/lib/server/offer-response-tokens';
+import { sendPushToBusinessOwner } from '@/lib/server/push';
 
 export const runtime = 'nodejs';
 
@@ -546,6 +547,19 @@ export async function POST(
       { status: 500 }
     );
   }
+
+  // Notify the business owner's native devices. Best-effort and INERT until the
+  // FCM service account is configured (sendPushToBusinessOwner returns instantly
+  // and never throws), so this cannot affect the customer's response.
+  await sendPushToBusinessOwner(tokenRow.business_id, {
+    title:
+      response === 'accepted'
+        ? `Προσφορά ${offer.offer_number}: Αποδοχή ✅`
+        : `Προσφορά ${offer.offer_number}: Απόρριψη`,
+    body: commSummary,
+    ...(offer.customer_id ? { url: `/customers/${offer.customer_id}` } : {}),
+    data: { type: 'offer_response', offerId: offer.id, response },
+  });
 
   return NextResponse.json({
     ok: true,

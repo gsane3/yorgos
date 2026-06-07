@@ -7,7 +7,7 @@
 > A private cross-session copy of the gist also lives at
 > `~/.claude/projects/<proj>/memory/project_yorgos_ai.md`.
 >
-> **Last updated:** 2026-06-07 — session 7 (rebrand → Opiflow; telephony deep-dive + InterTelecom DID blocker; repo audit + cleanup; customer-memory AI feature wired).
+> **Last updated:** 2026-06-07 — session 8 (native push notifications built — Android-first, iOS via cloud-Mac; env-gated/inert until FCM keys set; Codemagic CI added).
 
 ---
 
@@ -54,6 +54,25 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
   editor** (NOT Supabase-CLI timestamp format — do not `supabase db push`).
 
 ## D. Changelog (newest first)
+- **2026-06-07 — session 8 (native push notifications → app-store path):**
+  - **Native push (Android-first, iOS-ready) — built, env-gated, INERT until FCM keys.** Same
+    safe pattern as per-user SIP: wired end-to-end but a silent no-op until configured.
+    - migration **032** `device_push_tokens` (one row/device token, RLS own-row, service-role writes);
+    - `src/lib/server/push.ts` — **FCM HTTP v1** sender (service-account JWT→OAuth2, no SDK; legacy
+      FCM API is dead). `isPushEnabled()` gate, `sendPushToUser` / `sendPushToBusinessOwner`, dead-token
+      pruning. Config via `FCM_SERVICE_ACCOUNT_JSON` **or** `FCM_PROJECT_ID`/`FCM_CLIENT_EMAIL`/`FCM_PRIVATE_KEY`;
+    - `POST/DELETE /api/push/register` (authed, defensive — degrades if 032 not applied);
+    - `src/lib/native/push.ts` (`registerNativePush`) mounted in `AppShell` after login — native-only,
+      dynamic-imported so it never enters the web bundle; requests perm → registers → POSTs token →
+      tap deep-links via `data.url`;
+    - **triggers:** customer offer accept/reject (`/api/offer-response`) + appointment response
+      (`/api/appointment-response`) now `sendPushToBusinessOwner(...)` (best-effort, awaited, inert);
+    - `@capacitor/push-notifications@^7` added; `capacitor.config.json` push presentation opts;
+    - **`codemagic.yaml`** — cloud-Mac CI (the dev box has no Mac): `android-release` (.aab) +
+      `ios-release` (.ipa→TestFlight, runs `cap add ios` on the Mac); `docs/NATIVE_WRAPPER.md` Push section.
+  - **Why:** native push = the "native value" that lets the **iOS build pass Apple guideline 4.2**
+    (a pure web-view wrapper risks public-release rejection). `next build` green.
+  - Also fixed stale `deskop.ai` refs in `docs/NATIVE_WRAPPER.md` → `opiflow.vercel.app` / `ai.opiflow.app`.
 - **2026-06-07 — session 7 (Opiflow rebrand + telephony scale):**
   - **PR #12 (6327cce) Rebrand deskop → Opiflow** — names everywhere; client Viber
     signature "μέσω Opiflow Assistant"; emerald theme via a single `@theme` remap of
@@ -109,8 +128,16 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
 - **Vercel CLI:** logged in + linked `sane127/opiflow`.
 - **App features:** customer-memory AI ("✨ Σύνοψη από κλήσεις") wired & live on the customer card; repo
   audited + cleaned (no dead code / no orphaned scaffolding); working tree clean.
+- **Native apps:** Android scaffold ready (`android/`, appId `ai.opiflow.app`, mic perms, App-Links).
+  **Push notifications BUILT but INERT** (migration 032 + FCM HTTP v1 sender + register API + client +
+  offer/appointment triggers) — flips on when `FCM_*` env is set on Vercel + `google-services.json`
+  added for the Android build. iOS not yet created (`ios/` absent — needs Mac/cloud-Mac). `codemagic.yaml`
+  added for cloud-Mac builds. Store-blockers already covered: in-app account deletion, privacy + terms.
 - **Open infra (user's side):** delete old Supabase `hgboy` + Vercel `yorgos`; email InterTelecom about DID
   delivery (the per-user inbound unblock); local folder rename `E:\yorgos`→`E:\opiflow` (memory already pre-copied).
+- **App-store path (user's side):** apply migration 032 (SQL editor); Firebase project + service-account
+  JSON → set `FCM_*` on Vercel; Google Play Console ($25) + build signed `.aab`; Apple Developer ($99/yr)
+  + cloud-Mac for the iOS/TestFlight build + APNs key in Firebase. See `docs/NATIVE_WRAPPER.md`.
 
 ## F. Open problems / blockers
 1. ✅ **RESOLVED — project confusion.** Live = `oluhmzt`; 031 is applied there; the PBX is
