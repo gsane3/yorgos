@@ -9,6 +9,7 @@ import ImportExportPanel from '@/components/settings/ImportExportPanel';
 import AccountPanel from '@/components/settings/AccountPanel';
 import TelephonyPanel from '@/components/settings/TelephonyPanel';
 import NotificationsPanel from '@/components/settings/NotificationsPanel';
+import SystemStatusCard from '@/components/settings/SystemStatusCard';
 
 type SettingsSection = 'business' | 'providers' | 'data' | 'account';
 
@@ -516,6 +517,9 @@ export default function SettingsPage() {
 
           {/* Native push: one-tap test notification */}
           <NotificationsPanel />
+
+          {/* Which optional integrations are actually live in this deployment */}
+          <SystemStatusCard />
         </>
       ) : (
         <>

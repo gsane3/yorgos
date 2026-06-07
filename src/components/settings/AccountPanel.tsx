@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
@@ -12,6 +12,23 @@ export default function AccountPanel() {
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  // null = unknown (loading); avoids flashing dead buttons before we know.
+  const [billingEnabled, setBillingEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/health')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setBillingEnabled(Boolean(d?.integrations?.billing));
+      })
+      .catch(() => {
+        if (!cancelled) setBillingEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function getToken(): Promise<string | null> {
     try {
@@ -64,28 +81,37 @@ export default function AccountPanel() {
 
   return (
     <div className="space-y-4">
-      {/* Subscription */}
+      {/* Subscription — only show the billing actions when Stripe is configured,
+          so we never present buttons that 503. */}
       <div className={card}>
         <h2 className="text-sm font-semibold text-zinc-900">Συνδρομή</h2>
         <p className="mt-1 text-xs text-zinc-500">Διαχειρίσου το πλάνο και τις πληρωμές σου.</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => billing('/api/billing/checkout', 'checkout')}
-            disabled={busy !== null}
-            className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-          >
-            {busy === 'checkout' ? 'Άνοιγμα...' : 'Αναβάθμιση πλάνου'}
-          </button>
-          <button
-            type="button"
-            onClick={() => billing('/api/billing/portal', 'portal')}
-            disabled={busy !== null}
-            className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
-          >
-            {busy === 'portal' ? 'Άνοιγμα...' : 'Διαχείριση συνδρομής'}
-          </button>
-        </div>
+        {billingEnabled === true ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => billing('/api/billing/checkout', 'checkout')}
+              disabled={busy !== null}
+              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+            >
+              {busy === 'checkout' ? 'Άνοιγμα...' : 'Αναβάθμιση πλάνου'}
+            </button>
+            <button
+              type="button"
+              onClick={() => billing('/api/billing/portal', 'portal')}
+              disabled={busy !== null}
+              className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+            >
+              {busy === 'portal' ? 'Άνοιγμα...' : 'Διαχείριση συνδρομής'}
+            </button>
+          </div>
+        ) : billingEnabled === false ? (
+          <p className="mt-3 rounded-xl bg-zinc-50 px-3 py-2.5 text-xs text-zinc-500 ring-1 ring-zinc-200/60">
+            Οι online πληρωμές δεν είναι ενεργές ακόμα. Για αλλαγή πλάνου επικοινώνησε μαζί μας.
+          </p>
+        ) : (
+          <p className="mt-3 text-xs text-zinc-400">Φόρτωση…</p>
+        )}
       </div>
 
       {/* Danger zone */}

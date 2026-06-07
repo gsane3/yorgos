@@ -18,6 +18,9 @@ export const OPTIONAL_INTEGRATIONS: Record<string, readonly string[]> = {
   // phone is issued each business's OWN SIP credential instead of the shared env one.
   sipPerUser: ['SIP_CRED_ENC_KEY'],
   webhookSecrets: ['PBX_WEBHOOK_SECRET', 'APIFON_WEBHOOK_SECRET'],
+  // Stripe billing — when unset, the billing UI hides its upgrade/manage buttons.
+  // (Native `push` is reported separately by /api/health via isPushEnabled().)
+  billing: ['STRIPE_SECRET_KEY'],
 };
 
 /** Throws if a required env var is missing. Use at the top of code paths that need it. */
