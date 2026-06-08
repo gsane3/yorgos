@@ -1,7 +1,65 @@
-# Native calling — architecture & plan (decision-gated)
+# Native calling — architecture & plan
 
-> Output of the session-11 architecture spike (web research + repo mapping).
-> **Two hard blockers must be decided before ANY native call code is written.**
+## ✅ DECISION (session 11): Twilio Programmable Voice, behind Asterisk
+After a 2nd spike (CPaaS comparison), the chosen path is **NOT** a self-hosted SIP engine
+(Linphone/PJSIP — see "Rejected" below) but a **managed CPaaS Voice SDK**:
+
+- **Provider: Twilio Programmable Voice** + the maintained Capacitor plugin
+  **`@capgo/capacitor-twilio-voice`** (the ONLY CPaaS with a maintained Capacitor plugin that
+  already wires PushKit/CallKit (iOS) + FCM (Android) for ring-when-killed). Telnyx is the
+  documented fallback (cheaper minutes, but NO Capacitor plugin → build the native glue from zero;
+  a dormant Telnyx webhook scaffold already exists in the repo).
+- **Topology — keep our carrier stack:** `InterTelecom (Greek DIDs, trunk IT658318) ↔ Asterisk
+  (root@46.224.138.115) ↔ Twilio SIP trunk ↔ Twilio Voice SDK (app) + Twilio-managed VoIP push`.
+  Twilio's ONLY job = the mobile app leg + firing the VoIP push. It never touches the PSTN leg, so
+  **per-DID caller-ID survives untouched** and `provision-asterisk.py` is reused. We do NOT port
+  numbers to Twilio and do NOT point InterTelecom at Twilio directly.
+- **Why Twilio over self-host:** Twilio fires the VoIP push itself (APNs VoIP cert + FCM key
+  registered as a Twilio Push Credential) → **we never build Flexisip** (the part that sank the
+  Linphone plan). Pure **usage-based, no flat license**.
+- **AI brief: reused verbatim.** A Twilio `RecordingStatusCallback` webhook downloads the WAV and
+  calls the existing `src/lib/server/openai-call-audio.ts` → `transcribeAndBriefCallAudio()`
+  (Deepgram diarization → OpenAI Greek brief → task auto-gen → `communications.summary`). Do NOT
+  use Twilio's built-in STT.
+- **Cost (small Greek SMB, ~300 min/mo, all recorded):** ~**$7–8/mo** Twilio+AI usage + InterTelecom
+  PSTN minutes (unchanged) + DID rental. **$0 upfront, no monthly minimum.**
+- **Effort:** ~**5–9 weeks** to robust killed-app incoming (vs ~2.5–4 months self-hosted).
+
+### Build phases (each a Codemagic build; MVP-first)
+- **0 — De-risk (user/infra, go/no-go gates):** Twilio trunk + BYOC to InterTelecom; prove (b) a real
+  outbound call presents the correct per-DID Greek CLI, and (c) `@capgo/capacitor-twilio-voice`
+  receives a VoIP push on a **physical iPhone with the app KILLED**. Gate everything on (b)+(c).
+- **1 — PBX coexistence:** add a Twilio PJSIP trunk + `Dial(PJSIP/twilio-mobile/biz_<id>)` branch +
+  `max_contacts` bump; verify the browser WebRTC path still works alongside.
+- **2 — OUTBOUND in-app calling:** add the plugin; mint a **Twilio Voice access token** from a new
+  backend endpoint (VoiceGrant → TwiML App → identity `biz_<id>`); native adapter routes outbound
+  through the plugin when `Capacitor.isNativePlatform()`, reusing `BrowserPhone` PhoneState.
+- **3 — INCOMING (foregrounded):** Asterisk inbound DID → Twilio → Client identity → CallKit/Telecom UI.
+- **4 — INCOMING (backgrounded/killed) via managed push** ← hardest: register the Twilio Push
+  Credential (APNs VoIP `.p8` + FCM service-account); validate on KILLED app, physical devices.
+- **5 — AI brief wiring:** Twilio recording webhook → existing `transcribeAndBriefCallAudio()`.
+
+### What STAYS vs CHANGES
+- **Stays:** InterTelecom DIDs + trunk, Asterisk + `provision-asterisk.py` per-DID CLI, the whole
+  AI-brief pipeline, `communications` + timeline UI, per-user SIP model (browser), Supabase,
+  codemagic.yaml, Firebase/APNs. The browser jsSIP path stays (desktop/web transport).
+- **Changes/adds:** one new Asterisk PJSIP trunk to Twilio (+Dial branch, max_contacts) · a (likely
+  forked) `@capgo/capacitor-twilio-voice` plugin in the shell · a new Twilio-token endpoint · a new
+  Twilio recording webhook. The native app uses Twilio Client identities `biz_<id>` instead of raw SIP.
+
+### Owner action items (Phase 0, gating)
+1. Create a **Twilio account** → an **API Key/Secret**, a **TwiML App** (for the VoiceGrant), and an
+   **Elastic SIP Trunk** (BYOC) wired to InterTelecom↔Asterisk.
+2. Register a **Twilio Push Credential**: upload the **APNs VoIP `.p8`** (Key ID + Team `7Q7A3NFK8T`,
+   bundle `ai.opiflow.app`) + the **FCM service-account** key.
+3. Set Vercel env: `TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`, `TWILIO_API_SECRET`, `TWILIO_TWIML_APP_SID`,
+   `TWILIO_PUSH_CREDENTIAL_SID` (the assistant cannot handle the raw secrets).
+4. Provide a **physical iPhone + Android** for killed-app push validation.
+
+---
+
+> ## Rejected alternative (kept for context): self-hosted SIP engine (Linphone/PJSIP)
+> Output of the FIRST architecture spike. **Two hard blockers** made this the wrong path.
 
 ## TL;DR
 The Capacitor app is a **remote-URL WebView** (`server.url = https://opiflow.vercel.app`).

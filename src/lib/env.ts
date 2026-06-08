@@ -24,6 +24,9 @@ export const OPTIONAL_INTEGRATIONS: Record<string, readonly string[]> = {
   // Sentry error monitoring — when set, instrumentation.ts initialises the
   // server SDK and next.config wraps the build with withSentryConfig.
   monitoring: ['SENTRY_DSN'],
+  // Twilio Programmable Voice — native in-app calling (the /api/phone/twilio-token
+  // endpoint mints Voice access tokens). Inert until all four are set.
+  twilioVoice: ['TWILIO_ACCOUNT_SID', 'TWILIO_API_KEY', 'TWILIO_API_SECRET', 'TWILIO_TWIML_APP_SID'],
 };
 
 /** Throws if a required env var is missing. Use at the top of code paths that need it. */
