@@ -7,7 +7,7 @@
 > A private cross-session copy of the gist also lives at
 > `~/.claude/projects/<proj>/memory/project_yorgos_ai.md`.
 >
-> **Last updated:** 2026-06-08 — session 10 (**🍏 iOS LIVE on TestFlight** — first build installed + login on a real iPhone via Codemagic `ios-release`, PRs #52–#58; plus **B3 batch PR #50** — #56 email delivery for intake/upload/appointment links, #57 outbound-message timeline with Viber/SMS/email delivery status, #53 Sentry env-gated). **⚠️ NATIVE ARCHITECTURE FINDING:** the iOS/Android app is a **remote-URL WebView** (`capacitor.config.json server.url = https://opiflow.vercel.app`) → it opens the marketing homepage (not login), **in-app calls (jsSIP/WebRTC mic) don't work in the iOS WKWebView**, and push needs the Firebase APNs key verified. Next pivot = a real native app (login-first entry, iPhone-native UI, **native SIP calling — Acrobits SDK vs Linphone decision pending**, push diagnosis). Earlier session 9: **TELEPHONY MULTI-DID LIVE** + **CALL-FLOW v2** (missed-call labels, hybrid intake-link prompt, preferred-channel sends + Viber→SMS, Deepgram diarization, 1h reminder cron); UX/CAM redesign + customer-detail v2 + Vercel `sharp` fix. **Blocker F.3 RESOLVED.** Migrations **033/034/035 APPLIED**; **036 PENDING (apply in Supabase SQL editor)**. `SIP_CRED_ENC_KEY`+`CRON_SECRET`+`DEEPGRAM_API_KEY` set on Vercel; **hourly PBX cron live**. **Pending (external): Apifon SMS sender «opiflow» approval → `APIFON_SMS_SENDER`; InterTelecom on-demand DIDs reply; Apifon WhatsApp/SMS automation reply. Optional: set `SENTRY_DSN` to activate Sentry.**
+> **Last updated:** 2026-06-08 — session 11 (**🍏 iOS LIVE on TestFlight** PRs #52–#58 + **login-first native gate** #62 + **B3** #50 + **per-business email-identity** Phase 1 + **🎙️ NATIVE-CALLING DECISION LOCKED: Twilio Programmable Voice behind Asterisk** — `docs/NATIVE_CALLING_PLAN.md`; foundation shipped: token endpoint #64 + recording webhook #65). **NATIVE-CALLING PLAN (the core product feature = make/receive calls + AI brief, must work app-closed):** chosen **Twilio Voice + `@capgo/capacitor-twilio-voice`**, kept BEHIND Asterisk so **InterTelecom Greek DIDs + per-DID caller-ID + the whole AI-brief pipeline stay untouched**; Twilio fires the managed VoIP push (no self-hosted Flexisip); ~$7–8/mo usage, ~5–9 wks in 6 phases. Rejected self-hosted Linphone (GPLv3 license + self-host VoIP push). **⏳ Owner Phase-0 (gating): create Twilio account + Elastic SIP Trunk (BYOC to Asterisk) + Push Credential (APNs VoIP `.p8` + FCM key); set `TWILIO_ACCOUNT_SID/API_KEY/API_SECRET/TWIML_APP_SID/AUTH_TOKEN/PUSH_CREDENTIAL_SID` on Vercel.** **PUSH on iOS is server-ready (`push:true`); APNs key confirmed Sandbox&Production.** **⚠️ `/api/health` gaps for full function: `email:false` (set `RESEND_API_KEY`+`EMAIL_FROM`) and `openai:false` (set `OPENAI_API_KEY`).** The app is a **remote-URL WebView** (`server.url=https://opiflow.vercel.app`); everything works EXCEPT in-app calling. Earlier session 9: **TELEPHONY MULTI-DID LIVE** + **CALL-FLOW v2** (missed-call labels, hybrid intake-link prompt, preferred-channel sends + Viber→SMS, Deepgram diarization, 1h reminder cron); UX/CAM redesign + customer-detail v2 + Vercel `sharp` fix. **Blocker F.3 RESOLVED.** Migrations **033/034/035 APPLIED**; **036 PENDING (apply in Supabase SQL editor)**. `SIP_CRED_ENC_KEY`+`CRON_SECRET`+`DEEPGRAM_API_KEY` set on Vercel; **hourly PBX cron live**. **Pending (external): Apifon SMS sender «opiflow» approval → `APIFON_SMS_SENDER`; InterTelecom on-demand DIDs reply; Apifon WhatsApp/SMS automation reply. Optional: set `SENTRY_DSN` to activate Sentry.**
 
 ---
 
@@ -54,6 +54,27 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
   editor** (NOT Supabase-CLI timestamp format — do not `supabase db push`).
 
 ## D. Changelog (newest first)
+- **2026-06-08 — session 11 (cont.) — 🎙️ NATIVE-CALLING decision LOCKED + Twilio foundation:**
+  - **Two architecture spikes** (multi-agent workflows). First rejected self-hosted SIP (Linphone GPLv3 →
+    needs a paid commercial license for a closed-source store app; self-host VoIP push needs Flexisip = too
+    hard). Second chose **Twilio Programmable Voice + the maintained `@capgo/capacitor-twilio-voice` plugin**,
+    kept **BEHIND Asterisk**: `InterTelecom (Greek DIDs) ↔ Asterisk ↔ Twilio SIP trunk ↔ Twilio Voice SDK +
+    Twilio-managed VoIP push`. Twilio only does the app leg + fires the push → **per-DID caller-ID + the whole
+    AI-brief pipeline are reused unchanged**, no self-hosted push gateway. **~$7–8/mo usage, $0 upfront, ~5–9
+    weeks** in 6 phases. Full plan + owner Phase-0 checklist in **`docs/NATIVE_CALLING_PLAN.md`**.
+  - **Foundation shipped (env-gated/inert):** **#64** `GET /api/phone/twilio-token` (mints a Twilio Voice
+    access token, VoiceGrant→TwiML App→identity `biz_<id>`) + `twilioVoice` health integration + `twilio@6`.
+    **#65** `POST /api/webhooks/voice/twilio/recording` (downloads the WAV, reuses `transcribeAndBriefCallAudio()`
+    → Greek brief → ai_draft task; matches communications by `twilio_sid=<CallSid>`).
+  - **⏳ NEXT (Phase 1+, mostly blocked on the owner's Twilio account):** PBX `provision-asterisk.py` gains a
+    Twilio PJSIP trunk + `Dial(PJSIP/twilio-mobile/biz_<id>)` + max_contacts bump; install/fork the Capgo plugin
+    + native adapter in `BrowserPhone` (swap jsSIP→plugin when `Capacitor.isNativePlatform()`); register the
+    Twilio Push Credential; validate killed-app push on physical devices.
+- **2026-06-08 — session 11 — login-first native gate + per-business email-identity:**
+  - **#62 login-first:** native `NativeGate` redirects `/`→`/login` in the app (web landing untouched); login
+    forwards already-authed users to `/dashboard`. **#61 email-identity Phase 1:** outbound emails show the
+    business name as sender (over the verified Opiflow domain) + reply-to = the business's own email
+    (`src/lib/server/email-identity.ts`). **#60 gitignore** Apple `.p8`/cert secrets.
 - **2026-06-08 — session 11 — 🍏 iOS LIVE on TestFlight (PRs #52–#58, Codemagic `ios-release`):**
   - First `.ipa` built, signed, uploaded → **installed + logged in on a real iPhone** via TestFlight internal group «opiflow».
   - **7 CI signing/upload fixes** (all `codemagic.yaml`): #52 inject `GOOGLE_SERVICE_INFO_PLIST` via a new `opiflow_ios` Codemagic group (iOS env had no `groups:`); #53 manual signing `app-store-connect fetch-signing-files --create` (automatic `ios_signing` only fetches → fails for a fresh app); #54 `use-profiles --project ios/App/App.xcodeproj --warn-only` + explicit `pod install` (unscoped use-profiles walked Pods.xcodeproj → App target left on Automatic signing → "App requires a provisioning profile"); #55→#56 persistent signing cert key as **base64** `CERTIFICATE_PRIVATE_KEY_B64` (raw multi-line PEM env var gets newline-flattened → "certificate-key is not valid"; also fixes "Cannot save Signing Certificates without certificate private key"); #57 `beta_groups: [opiflow]` → **internal** distribution (external submit needs test info + App Review / 4.2); #58 `ITSAppUsesNonExemptEncryption=false` (skip Export Compliance prompt).
