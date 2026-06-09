@@ -6,6 +6,7 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { norm } from '@/lib/search';
 import type { Customer } from '@/lib/types';
 import BrowserPhone, { type CallEndedEvent } from '@/components/phone/BrowserPhone';
+import CallsCustomerSearch from '@/components/phone/CallsCustomerSearch';
 import { recordingFileName } from '@/lib/call-recorder';
 import { findCustomerByPhone, phonesMatch } from '@/lib/phone';
 import { BottomSheet } from '@/components/ui';
@@ -1953,6 +1954,9 @@ export default function CallsPage() {
       <div>
         <h1 className="text-2xl font-bold text-zinc-900">Κλήσεις</h1>
       </div>
+
+      {/* Customer search — find a customer and jump to their chat */}
+      <CallsCustomerSearch />
 
       {/* Phone line card - hidden when browser phone is ready */}
       {!phoneToken.ready && (phoneLoading ? (
