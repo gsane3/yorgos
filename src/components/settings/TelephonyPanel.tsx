@@ -34,6 +34,10 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
   const [presence, setPresence] = useState<Presence>('available');
   const [savingMode, setSavingMode] = useState(false);
   const [modeMsg, setModeMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  // Call recording (auto-on) + mic permission — moved here from the Κλήσεις screen.
+  const [recordCalls, setRecordCalls] = useState(true);
+  const [micState, setMicState] = useState<'unknown' | 'checking' | 'granted' | 'denied' | 'unsupported'>('unknown');
+  const [micError, setMicError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,9 +120,85 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
     }
   }, []);
 
+  useEffect(() => {
+    let on = true;
+    try { on = localStorage.getItem('deskop_record_calls') !== '0'; } catch { /* ignore */ }
+    const id = window.setTimeout(() => setRecordCalls(on), 0);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  function setRecording(next: boolean) {
+    setRecordCalls(next);
+    try { localStorage.setItem('deskop_record_calls', next ? '1' : '0'); } catch { /* ignore */ }
+  }
+
+  async function checkMic() {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+      setMicState('unsupported');
+      return;
+    }
+    setMicState('checking');
+    setMicError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+      setMicState('granted');
+    } catch {
+      setMicState('denied');
+      setMicError('Δεν δόθηκε άδεια μικροφώνου. Ενεργοποίησέ την από τον browser.');
+    }
+  }
+
   return (
     <div className="mt-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
       <p className="text-sm font-semibold text-zinc-900">Τηλεφωνία</p>
+
+      {/* Call recording (auto-on) + microphone */}
+      <div className="mt-3 border-b border-zinc-100 pb-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-zinc-900">Ηχογράφηση κλήσεων</p>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Αυτόματη μεταγραφή &amp; AI brief. Ενεργή από προεπιλογή. Ενημέρωνε τον πελάτη ότι ηχογραφείται.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={recordCalls}
+            aria-label="Ηχογράφηση κλήσεων"
+            onClick={() => setRecording(!recordCalls)}
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${recordCalls ? 'bg-indigo-600' : 'bg-zinc-200'}`}
+          >
+            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${recordCalls ? 'left-[22px]' : 'left-0.5'}`} />
+          </button>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-zinc-900">Μικρόφωνο</p>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              {micState === 'granted'
+                ? 'Άδεια δόθηκε ✓'
+                : micState === 'denied'
+                ? (micError ?? 'Δεν δόθηκε άδεια. Ενεργοποίησέ την από τον browser.')
+                : micState === 'unsupported'
+                ? 'Ο browser δεν υποστηρίζει έλεγχο εδώ.'
+                : 'Χρειάζεται άδεια για κλήσεις μέσα από την εφαρμογή.'}
+            </p>
+          </div>
+          {micState !== 'granted' && micState !== 'unsupported' && (
+            <button
+              type="button"
+              onClick={checkMic}
+              disabled={micState === 'checking'}
+              className="shrink-0 rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {micState === 'checking' ? 'Έλεγχος...' : 'Έλεγχος'}
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Presence */}
       <div className="mt-3">

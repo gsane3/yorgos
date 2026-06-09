@@ -1534,8 +1534,6 @@ export default function CallsPage() {
   const [phoneInfo, setPhoneInfo] = useState<BusinessMeResponse | null>(null);
   const [phoneLoading, setPhoneLoading] = useState(true);
   const [phoneError, setPhoneError] = useState<string | null>(null);
-  const [micState, setMicState] = useState<'unknown' | 'checking' | 'granted' | 'denied' | 'unsupported'>('unknown');
-  const [micError, setMicError] = useState<string | null>(null);
   const [phoneToken, setPhoneToken] = useState<PhoneTokenState>({ loading: true, ready: false });
   const [pendingCallReview, setPendingCallReview] = useState<CallEndedEvent | null>(null);
   const [callReviewBusy, setCallReviewBusy] = useState(false);
@@ -1543,8 +1541,8 @@ export default function CallsPage() {
   const [callReviewSaved, setCallReviewSaved] = useState(false);
   const [callReviewBrief, setCallReviewBrief] = useState<string | null>(null);
   const [callReviewTranscribing, setCallReviewTranscribing] = useState(false);
-  const [recordCalls, setRecordCalls] = useState(false);
-  const [recordConsentOpen, setRecordConsentOpen] = useState(false);
+  // Recording is auto-on by default (redesign P2); toggled from Settings → Τηλεφωνία.
+  const [recordCalls, setRecordCalls] = useState(true);
   const recordedBlobRef = useRef<{ blob: Blob; mimeType: string } | null>(null);
   const [pendingDialTarget, setPendingDialTarget] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -1904,47 +1902,17 @@ export default function CallsPage() {
   // Load the opt-in call-recording preference (client-only). setState is deferred
   // out of the effect body (react-hooks/set-state-in-effect).
   useEffect(() => {
-    let on = false;
+    // Auto-on by default: recording is enabled unless the user explicitly turned
+    // it off from Settings → Τηλεφωνία (deskop_record_calls === '0').
+    let on = true;
     try {
-      on = localStorage.getItem('deskop_record_calls') === '1';
+      on = localStorage.getItem('deskop_record_calls') !== '0';
     } catch {
       // ignore storage access errors
     }
     const id = window.setTimeout(() => setRecordCalls(on), 0);
     return () => window.clearTimeout(id);
   }, []);
-
-  function enableRecording() {
-    setRecordCalls(true);
-    try { localStorage.setItem('deskop_record_calls', '1'); } catch { /* ignore */ }
-    setRecordConsentOpen(false);
-  }
-
-  function disableRecording() {
-    setRecordCalls(false);
-    try { localStorage.setItem('deskop_record_calls', '0'); } catch { /* ignore */ }
-  }
-
-  async function checkMicrophonePermission() {
-    if (
-      typeof navigator === 'undefined' ||
-      !navigator.mediaDevices ||
-      typeof navigator.mediaDevices.getUserMedia !== 'function'
-    ) {
-      setMicState('unsupported');
-      return;
-    }
-    setMicState('checking');
-    setMicError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((track) => track.stop());
-      setMicState('granted');
-    } catch {
-      setMicState('denied');
-      setMicError('Δεν δόθηκε άδεια μικροφώνου. Ενεργοποίησέ την από τον browser για να μπορείς να απαντάς κλήσεις μέσα από το app.');
-    }
-  }
 
   if (!hydrated) {
     return (
@@ -2055,56 +2023,6 @@ export default function CallsPage() {
         )}
       </div>
 
-      {/* Call-recording toggle (opt-in, consent-first) */}
-      {phoneToken.ready && (
-        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-zinc-900">Ηχογράφηση κλήσεων</p>
-              <p className="mt-0.5 text-xs text-zinc-400">
-                Αυτόματη μεταγραφή & AI brief από την κλήση. Επιτρέπεται μόνο με ενημέρωση του πελάτη.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={recordCalls}
-              aria-label="Ηχογράφηση κλήσεων"
-              onClick={() => (recordCalls ? disableRecording() : setRecordConsentOpen(true))}
-              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${recordCalls ? 'bg-indigo-600' : 'bg-zinc-200'}`}
-            >
-              <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${recordCalls ? 'left-[22px]' : 'left-0.5'}`}
-              />
-            </button>
-          </div>
-
-          {recordConsentOpen && (
-            <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
-              <p className="text-xs text-amber-800">
-                Η ηχογράφηση επιτρέπεται μόνο με ενημέρωση/συγκατάθεση του πελάτη. Ξεκίνα κάθε κλήση λέγοντας ότι ηχογραφείται. Ο ήχος γίνεται μεταγραφή και διαγράφεται — δεν αποθηκεύεται.
-              </p>
-              <div className="mt-2.5 flex gap-2">
-                <button
-                  type="button"
-                  onClick={enableRecording}
-                  className="rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
-                >
-                  Κατάλαβα, ενεργοποίηση
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRecordConsentOpen(false)}
-                  className="rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                >
-                  Άκυρο
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Inline numpad - visible immediately when browser phone token is ready */}
       {!phoneToken.loading && phoneToken.ready && (
         <NumpadPanel
@@ -2113,90 +2031,6 @@ export default function CallsPage() {
           onClose={() => {}}
           onDial={(number) => setPendingDialTarget(number)}
         />
-      )}
-
-      {/* Microphone check - shown below dialer when mic permission is needed */}
-      {micState !== 'granted' && (
-      <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-        <div className="flex items-start gap-3">
-          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
-            micState === 'denied' ? 'bg-amber-50' : micState === 'unsupported' ? 'bg-zinc-100' : 'bg-indigo-50'
-          }`}>
-            <svg
-              className={`h-5 w-5 ${
-                micState === 'denied' ? 'text-amber-500' : micState === 'unsupported' ? 'text-zinc-400' : 'text-indigo-500'
-              }`}
-              fill="none"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z"
-              />
-            </svg>
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-medium text-zinc-500">Μικρόφωνο</p>
-              {micState === 'denied' && (
-                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
-                  Χρειάζεται άδεια
-                </span>
-              )}
-              {micState === 'unsupported' && (
-                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-500 ring-1 ring-zinc-200">
-                  Δεν υποστηρίζεται
-                </span>
-              )}
-            </div>
-            {micState === 'unknown' && (
-              <>
-                <p className="mt-0.5 text-xs text-zinc-400">
-                  Χρειάζεται άδεια μικροφώνου για κλήσεις μέσα από την εφαρμογή.
-                </p>
-                <button
-                  type="button"
-                  onClick={checkMicrophonePermission}
-                  className="mt-2 rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
-                >
-                  Έλεγχος μικροφώνου
-                </button>
-              </>
-            )}
-            {micState === 'checking' && (
-              <button
-                type="button"
-                disabled
-                className="mt-2 rounded-full bg-indigo-300 px-3 py-1.5 text-xs font-semibold text-white cursor-not-allowed"
-              >
-                Έλεγχος...
-              </button>
-            )}
-            {micState === 'denied' && (
-              <>
-                <p className="mt-0.5 text-xs text-zinc-400">
-                  {micError ?? 'Δεν δόθηκε άδεια μικροφώνου. Ενεργοποίησέ την από τον browser.'}
-                </p>
-                <button
-                  type="button"
-                  onClick={checkMicrophonePermission}
-                  className="mt-2 rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
-                >
-                  Δοκιμή ξανά
-                </button>
-              </>
-            )}
-            {micState === 'unsupported' && (
-              <p className="mt-0.5 text-xs text-zinc-400">
-                Ο browser δεν υποστηρίζει έλεγχο μικροφώνου εδώ. Δοκίμασε από Chrome ή Edge.
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
       )}
 
       {/* History toggle */}
