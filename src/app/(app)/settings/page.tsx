@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { getBusinessProfile, saveBusinessProfile } from '@/lib/storage';
 import type { BusinessProfile } from '@/lib/types';
@@ -123,6 +124,7 @@ function defaultProfile(): BusinessProfile {
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [hydrated, setHydrated] = useState(false);
   const [profile, setProfile] = useState<BusinessProfile>(defaultProfile);
   const [saved, setSaved] = useState(false);
@@ -268,6 +270,16 @@ export default function SettingsPage() {
     } catch {
       setSaveError('Δεν αποθηκεύτηκαν τα στοιχεία. Δοκίμασε ξανά.');
     }
+  }
+
+  async function handleLogout() {
+    try {
+      const supabase = createBrowserSupabaseClient();
+      await supabase.auth.signOut();
+    } catch {
+      // silently continue to login
+    }
+    router.push('/login');
   }
 
   // Render helpers (not components, no hooks)
@@ -527,6 +539,18 @@ export default function SettingsPage() {
 
           {/* Which optional integrations are actually live in this deployment */}
           <SystemStatusCard />
+
+          {/* Logout (lives here now that the bottom-nav "Περισσότερα" sheet is gone) */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-[28px] bg-white px-5 py-3.5 text-sm font-semibold text-red-600 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-red-50"
+          >
+            <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+            </svg>
+            Αποσύνδεση
+          </button>
         </>
       ) : (
         <>

@@ -278,10 +278,6 @@ export default function CustomersPage() {
     );
   }
 
-  // Summary stats
-  const newLeadCount = customers.filter((c) => c.status === 'new').length;
-  const followUpCount = customers.filter((c) => c.status === 'in_progress').length;
-
   return (
     <div className="mx-auto w-full max-w-md md:max-w-4xl space-y-5 px-5 pt-6 pb-28">
 
@@ -384,26 +380,6 @@ export default function CustomersPage() {
           </button>
         </div>
       </div>
-
-      {/* Summary strip */}
-      {customers.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-[28px] bg-white px-3 py-3.5 text-center shadow-sm ring-1 ring-zinc-200/60">
-            <p className="text-2xl font-bold leading-none text-zinc-900">{customers.length}</p>
-            <p className="mt-1 text-[11px] font-medium text-zinc-500">Σύνολο</p>
-          </div>
-          <div className="rounded-[28px] bg-white px-3 py-3.5 text-center shadow-sm ring-1 ring-zinc-200/60">
-            <p className="text-2xl font-bold leading-none text-zinc-900">{newLeadCount}</p>
-            <p className="mt-1 text-[11px] font-medium text-zinc-500">Νέοι</p>
-          </div>
-          <div className="rounded-[28px] bg-white px-3 py-3.5 text-center shadow-sm ring-1 ring-zinc-200/60">
-            <p className={`text-2xl font-bold leading-none ${followUpCount > 0 ? 'text-amber-600' : 'text-zinc-300'}`}>
-              {followUpCount}
-            </p>
-            <p className="mt-1 text-[11px] font-medium text-zinc-500">Σε εξέλιξη</p>
-          </div>
-        </div>
-      )}
 
       {/* Results summary line */}
       {customers.length > 0 && (
