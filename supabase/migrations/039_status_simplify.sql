@@ -12,21 +12,23 @@
 -- labels, API VALID_STATUSES, AI schema/prompt, status writers). The app writes the
 -- new values; this constraint rejects the old ones.
 
--- 1. Map existing rows to the new vocabulary (run before swapping the CHECK).
+-- 1. Drop the OLD CHECK first. The remaps below write 'new'/'in_progress', which
+--    the old constraint does not allow yet — so it must be dropped before them.
+ALTER TABLE public.customers
+  DROP CONSTRAINT IF EXISTS customers_status_check;
+
+-- 2. Map existing rows to the new vocabulary.
 UPDATE public.customers SET status = 'in_progress'
  WHERE status IN ('contacted', 'follow_up_needed', 'offer_drafted', 'offer_sent');
 
 UPDATE public.customers SET status = 'new'
  WHERE status = 'new_lead';
 
--- 2. Swap the CHECK constraint (drop-then-add keeps the same name -> re-runnable).
-ALTER TABLE public.customers
-  DROP CONSTRAINT IF EXISTS customers_status_check;
-
+-- 3. Add the new CHECK (same name -> the whole file stays re-runnable).
 ALTER TABLE public.customers
   ADD CONSTRAINT customers_status_check
     CHECK (status IN ('new', 'in_progress', 'won', 'lost'));
 
--- 3. Default for brand-new customers.
+-- 4. Default for brand-new customers.
 ALTER TABLE public.customers
   ALTER COLUMN status SET DEFAULT 'new';
