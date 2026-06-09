@@ -15,7 +15,7 @@ import SystemStatusCard from '@/components/settings/SystemStatusCard';
 import TeamPanel from '@/components/settings/TeamPanel';
 import ServiceCatalogPanel from '@/components/settings/ServiceCatalogPanel';
 
-type SettingsSection = 'business' | 'providers' | 'data' | 'account';
+type SettingsSection = 'business' | 'telephony' | 'catalog' | 'data' | 'account' | 'notifications';
 
 type BusinessMeResponse = {
   ok?: boolean;
@@ -55,9 +55,11 @@ type BusinessMeResponse = {
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
   business: 'Επιχείρηση',
-  providers: 'Πάροχοι',
+  telephony: 'Τηλεφωνία',
+  catalog: 'Κατάλογος υπηρεσιών',
   data: 'Δεδομένα',
   account: 'Λογαριασμός',
+  notifications: 'Ειδοποιήσεις',
 };
 
 const PLAN_NAMES: Record<string, string> = {
@@ -298,70 +300,91 @@ export default function SettingsPage() {
     );
   }
 
-  function renderProviders() {
-    return (
-      <div className="space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold text-zinc-800">Πάροχοι επικοινωνίας</h2>
-          <p className="mt-0.5 text-xs text-zinc-400">
-            Οι επικοινωνίες γίνονται με native συνδέσμους (tel:, sms:) και αντιγραφή κειμένου.
-            Αυτόματη αποστολή μέσω παρόχου δεν είναι ακόμα ενεργοποιημένη.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {[
-            { label: 'Τηλεφωνία', desc: 'Ανοίγει την εφαρμογή κλήσεων της συσκευής.' },
-            { label: 'SMS', desc: 'Ανοίγει την εφαρμογή SMS της συσκευής.' },
-            { label: 'Viber', desc: 'Αντιγραφή κειμένου για αποστολή από Viber.' },
-            { label: 'Email', desc: 'Αντιγραφή draft για αποστολή από email client.' },
-          ].map(p => (
-            <div key={p.label} className="rounded-[28px] bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-200/60 space-y-1">
-              <p className="text-sm font-medium text-zinc-800">{p.label}</p>
-              <p className="text-xs text-zinc-400">{p.desc}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="rounded-[28px] bg-white px-4 py-3 text-xs text-zinc-500 shadow-sm ring-1 ring-zinc-200/60 space-y-1">
-          <p>Τα email προς πελάτες αποστέλλονται με το όνομα της επιχείρησής σου («{'<Επιχείρηση>'} via Opiflow») και οι απαντήσεις πηγαίνουν στο email της επιχείρησης που έχεις ορίσει στα στοιχεία επικοινωνίας.</p>
-          <p>Η αποστολή απευθείας από τον δικό σου λογαριασμό Gmail / Outlook είναι μελλοντική λειτουργία.</p>
-        </div>
-
-        <div className="space-y-3 border-t border-zinc-100 pt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Σύντομα</p>
-          {[
-            {
-              label: 'Σύνδεση Gmail / Outlook',
-              desc: 'Αποστολή προσφορών και ραντεβού απευθείας από τον δικό σου λογαριασμό email, ώστε να φαίνονται 100% δικά σου.',
-              helper: 'Σήμερα τα email αποστέλλονται ως «η επιχείρησή σου via Opiflow» με απαντήσεις στο email σου.',
-            },
-            {
-              label: 'Πηγές leads',
-              desc: 'Σύνδεση Meta, Google, TikTok και φόρμας ιστότοπου για αυτόματη εισαγωγή leads στο CRM.',
-              helper: 'Απαιτεί cloud backend και σύνδεση με API κάθε πλατφόρμας.',
-            },
-          ].map(p => (
-            <div key={p.label} className="rounded-[28px] bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-200/60 space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-zinc-800">{p.label}</span>
-                <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-600">Σύντομα</span>
-              </div>
-              <p className="text-xs text-zinc-400">{p.desc}</p>
-              <p className="text-xs text-zinc-300">{p.helper}</p>
-            </div>
-          ))}
-        </div>
-
-      </div>
-    );
-  }
-
   function renderData() {
     return <ImportExportPanel />;
   }
 
+  function renderCatalog() {
+    return <ServiceCatalogPanel />;
+  }
+
+  function renderNotifications() {
+    return <NotificationsPanel />;
+  }
+
+  function renderTelephony() {
+    return (
+      <div className="space-y-4">
+        {/* Phone line */}
+        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-zinc-900">Ο αριθμός σου</p>
+              {phoneLoading ? (
+                <p className="mt-0.5 text-xs text-zinc-400">Έλεγχος γραμμής...</p>
+              ) : phoneError ? (
+                <p className="mt-0.5 text-xs text-red-600">{phoneError}</p>
+              ) : phoneInfo?.business?.business_phone_number ? (
+                <>
+                  <p className="mt-0.5 text-base font-semibold text-zinc-900">{phoneInfo.business.business_phone_number}</p>
+                  <p className="mt-0.5 text-xs text-zinc-400">Ο αριθμός ενεργοποιείται αυτόματα από το Opiflow. Δεν χρειάζεται χειροκίνητη ρύθμιση.</p>
+                </>
+              ) : (
+                <p className="mt-0.5 text-xs text-zinc-400">Ο αριθμός ενεργοποιείται αυτόματα από το Opiflow. Δεν χρειάζεται χειροκίνητη ρύθμιση.</p>
+              )}
+            </div>
+            {!phoneLoading && !phoneError && (
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${phoneInfo?.phoneAssigned ? 'bg-green-50 text-green-700 ring-green-200' : 'bg-amber-50 text-amber-700 ring-amber-200'}`}>
+                {phoneInfo?.phoneAssigned ? 'Ενεργός' : 'Σε αναμονή'}
+              </span>
+            )}
+          </div>
+        </div>
+        <TelephonyPanel businessPhoneNumber={phoneInfo?.business?.business_phone_number ?? null} />
+        <NativeCallTestPanel />
+      </div>
+    );
+  }
+
   function renderAccount() {
-    return <AccountPanel />;
+    return (
+      <div className="space-y-4">
+        {/* Subscription */}
+        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+          <p className="mb-2 text-sm font-semibold text-zinc-900">Συνδρομή</p>
+          {phoneLoading ? (
+            <p className="text-xs text-zinc-400">Φόρτωση...</p>
+          ) : phoneInfo?.subscription ? (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-zinc-800">{PLAN_NAMES[phoneInfo.subscription.plan_key] ?? phoneInfo.subscription.plan_key}</span>
+                {(() => {
+                  const pill = subStatusPill(phoneInfo.subscription!.status);
+                  return <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${pill.cls}`}>{pill.label}</span>;
+                })()}
+              </div>
+              {phoneInfo.subscription.trial_ends_at && <p className="text-xs text-zinc-500">Λήγει: {fmtSubDate(phoneInfo.subscription.trial_ends_at)}</p>}
+              {phoneInfo.activationAllowed === false && <p className="text-xs text-amber-700">Επικοινώνησε με την υποστήριξη για ενεργοποίηση.</p>}
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-400">Δεν βρέθηκε ενεργή συνδρομή.</p>
+          )}
+        </div>
+        <AccountPanel />
+        <TeamPanel />
+        <SystemStatusCard />
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex w-full items-center justify-center gap-2 rounded-[28px] bg-white px-5 py-3.5 text-sm font-semibold text-red-600 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-red-50"
+        >
+          <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+          </svg>
+          Αποσύνδεση
+        </button>
+      </div>
+    );
   }
 
   // Settings content
@@ -400,12 +423,23 @@ export default function SettingsPage() {
                 bg: 'bg-indigo-50',
               },
               {
-                id: 'providers' as SettingsSection,
-                label: 'Πάροχοι',
-                subtitle: 'Επικοινωνία και μελλοντικοί πάροχοι',
+                id: 'telephony' as SettingsSection,
+                label: 'Τηλεφωνία',
+                subtitle: 'Αριθμός, σύνδεση & ηχογράφηση κλήσεων',
                 icon: (
                   <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+                  </svg>
+                ),
+                bg: 'bg-indigo-50',
+              },
+              {
+                id: 'catalog' as SettingsSection,
+                label: 'Κατάλογος υπηρεσιών',
+                subtitle: 'Υπηρεσίες & υλικά με τιμές για προσφορές',
+                icon: (
+                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 5.25h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5" />
                   </svg>
                 ),
                 bg: 'bg-indigo-50',
@@ -428,6 +462,17 @@ export default function SettingsPage() {
                 icon: (
                   <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                  </svg>
+                ),
+                bg: 'bg-indigo-50',
+              },
+              {
+                id: 'notifications' as SettingsSection,
+                label: 'Ειδοποιήσεις',
+                subtitle: 'Push ειδοποιήσεις & δοκιμή',
+                icon: (
+                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
                   </svg>
                 ),
                 bg: 'bg-indigo-50',
@@ -455,105 +500,24 @@ export default function SettingsPage() {
             ))}
           </div>
 
-          {/* Subscription card */}
-          <div className="mt-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-            <p className="mb-2 text-sm font-semibold text-zinc-900">Συνδρομή</p>
-            {phoneLoading ? (
-              <p className="text-xs text-zinc-400">Φόρτωση...</p>
-            ) : phoneInfo?.subscription ? (
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-zinc-800">
-                    {PLAN_NAMES[phoneInfo.subscription.plan_key] ?? phoneInfo.subscription.plan_key}
-                  </span>
-                  {(() => {
-                    const pill = subStatusPill(phoneInfo.subscription.status);
-                    return (
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${pill.cls}`}>
-                        {pill.label}
-                      </span>
-                    );
-                  })()}
-                </div>
-                {phoneInfo.subscription.trial_ends_at && (
-                  <p className="text-xs text-zinc-500">
-                    Λήγει: {fmtSubDate(phoneInfo.subscription.trial_ends_at)}
-                  </p>
-                )}
-                {phoneInfo.activationAllowed === false && (
-                  <p className="text-xs text-amber-700">
-                    Επικοινώνησε με την υποστήριξη για ενεργοποίηση.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-xs text-zinc-400">Δεν βρέθηκε ενεργή συνδρομή.</p>
-            )}
-          </div>
-
-          {/* Phone line card */}
-          <div className="mt-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-zinc-900">Ο αριθμός σου</p>
-                {phoneLoading ? (
-                  <p className="mt-0.5 text-xs text-zinc-400">Έλεγχος γραμμής...</p>
-                ) : phoneError ? (
-                  <p className="mt-0.5 text-xs text-red-600">{phoneError}</p>
-                ) : phoneInfo?.business?.business_phone_number ? (
-                  <>
-                    <p className="mt-0.5 text-base font-semibold text-zinc-900">
-                      {phoneInfo.business.business_phone_number}
-                    </p>
-                    <p className="mt-0.5 text-xs text-zinc-400">
-                      Ο αριθμός ενεργοποιείται αυτόματα από το Opiflow. Δεν χρειάζεται χειροκίνητη ρύθμιση.
-                    </p>
-                  </>
-                ) : (
-                  <p className="mt-0.5 text-xs text-zinc-400">
-                    Ο αριθμός ενεργοποιείται αυτόματα από το Opiflow. Δεν χρειάζεται χειροκίνητη ρύθμιση.
-                  </p>
-                )}
-              </div>
-              {!phoneLoading && !phoneError && (
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${
-                  phoneInfo?.phoneAssigned
-                    ? 'bg-green-50 text-green-700 ring-green-200'
-                    : 'bg-amber-50 text-amber-700 ring-amber-200'
-                }`}>
-                  {phoneInfo?.phoneAssigned ? 'Ενεργός' : 'Σε αναμονή'}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Telephony: availability + A/B onboarding model (keep own number / Opiflow number) */}
-          <TelephonyPanel businessPhoneNumber={phoneInfo?.business?.business_phone_number ?? null} />
-
-          {/* Native push: one-tap test notification */}
-          <NotificationsPanel />
-          {/* Native (Twilio Voice) outbound call test — native-only, no-op on web */}
-          <NativeCallTestPanel />
-
-          {/* Service catalog: team-shared price list for offers */}
-          <ServiceCatalogPanel />
-
-          {/* Team: members + invites */}
-          <TeamPanel />
-
-          {/* Which optional integrations are actually live in this deployment */}
-          <SystemStatusCard />
-
-          {/* Logout (lives here now that the bottom-nav "Περισσότερα" sheet is gone) */}
+          {/* Στατιστικά — opens the analytics page */}
           <button
             type="button"
-            onClick={handleLogout}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-[28px] bg-white px-5 py-3.5 text-sm font-semibold text-red-600 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-red-50"
+            onClick={() => router.push('/stats')}
+            className="mt-2 flex w-full items-center gap-4 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:ring-indigo-200 active:bg-zinc-50"
           >
-            <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50">
+              <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1 text-left">
+              <p className="text-sm font-semibold text-zinc-900">Στατιστικά</p>
+              <p className="mt-0.5 text-xs text-zinc-500">Τζίρος, win rate, πελάτες ανά κατάσταση</p>
+            </div>
+            <svg className="h-4 w-4 shrink-0 text-zinc-300" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
             </svg>
-            Αποσύνδεση
           </button>
         </>
       ) : (
@@ -572,9 +536,11 @@ export default function SettingsPage() {
             <h1 className="text-xl font-bold text-zinc-900">{SECTION_LABELS[activeSection]}</h1>
           </div>
           {activeSection === 'business' && renderBusiness()}
-          {activeSection === 'providers' && renderProviders()}
+          {activeSection === 'telephony' && renderTelephony()}
+          {activeSection === 'catalog' && renderCatalog()}
           {activeSection === 'data' && renderData()}
           {activeSection === 'account' && renderAccount()}
+          {activeSection === 'notifications' && renderNotifications()}
         </>
       )}
     </div>
