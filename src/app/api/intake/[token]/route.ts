@@ -12,11 +12,10 @@ export const runtime = 'nodejs';
 // Public endpoint — rate-limit by IP to deter abuse/scraping.
 const publicLimiter = makePublicLimiter(40, 60_000);
 
-// Public intake form only offers these four; the full DB set also allows
-// 'phone'. 'whatsapp' and 'sms' are only valid AFTER migration 035 widens the
-// customers_preferred_contact_method_check constraint — so persisting the value
-// must degrade gracefully (see POST below).
-const VALID_PREFERRED_CONTACT_METHODS = ['viber', 'whatsapp', 'sms', 'email'] as const;
+// Public intake form offers these three; the full DB set also allows 'phone'.
+// WhatsApp was removed in the redesign (migration 042 narrows the
+// customers_preferred_contact_method_check constraint back to viber/sms/email/phone).
+const VALID_PREFERRED_CONTACT_METHODS = ['viber', 'sms', 'email'] as const;
 type PreferredContactMethod = (typeof VALID_PREFERRED_CONTACT_METHODS)[number];
 
 function preferredContactMethod(value: unknown): PreferredContactMethod | null {

@@ -26,7 +26,6 @@
 import React, { useState } from 'react';
 import { BottomSheet, Button, Spinner, cn } from '@/components/ui';
 import {
-  buildWhatsAppHref,
   buildEmailHref,
   buildSmsHref,
 } from '@/lib/communications';
@@ -108,7 +107,6 @@ export function SendChannelSheet({
     });
   }
 
-  const showWhatsApp = Boolean(recipientPhone);
   const showEmail = Boolean(recipientEmail);
   const showSms = Boolean(recipientPhone);
 
@@ -172,33 +170,6 @@ export function SendChannelSheet({
               </Button>
             )}
 
-            {/* WhatsApp — its own brand green, not the app accent.
-                Rendered as a raw button (not the Button primitive) because `cn`
-                only concatenates classes — it does not resolve Tailwind
-                conflicts — so a primary variant's `bg-indigo-*` would fight the
-                green here. Styling it directly matches the Button shape exactly
-                while guaranteeing the brand-green wins. */}
-            {showWhatsApp && (
-              <button
-                type="button"
-                onClick={() => {
-                  onChannelUse?.();
-                  window.open(
-                    buildWhatsAppHref(recipientPhone as string, fullText),
-                    '_blank',
-                    'noopener,noreferrer',
-                  );
-                }}
-                className={cn(
-                  channelButtonClass,
-                  'inline-flex select-none items-center justify-center gap-2 text-base font-semibold transition-colors',
-                  'bg-green-600 text-white hover:bg-green-700 active:bg-green-800',
-                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white focus-visible:ring-green-500',
-                )}
-              >
-                Αποστολή με WhatsApp
-              </button>
-            )}
 
             {/* Email — backend auto-send when wired, else a mailto: deep link. */}
             {email?.kind === 'backend' && showEmail ? (
