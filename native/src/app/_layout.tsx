@@ -1,12 +1,10 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import { useEffect } from 'react';
-import { ActivityIndicator, Platform, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, useColorScheme, View } from 'react-native';
 
 import AppTabs from '@/components/app-tabs';
 import { LoginScreen } from '@/components/login-screen';
 import { Brand } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/lib/auth';
-import { registerForIncoming } from '@/lib/twilio';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -20,16 +18,11 @@ export default function RootLayout() {
 }
 
 // Auth gate: spinner while restoring the session, login when signed out, the
-// native tabs when in. On native + signed in, also register for incoming calls
-// (binds the VoIP push token to Twilio so the phone rings when locked/closed).
+// native tabs when in. NOTE: we intentionally do NOT import or touch the Twilio
+// module here, so launch never loads the native voice SDK. Incoming registration
+// is a deliberate action from Ρυθμίσεις (isolates the PushKit/CallKit path).
 function Gate() {
   const { session, loading } = useAuth();
-
-  useEffect(() => {
-    if (session && Platform.OS !== 'web') {
-      void registerForIncoming();
-    }
-  }, [session]);
 
   if (loading) {
     return (
