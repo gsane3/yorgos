@@ -69,7 +69,27 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ ok: true, valid: true, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName: key.friendlyName, twimlApp, inbound });
+    // Deep inbound check: the iOS push credential's sandbox flag (a production
+    // build needs sandbox=false) + the SIP Domain (same account + voiceUrl).
+    let pushCred: Record<string, unknown> = { checked: false };
+    const iosCredSid = process.env.TWILIO_PUSH_CREDENTIAL_SID_IOS?.trim();
+    if (iosCredSid) {
+      try {
+        const c = await client.notify.v1.credentials(iosCredSid).fetch();
+        pushCred = { sid: c.sid, type: c.type, sandbox: (c as { sandbox?: unknown }).sandbox, friendlyName: c.friendlyName };
+      } catch (e) {
+        pushCred = { error: (e as { message?: string })?.message?.slice(0, 160), code: (e as { code?: number })?.code ?? null };
+      }
+    }
+    let sipDomains: unknown = '(not checked)';
+    try {
+      const doms = await client.sip.domains.list({ limit: 20 });
+      sipDomains = doms.map((d) => ({ domainName: d.domainName, voiceUrl: d.voiceUrl, voiceMethod: d.voiceMethod }));
+    } catch (e) {
+      sipDomains = { error: (e as { message?: string })?.message?.slice(0, 160) };
+    }
+
+    return NextResponse.json({ ok: true, valid: true, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName: key.friendlyName, twimlApp, inbound, pushCred, sipDomains });
   } catch (e) {
     const err = e as { code?: number; status?: number; message?: string };
     return NextResponse.json({
