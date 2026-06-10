@@ -7,7 +7,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
-import { getIncomingState } from '@/lib/twilio';
+import { getIncomingState, registerForIncoming } from '@/lib/twilio';
 
 const PHONE_LABEL: Record<string, string> = {
   idle: 'Μη συνδεδεμένο',
@@ -61,6 +61,12 @@ export default function SettingsScreen() {
           </ThemedView>
 
           <Pressable
+            onPress={() => void registerForIncoming()}
+            style={({ pressed }) => [styles.connect, pressed && styles.pressed]}>
+            <ThemedText style={styles.connectText}>Σύνδεση τηλεφώνου (εισερχόμενες)</ThemedText>
+          </Pressable>
+
+          <Pressable
             onPress={signOut}
             style={({ pressed }) => [styles.signout, pressed && styles.pressed]}>
             <ThemedText style={styles.signoutText}>Αποσύνδεση</ThemedText>
@@ -93,6 +99,8 @@ const styles = StyleSheet.create({
   avatarText: { color: Brand.primary, fontSize: 18, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.two },
   divider: { height: 1, backgroundColor: '#E7EBF0' },
+  connect: { height: 50, borderRadius: 14, backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center' },
+  connectText: { color: Brand.onPrimary, fontSize: 15, fontWeight: '700' },
   signout: { height: 50, borderRadius: 14, borderWidth: 1, borderColor: '#E3B7B7', alignItems: 'center', justifyContent: 'center' },
   signoutText: { color: '#D14343', fontSize: 15, fontWeight: '700' },
   pressed: { opacity: 0.6 },

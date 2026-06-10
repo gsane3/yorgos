@@ -9,7 +9,13 @@ export interface ActiveCall {
   mute: (on: boolean) => void;
 }
 
-const voice = new Voice();
+// Lazy — importing this module must NOT construct Voice (which inits PushKit/CallKit
+// natively). Only an actual call/register creates it, so launch never touches it.
+let _voice: Voice | null = null;
+function getVoice(): Voice {
+  if (!_voice) _voice = new Voice();
+  return _voice;
+}
 
 async function fetchVoiceToken(onLog?: (s: string) => void): Promise<string> {
   const res = await apiGet<{ ok?: boolean; ready?: boolean; token?: string; error?: string }>(
@@ -34,6 +40,7 @@ export async function placeCall(
   onLog?.('connecting (voice.connect)…');
   console.log('[twilio] voice.connect…');
 
+  const voice = getVoice();
   const call = await voice.connect(token, { params: { To: to } });
   console.log('[twilio] voice.connect returned a call object:', !!call);
   onLog?.('connect() επέστρεψε — αναμονή events…');
@@ -62,6 +69,7 @@ function wireIncomingListeners() {
   if (listenersWired) return;
   listenersWired = true;
   try {
+    const voice = getVoice();
     voice.on(Voice.Event.CallInvite, (invite: unknown) => {
       console.log('[twilio] >>> CallInvite (incoming) <<<', invite);
       // On iOS the SDK reports this to CallKit automatically (native incoming UI).
@@ -85,6 +93,7 @@ function wireIncomingListeners() {
 export async function registerForIncoming(onLog?: (s: string) => void): Promise<void> {
   incomingState = { state: 'registering' };
   try {
+    const voice = getVoice();
     wireIncomingListeners();
     // iOS: let the SDK own the PushKit registry so it can wake the app + report to CallKit.
     try {
