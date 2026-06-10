@@ -55,13 +55,14 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ ok: true, valid: true, prefixes, keyFriendlyName: key.friendlyName, twimlApp });
+    return NextResponse.json({ ok: true, valid: true, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName: key.friendlyName, twimlApp });
   } catch (e) {
     const err = e as { code?: number; status?: number; message?: string };
     return NextResponse.json({
       ok: true,
       valid: false,
       prefixes,
+      twimlAppSidEnv: twimlAppSid ?? '(EMPTY)',
       code: err?.code ?? null,
       status: err?.status ?? null,
       message: err?.message?.slice(0, 200) ?? null,
