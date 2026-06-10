@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { missingRequiredEnv, integrationStatus } from '@/lib/env';
+import { missingRequiredEnv, integrationStatus, missingIntegrationEnv } from '@/lib/env';
 import { isPushEnabled } from '@/lib/server/push';
 
 export const runtime = 'nodejs';
@@ -16,6 +16,9 @@ export async function GET() {
       time: new Date().toISOString(),
       coreConfigured: missing.length === 0,
       integrations: { ...integrationStatus(), push: isPushEnabled() },
+      // Names only (never values) of env vars still missing per integration —
+      // a safe debugging aid for "why is X off?".
+      missingEnv: missingIntegrationEnv(),
     },
     { status: missing.length === 0 ? 200 : 503, headers: { 'Cache-Control': 'no-store' } }
   );

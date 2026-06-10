@@ -49,3 +49,17 @@ export function integrationStatus(): Record<string, boolean> {
   }
   return out;
 }
+
+/**
+ * For each optional integration that is NOT fully configured, the env var NAMES
+ * still missing. Names only — never values — so this is safe to expose on the
+ * health probe to debug "why is integration X off?" without leaking secrets.
+ */
+export function missingIntegrationEnv(): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [name, keys] of Object.entries(OPTIONAL_INTEGRATIONS)) {
+    const missing = keys.filter((k) => !process.env[k]);
+    if (missing.length > 0) out[name] = missing;
+  }
+  return out;
+}
