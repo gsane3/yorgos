@@ -64,9 +64,16 @@ export async function GET(request: NextRequest) {
     const VoiceGrant = AccessToken.VoiceGrant;
 
     const identity = businessIdentity(businessId);
+    // Pin the Twilio Region (twr header). Without it the Voice SDK may register
+    // the device for incoming push in a default/global region that the us1 SIP
+    // Domain's <Dial><Client> lookup never checks — the device registers "OK" but
+    // Twilio finds no client and returns 404 with no push attempted. All our
+    // resources (SIP Domain opiflow.sip.us1.twilio.com, push cred) are us1.
+    const region = process.env.TWILIO_REGION?.trim() || 'us1';
     const token = new AccessToken(accountSid, apiKey, apiSecret, {
       identity,
       ttl: TOKEN_TTL_SECONDS,
+      region,
     });
     token.addGrant(
       new VoiceGrant({
