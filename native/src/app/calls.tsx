@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
+import { placeCall } from '@/lib/twilio';
 import { type ActiveCall, type CallStatus } from '@/lib/twilio-state';
 
 const KEYS: string[][] = [
@@ -37,7 +38,6 @@ export default function CallsScreen() {
     setDebug('');
     setStatus('connecting');
     try {
-      const { placeCall } = await import('@/lib/twilio'); // lazy — loads the SDK only now
       const handle = await placeCall(
         num,
         (s) => {
