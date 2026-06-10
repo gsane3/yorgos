@@ -18,8 +18,22 @@ export async function GET() {
   const twimlAppSid = process.env.TWILIO_TWIML_APP_SID?.trim();
 
   const has = { accountSid: !!accountSid, apiKey: !!apiKey, apiSecret: !!apiSecret, twimlAppSid: !!twimlAppSid };
+
+  // Inbound/push diagnostic: a missing iOS push credential means the Voice token
+  // carries no pushCredentialSid, so voice.register() can't bind the device and
+  // Twilio's <Dial><Client> returns 404 — exactly the symptom we're chasing.
+  const sidTail = (v?: string) => (v && v.trim() ? v.trim().slice(0, 4) + '…' + v.trim().slice(-4) : '(unset)');
+  const inbound = {
+    pushCredIos: sidTail(process.env.TWILIO_PUSH_CREDENTIAL_SID_IOS),
+    pushCredAndroid: sidTail(process.env.TWILIO_PUSH_CREDENTIAL_SID_ANDROID),
+    pushCredFallback: sidTail(process.env.TWILIO_PUSH_CREDENTIAL_SID),
+    inboundWebhookUrl: process.env.TWILIO_INBOUND_WEBHOOK_URL?.trim() || '(unset)',
+    authTokenSet: !!process.env.TWILIO_AUTH_TOKEN?.trim(),
+    recordingWebhookSet: !!process.env.TWILIO_RECORDING_WEBHOOK_URL?.trim(),
+  };
+
   if (!accountSid || !apiKey || !apiSecret) {
-    return NextResponse.json({ ok: false, error: 'missing_env', has });
+    return NextResponse.json({ ok: false, error: 'missing_env', has, inbound });
   }
 
   const prefixes = {
@@ -55,7 +69,7 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ ok: true, valid: true, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName: key.friendlyName, twimlApp });
+    return NextResponse.json({ ok: true, valid: true, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName: key.friendlyName, twimlApp, inbound });
   } catch (e) {
     const err = e as { code?: number; status?: number; message?: string };
     return NextResponse.json({
@@ -66,6 +80,7 @@ export async function GET() {
       code: err?.code ?? null,
       status: err?.status ?? null,
       message: err?.message?.slice(0, 200) ?? null,
+      inbound,
     });
   }
 }
