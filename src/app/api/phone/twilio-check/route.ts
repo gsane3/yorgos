@@ -103,6 +103,14 @@ export async function GET(request: Request) {
     calls = { error: (e as { message?: string })?.message?.slice(0, 160) };
   }
 
+  let account: unknown = '(not checked)';
+  try {
+    const a = await client.api.accounts(accountSid).fetch();
+    account = { type: a.type, status: a.status, friendlyName: a.friendlyName };
+  } catch (e) {
+    account = { error: (e as { message?: string })?.message?.slice(0, 160) };
+  }
+
   let numbers: unknown = '(not checked)';
   let twilioNumber: string | undefined;
   try {
@@ -133,5 +141,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, valid, keyError, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName, twimlApp, inbound, pushCred, sipDomains, alerts, calls, numbers, ringTest });
+  return NextResponse.json({ ok: true, valid, keyError, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName, twimlApp, inbound, pushCred, sipDomains, alerts, calls, account, numbers, ringTest });
 }
