@@ -155,6 +155,43 @@ export async function GET(request: Request) {
     numbers = { error: (e as { message?: string })?.message?.slice(0, 160) };
   }
 
+  // Call probe (?call=CAxxx): fetch a specific call + its error notifications +
+  // webhook events. The inbound SIP 404 carries an X-Twilio-CallSid that does
+  // NOT appear in our calls.list — if this fetch 20404s, the call lives in a
+  // DIFFERENT account (the smoking gun); if it exists, events show the TwiML.
+  let callProbe: unknown = '(skip — add ?call=CAxxx)';
+  const probeUrl = new URL(request.url);
+  const probeSid = probeUrl.searchParams.get('call')?.trim();
+  if (probeSid) {
+    try {
+      const c = await client.calls(probeSid).fetch();
+      let notifications: unknown = [];
+      try {
+        notifications = (await client.calls(probeSid).notifications.list({ limit: 10 })).map((n) => ({
+          code: n.errorCode, log: n.log, at: n.messageDate, text: (n.messageText || '').slice(0, 300),
+        }));
+      } catch (e) { notifications = { error: (e as { message?: string })?.message?.slice(0, 120) }; }
+      let events: unknown = [];
+      try {
+        events = (await client.calls(probeSid).events.list({ limit: 10 })).map((ev) => {
+          const raw = ev as unknown as { request?: unknown; response?: unknown };
+          return { request: raw.request, response: raw.response };
+        });
+      } catch (e) { events = { error: (e as { message?: string })?.message?.slice(0, 120) }; }
+      callProbe = {
+        sid: c.sid, status: c.status, direction: c.direction, from: c.from, to: c.to,
+        startTime: c.startTime, duration: c.duration, accountSid: sidTail(c.accountSid),
+        notifications, events,
+      };
+    } catch (e) {
+      callProbe = {
+        error: (e as { message?: string })?.message?.slice(0, 200),
+        code: (e as { code?: number })?.code ?? null,
+        meaning: 'If 20404: the call exists in a DIFFERENT Twilio account than this API key/account.',
+      };
+    }
+  }
+
   // Direct registration test (?ring=1): Twilio calls the registered client
   // directly, bypassing Asterisk + the SIP domain. If the phone rings, the push
   // registration works and the SIP-domain path is the issue; if not, the
@@ -196,5 +233,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, valid, keyError, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName, twimlApp, inbound, pushCred, sipDomains, alerts, calls, account, numbers, ringTest });
+  return NextResponse.json({ ok: true, valid, keyError, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName, twimlApp, inbound, pushCred, sipDomains, alerts, calls, account, numbers, ringTest, callProbe });
 }
