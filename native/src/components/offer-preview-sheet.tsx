@@ -34,15 +34,21 @@ export function OfferPreviewSheet({
   const [offer, setOffer] = useState<Offer | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<LinkDraft | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     setOffer(null);
     setDraft(null);
+    setLoadError(false);
     if (!offerId) return;
-    void apiGet<{ ok?: boolean; offer?: Offer }>(`/api/offers/${offerId}`).then((res) => {
-      if (res?.offer) setOffer(res.offer);
-    });
-  }, [offerId]);
+    apiGet<{ ok?: boolean; offer?: Offer }>(`/api/offers/${offerId}`)
+      .then((res) => {
+        if (res?.offer) setOffer(res.offer);
+        else setLoadError(true);
+      })
+      .catch(() => setLoadError(true));
+  }, [offerId, retryKey]);
 
   async function setStatus(status: string) {
     if (!offer) return;
@@ -91,9 +97,18 @@ export function OfferPreviewSheet({
   return (
     <SheetModal visible={!!offerId} title={offer ? `Προσφορά ${offer.offerNumber}` : 'Προσφορά'} onClose={onClose}>
       {!offer ? (
-        <ThemedText type="small" themeColor="textSecondary">
-          Φόρτωση…
-        </ThemedText>
+        loadError ? (
+          <>
+            <ThemedText type="small" themeColor="textSecondary">
+              Σφάλμα σύνδεσης — η προσφορά δεν φορτώθηκε.
+            </ThemedText>
+            <PrimaryButton label="Δοκίμασε ξανά" onPress={() => setRetryKey((k) => k + 1)} />
+          </>
+        ) : (
+          <ThemedText type="small" themeColor="textSecondary">
+            Φόρτωση…
+          </ThemedText>
+        )
       ) : draft ? (
         <>
           <ThemedText type="smallBold">Μήνυμα προς {draft.recipient ?? 'πελάτη'}:</ThemedText>

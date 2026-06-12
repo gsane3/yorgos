@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 
 import type { Session } from '@supabase/supabase-js';
 
@@ -33,9 +34,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
     });
+
+    // RN suspends JS timers in the background, so supabase-js's auto-refresh
+    // must be started/stopped with the AppState (the documented RN wiring) —
+    // otherwise the access token is expired after hours backgrounded.
+    supabase.auth.startAutoRefresh();
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state === 'active') supabase.auth.startAutoRefresh();
+      else supabase.auth.stopAutoRefresh();
+    });
+
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
+      appState.remove();
+      supabase.auth.stopAutoRefresh();
     };
   }, []);
 

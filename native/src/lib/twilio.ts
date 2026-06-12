@@ -3,6 +3,7 @@
 // module-level `new NativeEventEmitter(nativeModule)` which crashes release builds
 // if it happens before the native module is ready (i.e. at launch).
 import { Call, Voice } from '@twilio/voice-react-native-sdk';
+import { Platform } from 'react-native';
 
 import { apiGet, apiPost } from './api';
 import { type ActiveCall, type CallStatus, setIncomingState } from './twilio-state';
@@ -14,8 +15,11 @@ function getVoice(): Voice {
 }
 
 async function fetchVoiceToken(onLog?: (s: string) => void): Promise<string> {
+  // The platform decides which Push Credential the server embeds (APNs vs FCM)
+  // — hardcoding ios left Android registrations bound to the wrong credential.
+  const platform = Platform.OS === 'android' ? 'android' : 'ios';
   const res = await apiGet<{ ok?: boolean; token?: string; error?: string }>(
-    '/api/phone/twilio-token?platform=ios',
+    `/api/phone/twilio-token?platform=${platform}`,
   );
   onLog?.(`token: ok=${res?.ok} hasToken=${!!res?.token} err=${res?.error ?? '-'}`);
   if (!res?.token) throw new Error(`Δεν λήφθηκε token (ok=${res?.ok}, err=${res?.error ?? 'none'}).`);
@@ -58,6 +62,35 @@ export async function placeCall(
   return {
     disconnect: () => { void call.disconnect(); },
     mute: (on: boolean) => { void call.mute(on); },
+    sendDigits: (digits: string) => {
+      try {
+        void call.sendDigits(digits);
+      } catch (e) {
+        console.log('[twilio] sendDigits err', e);
+      }
+    },
+    setSpeaker: (on: boolean) => {
+      void (async () => {
+        try {
+          // Feature-detected: route audio to the speaker (or back to the
+          // earpiece) via the SDK's audio-device API.
+          const v = voice as unknown as {
+            getAudioDevices?: () => Promise<{
+              audioDevices: Array<{ type?: string; name?: string; select: () => Promise<void> }>;
+            }>;
+          };
+          if (typeof v.getAudioDevices !== 'function') return;
+          const { audioDevices } = await v.getAudioDevices();
+          const want = on ? 'speaker' : 'earpiece';
+          const dev = audioDevices.find((d) =>
+            `${d.type ?? ''} ${d.name ?? ''}`.toLowerCase().includes(want),
+          );
+          if (dev) await dev.select();
+        } catch (e) {
+          console.log('[twilio] setSpeaker err', e);
+        }
+      })();
+    },
   };
 }
 
@@ -81,25 +114,38 @@ function wireIncomingListeners() {
   }
 }
 
-/** Register this device to RECEIVE incoming calls (binds the VoIP push token). */
+const REGISTER_RETRY_DELAYS_MS = [0, 2_000, 6_000];
+
+/**
+ * Register this device to RECEIVE incoming calls (binds the VoIP push token).
+ * Retries with backoff (cold launches often race the network coming up); never
+ * throws — the outcome lands in twilio-state for the Home banner / Settings row.
+ */
 export async function registerForIncoming(onLog?: (s: string) => void): Promise<void> {
   setIncomingState({ state: 'registering' });
+  const voice = getVoice();
+  wireIncomingListeners();
   try {
-    const voice = getVoice();
-    wireIncomingListeners();
-    try {
-      const v = voice as unknown as { initializePushRegistry?: () => Promise<void> };
-      if (typeof v.initializePushRegistry === 'function') await v.initializePushRegistry();
-    } catch (e) {
-      console.log('[twilio] initializePushRegistry err', e);
-    }
-    const token = await fetchVoiceToken(onLog);
-    await voice.register(token);
-    setIncomingState({ state: 'registered' });
-    onLog?.('register() ok');
+    const v = voice as unknown as { initializePushRegistry?: () => Promise<void> };
+    if (typeof v.initializePushRegistry === 'function') await v.initializePushRegistry();
   } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e);
-    setIncomingState({ state: 'error', detail });
-    onLog?.('register failed: ' + detail);
+    console.log('[twilio] initializePushRegistry err', e);
   }
+
+  let lastDetail = '';
+  for (const delay of REGISTER_RETRY_DELAYS_MS) {
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+    try {
+      const token = await fetchVoiceToken(onLog);
+      await voice.register(token);
+      setIncomingState({ state: 'registered' });
+      onLog?.('register() ok');
+      return;
+    } catch (e) {
+      lastDetail = e instanceof Error ? e.message : String(e);
+      onLog?.('register attempt failed: ' + lastDetail);
+    }
+  }
+  setIncomingState({ state: 'error', detail: lastDetail });
+  onLog?.('register failed: ' + lastDetail);
 }

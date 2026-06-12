@@ -48,6 +48,9 @@ export default function CallsScreen() {
   const [call, setCall] = useState<ActiveCall | null>(null);
   const [status, setStatus] = useState<CallStatus | null>(null);
   const [muted, setMuted] = useState(false);
+  const [speaker, setSpeaker] = useState(false);
+  const [showDtmf, setShowDtmf] = useState(false);
+  const [dtmfSent, setDtmfSent] = useState('');
   const [debug, setDebug] = useState('');
 
   const [recent, setRecent] = useState<Communication[]>([]);
@@ -100,7 +103,13 @@ export default function CallsScreen() {
           if (s === 'disconnected' || s === 'failed') {
             setCall(null);
             setMuted(false);
+            setSpeaker(false);
+            setShowDtmf(false);
+            setDtmfSent('');
             setTimeout(() => setStatus(null), 1200);
+            // The call was logged server-side at dial time and the AI brief
+            // follows shortly — refresh «Πρόσφατες» so it appears without a pull.
+            setTimeout(() => void loadRecent(), 1500);
           }
         });
         setCall(handle);
@@ -111,7 +120,7 @@ export default function CallsScreen() {
         Alert.alert('Αποτυχία κλήσης', msg);
       }
     },
-    [num],
+    [num, loadRecent],
   );
 
   function hangup() {
@@ -119,6 +128,10 @@ export default function CallsScreen() {
     setCall(null);
     setStatus(null);
     setMuted(false);
+    setSpeaker(false);
+    setShowDtmf(false);
+    setDtmfSent('');
+    setTimeout(() => void loadRecent(), 1500);
   }
 
   function toggleMute() {
@@ -126,6 +139,19 @@ export default function CallsScreen() {
     const next = !muted;
     call.mute(next);
     setMuted(next);
+  }
+
+  function toggleSpeaker() {
+    if (!call) return;
+    const next = !speaker;
+    call.setSpeaker(next);
+    setSpeaker(next);
+  }
+
+  function sendDtmf(k: string) {
+    if (!call) return;
+    call.sendDigits(k);
+    setDtmfSent((d) => (d + k).slice(-16));
   }
 
   const inCall = call !== null || status === 'connecting';
@@ -145,7 +171,8 @@ export default function CallsScreen() {
             active={tab === 'recent'}
             onPress={() => {
               setTab('recent');
-              if (recent.length === 0) void loadRecent();
+              // Always refresh — the list goes stale after the user's own calls.
+              void loadRecent();
             }}
           />
         </View>
@@ -182,6 +209,8 @@ export default function CallsScreen() {
             <View style={styles.actionRow}>
               <View style={styles.sideSlot} />
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Κλήση"
                 onPress={() => void dial()}
                 disabled={!num}
                 style={({ pressed }) => [styles.callBtn, !num && styles.disabled, pressed && styles.pressed]}>
@@ -189,7 +218,11 @@ export default function CallsScreen() {
               </Pressable>
               <View style={styles.sideSlot}>
                 {num ? (
-                  <Pressable onPress={back} style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Διαγραφή ψηφίου"
+                    onPress={back}
+                    style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
                     <Ionicons name="backspace-outline" size={26} color="#5B6472" />
                   </Pressable>
                 ) : null}
@@ -246,6 +279,8 @@ export default function CallsScreen() {
                   </ThemedText>
                   {item.phone ? (
                     <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Κλήση"
                       onPress={() => void dial(item.phone ?? '')}
                       hitSlop={8}
                       style={({ pressed }) => [styles.recentCallBtn, pressed && styles.pressed]}>
@@ -283,13 +318,41 @@ export default function CallsScreen() {
                 <ThemedText style={styles.overlayStatus}>{status ? STATUS_LABEL[status] : ''}</ThemedText>
               </View>
             </View>
-            <View style={styles.overlayControls}>
-              <Pressable onPress={toggleMute} style={styles.ctrl}>
-                <ThemedText style={styles.ctrlText}>{muted ? 'Άρση σίγασης' : 'Σίγαση'}</ThemedText>
-              </Pressable>
-              <Pressable onPress={hangup} style={[styles.ctrl, styles.hangup]}>
-                <ThemedText style={styles.hangupText}>Τερματισμός</ThemedText>
-              </Pressable>
+            <View style={styles.overlayBottom}>
+              {/* DTMF pad for IVRs («πατήστε 1 για…») */}
+              {showDtmf ? (
+                <View style={styles.dtmfPad}>
+                  {dtmfSent ? <ThemedText style={styles.dtmfSent}>{dtmfSent}</ThemedText> : null}
+                  {KEYS.map((row, i) => (
+                    <View key={i} style={styles.dtmfRow}>
+                      {row.map((k) => (
+                        <Pressable
+                          key={k}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Πλήκτρο ${k}`}
+                          onPress={() => sendDtmf(k)}
+                          style={({ pressed }) => [styles.dtmfKey, pressed && styles.pressed]}>
+                          <ThemedText style={styles.dtmfKeyText}>{k}</ThemedText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              <View style={styles.overlayControls}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Σίγαση" onPress={toggleMute} style={[styles.ctrlRound, muted && styles.ctrlActive]}>
+                  <Ionicons name={muted ? 'mic-off' : 'mic'} size={24} color="#FFFFFF" />
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel="Ηχείο" onPress={toggleSpeaker} style={[styles.ctrlRound, speaker && styles.ctrlActive]}>
+                  <Ionicons name="volume-high" size={24} color="#FFFFFF" />
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel="Πληκτρολόγιο" onPress={() => setShowDtmf((v) => !v)} style={[styles.ctrlRound, showDtmf && styles.ctrlActive]}>
+                  <Ionicons name="keypad" size={24} color="#FFFFFF" />
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel="Τερματισμός" onPress={hangup} style={[styles.ctrlRound, styles.hangup]}>
+                  <Ionicons name="call" size={24} color="#FFFFFF" style={styles.hangupIcon} />
+                </Pressable>
+              </View>
             </View>
           </SafeAreaView>
         </View>
@@ -359,9 +422,16 @@ const styles = StyleSheet.create({
   overlayNumber: { color: '#FFFFFF', fontSize: 34, fontWeight: '700', letterSpacing: 1 },
   overlayStatusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   overlayStatus: { color: 'rgba(255,255,255,0.9)', fontSize: 17 },
-  overlayControls: { flexDirection: 'row', gap: Spacing.four, marginBottom: Spacing.five },
-  ctrl: { paddingHorizontal: Spacing.four, paddingVertical: Spacing.three, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.2)' },
-  ctrlText: { color: '#FFFFFF', fontWeight: '700' },
+  overlayBottom: { alignItems: 'center', gap: Spacing.four, marginBottom: Spacing.five },
+  overlayControls: { flexDirection: 'row', gap: Spacing.four },
+  ctrlRound: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  ctrlActive: { backgroundColor: 'rgba(255,255,255,0.45)' },
   hangup: { backgroundColor: '#E5484D' },
-  hangupText: { color: '#FFFFFF', fontWeight: '700' },
+  hangupIcon: { transform: [{ rotate: '135deg' }] },
+
+  dtmfPad: { gap: Spacing.two, alignItems: 'center' },
+  dtmfSent: { color: 'rgba(255,255,255,0.85)', fontSize: 18, letterSpacing: 2, fontWeight: '700' },
+  dtmfRow: { flexDirection: 'row', gap: Spacing.three },
+  dtmfKey: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+  dtmfKeyText: { color: '#FFFFFF', fontSize: 24, fontWeight: '600' },
 });
