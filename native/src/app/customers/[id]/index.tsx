@@ -40,6 +40,7 @@ export default function CustomerWorkspaceScreen() {
 
   const [apptOpen, setApptOpen] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
+  const [msgOpen, setMsgOpen] = useState(false);
   const [briefItem, setBriefItem] = useState<TimelineItem | null>(null);
   const [previewOfferId, setPreviewOfferId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -248,6 +249,7 @@ export default function CustomerWorkspaceScreen() {
       {/* Composer */}
       <SafeAreaView edges={['bottom']} style={styles.composerSafe}>
         <View style={styles.composer}>
+          <ComposerButton icon="chatbubble-ellipses" label="Μήνυμα" onPress={() => setMsgOpen(true)} />
           <ComposerButton icon="calendar" label="Ραντεβού" onPress={() => setApptOpen(true)} />
           <ComposerButton icon="document-text" label="Προσφορά" onPress={() => setOfferOpen(true)} />
           <ComposerButton icon="link" label="Αίτημα" onPress={chooseRequest} busy={sending} />
@@ -255,6 +257,17 @@ export default function CustomerWorkspaceScreen() {
       </SafeAreaView>
 
       {/* Sheets / modals */}
+      <MessageModal
+        visible={msgOpen}
+        customerId={customer.id}
+        customerName={customer.name ?? null}
+        customerAddress={customer.address ?? null}
+        onClose={() => setMsgOpen(false)}
+        onDone={() => {
+          setMsgOpen(false);
+          void load();
+        }}
+      />
       <OfferPreviewSheet offerId={previewOfferId} onClose={() => setPreviewOfferId(null)} onChanged={() => void load()} />
       <AppointmentModal
         visible={apptOpen}
@@ -390,6 +403,124 @@ function ComposerButton({
       {busy ? <ActivityIndicator color={Brand.onPrimary} size="small" /> : <Ionicons name={icon} size={20} color={Brand.onPrimary} />}
       <ThemedText style={styles.composerBtnText}>{label}</ThemedText>
     </Pressable>
+  );
+}
+
+// ---------- message modal (free text + snippets) ----------
+
+interface SnippetLite {
+  id: string;
+  title: string;
+  body: string;
+}
+
+function fillTokens(body: string, name: string | null, address: string | null): string {
+  return body
+    .replace(/\{όνομα\}/g, name?.trim() || '')
+    .replace(/\{διεύθυνση\}/g, address?.trim() || '')
+    .replace(/\{ημερομηνία\}/g, '')
+    .replace(/\{ώρα\}/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\s+([,.!;])/g, '$1')
+    .trim();
+}
+
+function MessageModal({
+  visible,
+  customerId,
+  customerName,
+  customerAddress,
+  onClose,
+  onDone,
+}: {
+  visible: boolean;
+  customerId: string;
+  customerName: string | null;
+  customerAddress: string | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [snippets, setSnippets] = useState<SnippetLite[] | null>(null);
+  const [showSnippets, setShowSnippets] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setText('');
+      setShowSnippets(false);
+    }
+  }, [visible]);
+
+  async function loadSnippets() {
+    if (snippets !== null) {
+      setShowSnippets((v) => !v);
+      return;
+    }
+    setShowSnippets(true);
+    try {
+      const res = await apiGet<{ ok?: boolean; snippets?: SnippetLite[] }>('/api/snippets');
+      setSnippets(res?.snippets ?? []);
+    } catch {
+      setSnippets([]);
+    }
+  }
+
+  async function send() {
+    const t = text.trim();
+    if (!t) return;
+    setBusy(true);
+    try {
+      const res = await apiPost<{ ok?: boolean; error?: string }>(`/api/customers/${customerId}/message`, { text: t });
+      if (res?.ok) onDone();
+      else Alert.alert('Σφάλμα', res?.error === 'no_phone' ? 'Ο πελάτης δεν έχει τηλέφωνο.' : 'Το μήνυμα δεν στάλθηκε.');
+    } catch {
+      Alert.alert('Σφάλμα', 'Το μήνυμα δεν στάλθηκε.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <SheetModal visible={visible} title="Μήνυμα στον πελάτη" onClose={onClose}>
+      <Input label="Μήνυμα (Viber → SMS)" value={text} onChangeText={setText} placeholder="Γράψε ή διάλεξε πρότυπο…" multiline />
+      <Pressable onPress={() => void loadSnippets()} style={({ pressed }) => [styles.snippetToggle, pressed && styles.pressed]}>
+        <Ionicons name="chatbox-ellipses-outline" size={16} color={Brand.primary} />
+        <ThemedText type="small" style={{ color: Brand.primary, fontWeight: '700' }}>
+          {showSnippets ? 'Κλείσιμο προτύπων' : 'Πρότυπα μηνυμάτων'}
+        </ThemedText>
+      </Pressable>
+      {showSnippets ? (
+        snippets === null ? (
+          <ActivityIndicator color={Brand.primary} style={{ marginVertical: Spacing.two }} />
+        ) : snippets.length === 0 ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            Δεν υπάρχουν πρότυπα. Πρόσθεσέ τα από τις Ρυθμίσεις.
+          </ThemedText>
+        ) : (
+          <View style={styles.snippetList}>
+            {snippets.map((s) => (
+              <Pressable
+                key={s.id}
+                onPress={() => {
+                  const filled = fillTokens(s.body, customerName, customerAddress);
+                  setText((prev) => (prev ? `${prev} ${filled}` : filled));
+                  setShowSnippets(false);
+                }}
+                style={({ pressed }) => [styles.snippetItem, pressed && styles.pressed]}>
+                <ThemedText type="smallBold" style={styles.dark}>
+                  {s.title}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                  {fillTokens(s.body, customerName, customerAddress)}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        )
+      ) : null}
+      <PrimaryButton label="Αποστολή (Viber → SMS)" onPress={() => void send()} busy={busy} disabled={!text.trim()} />
+    </SheetModal>
   );
 }
 
@@ -842,6 +973,10 @@ const styles = StyleSheet.create({
   totalLine: { textAlign: 'right' },
   suggestBox: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E3E7ED', borderRadius: 12, marginTop: 4, overflow: 'hidden' },
   suggestItem: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: 10 },
+
+  snippetToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: Spacing.one },
+  snippetList: { gap: Spacing.one },
+  snippetItem: { backgroundColor: '#F7F9FB', borderRadius: 12, paddingHorizontal: Spacing.three, paddingVertical: 10 },
 
   dateChips: { flexDirection: 'row', gap: Spacing.two },
   dateChip: {

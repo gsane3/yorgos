@@ -7,6 +7,7 @@ import { getBusinessProfile, saveBusinessProfile } from '@/lib/storage';
 import type { BusinessProfile } from '@/lib/types';
 import BusinessForm from '@/components/settings/BusinessForm';
 import ImportExportPanel from '@/components/settings/ImportExportPanel';
+import SnippetsPanel from '@/components/settings/SnippetsPanel';
 import AccountPanel from '@/components/settings/AccountPanel';
 import TelephonyPanel from '@/components/settings/TelephonyPanel';
 import NotificationsPanel from '@/components/settings/NotificationsPanel';
@@ -15,7 +16,7 @@ import SystemStatusCard from '@/components/settings/SystemStatusCard';
 import TeamPanel from '@/components/settings/TeamPanel';
 import ServiceCatalogPanel from '@/components/settings/ServiceCatalogPanel';
 
-type SettingsSection = 'business' | 'telephony' | 'catalog' | 'data' | 'account' | 'notifications';
+type SettingsSection = 'business' | 'telephony' | 'catalog' | 'snippets' | 'data' | 'account' | 'notifications';
 
 type BusinessMeResponse = {
   ok?: boolean;
@@ -57,6 +58,7 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   business: 'Επιχείρηση',
   telephony: 'Τηλεφωνία',
   catalog: 'Κατάλογος υπηρεσιών',
+  snippets: 'Πρότυπα μηνυμάτων',
   data: 'Δεδομένα',
   account: 'Λογαριασμός',
   notifications: 'Ειδοποιήσεις',
@@ -308,6 +310,10 @@ export default function SettingsPage() {
     return <ServiceCatalogPanel />;
   }
 
+  function renderSnippets() {
+    return <SnippetsPanel />;
+  }
+
   function renderNotifications() {
     return <NotificationsPanel />;
   }
@@ -445,6 +451,17 @@ export default function SettingsPage() {
                 bg: 'bg-indigo-50',
               },
               {
+                id: 'snippets' as SettingsSection,
+                label: 'Πρότυπα μηνυμάτων',
+                subtitle: 'Έτοιμες απαντήσεις με ένα tap στη συνομιλία',
+                icon: (
+                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+                  </svg>
+                ),
+                bg: 'bg-indigo-50',
+              },
+              {
                 id: 'data' as SettingsSection,
                 label: 'Δεδομένα',
                 subtitle: 'Εισαγωγή & εξαγωγή πελατών (CSV)',
@@ -541,6 +558,7 @@ export default function SettingsPage() {
           {activeSection === 'business' && renderBusiness()}
           {activeSection === 'telephony' && renderTelephony()}
           {activeSection === 'catalog' && renderCatalog()}
+          {activeSection === 'snippets' && renderSnippets()}
           {activeSection === 'data' && renderData()}
           {activeSection === 'account' && renderAccount()}
           {activeSection === 'notifications' && renderNotifications()}

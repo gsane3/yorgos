@@ -98,6 +98,11 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   // Server-driven AI suggested actions (table suggested_actions). Falls back to
   // the heuristic below when empty.
   const [serverActions, setServerActions] = useState<{ id: string; actionType: string; label: string }[]>([]);
+  // Free-text message composer + snippet picker.
+  const [messageText, setMessageText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [snippetsOpen, setSnippetsOpen] = useState(false);
+  const [snippets, setSnippets] = useState<{ id: string; title: string; body: string }[] | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -166,6 +171,65 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   function openComposer(view: 'menu' | 'appointment' | 'offer') {
     setComposerView(view);
     setComposerOpen(true);
+  }
+
+  // Fill snippet merge tokens from the customer we already have client-side.
+  function fillTokens(bodyText: string): string {
+    return bodyText
+      .replace(/\{όνομα\}/g, customer?.name?.trim() || '')
+      .replace(/\{διεύθυνση\}/g, customer?.address?.trim() || '')
+      .replace(/\{ημερομηνία\}/g, '')
+      .replace(/\{ώρα\}/g, '')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\s+([,.!;])/g, '$1')
+      .trim();
+  }
+
+  async function toggleSnippets() {
+    const next = !snippetsOpen;
+    setSnippetsOpen(next);
+    if (next && snippets === null) {
+      const headers = await authHeaders();
+      if (!headers) return;
+      try {
+        const res = await fetch('/api/snippets', { headers });
+        const json = await res.json().catch(() => ({}));
+        setSnippets(json?.ok && Array.isArray(json.snippets) ? json.snippets : []);
+      } catch {
+        setSnippets([]);
+      }
+    }
+  }
+
+  function pickSnippet(s: { body: string }) {
+    setMessageText((prev) => (prev ? `${prev} ${fillTokens(s.body)}` : fillTokens(s.body)));
+    setSnippetsOpen(false);
+  }
+
+  async function sendMessage() {
+    const text = messageText.trim();
+    if (!text || sending) return;
+    const headers = await authHeaders();
+    if (!headers) { setError('Συνδέσου ξανά.'); return; }
+    setSending(true);
+    try {
+      const res = await fetch(`/api/customers/${customerId}/message`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json?.ok) {
+        setMessageText('');
+        void load();
+      } else {
+        setError(json?.error === 'no_phone' ? 'Ο πελάτης δεν έχει τηλέφωνο.' : 'Το μήνυμα δεν στάλθηκε.');
+      }
+    } catch {
+      setError('Το μήνυμα δεν στάλθηκε.');
+    } finally {
+      setSending(false);
+    }
   }
 
   async function patchAction(id: string, status: 'done' | 'dismissed') {
@@ -294,20 +358,60 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
         </div>
       )}
 
+      {/* Snippet picker (opens above the composer) */}
+      {snippetsOpen && (
+        <div className="shrink-0 border-t border-zinc-200/60 bg-white px-3 py-2">
+          <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Πρότυπα μηνυμάτων</p>
+          {snippets === null ? (
+            <div className="flex justify-center py-3"><Spinner className="text-indigo-500" /></div>
+          ) : snippets.length === 0 ? (
+            <p className="px-1 py-2 text-xs text-zinc-400">Δεν υπάρχουν πρότυπα. Πρόσθεσέ τα από τις Ρυθμίσεις.</p>
+          ) : (
+            <div className="flex max-h-44 flex-col gap-1 overflow-y-auto">
+              {snippets.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => pickSnippet(s)}
+                  className="rounded-xl bg-zinc-50 px-3 py-2 text-left transition active:scale-[0.99] hover:bg-indigo-50"
+                >
+                  <p className="text-[13px] font-semibold text-zinc-800">{s.title}</p>
+                  <p className="truncate text-[12px] text-zinc-500">{fillTokens(s.body)}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Composer */}
-      <div className="flex shrink-0 items-center gap-2 border-t border-zinc-200/60 bg-white px-3 py-2.5">
+      <div className="flex shrink-0 items-end gap-2 border-t border-zinc-200/60 bg-white px-3 py-2.5">
         <button type="button" onClick={() => openComposer('menu')} aria-label="Ενέργειες" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition active:scale-95 hover:bg-indigo-100">
           <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
         </button>
+        <button type="button" onClick={() => void toggleSnippets()} aria-label="Πρότυπα μηνυμάτων" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${snippetsOpen ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
+          <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+        </button>
+        <textarea
+          rows={1}
+          value={messageText}
+          onChange={(e) => setMessageText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendMessage(); } }}
+          placeholder="Γράψε μήνυμα στον πελάτη…"
+          className="max-h-28 min-h-[2.5rem] flex-1 resize-none rounded-2xl bg-zinc-100 px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-indigo-200"
+        />
         <button
           type="button"
-          onClick={() => openComposer('menu')}
-          className="flex-1 cursor-default select-none rounded-full bg-zinc-100 px-4 py-2.5 text-left text-sm italic text-zinc-400 transition active:scale-[0.98] hover:bg-zinc-200/70"
+          onClick={() => void sendMessage()}
+          disabled={!messageText.trim() || sending}
+          aria-label="Αποστολή"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white transition active:scale-95 enabled:hover:bg-indigo-700 disabled:opacity-40"
         >
-          Σύντομα: γράψε ή μίλα στον βοηθό…
-        </button>
-        <button type="button" disabled title="Σύντομα" aria-label="Φωνητικός βοηθός" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-300">
-          <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" /></svg>
+          {sending ? (
+            <Spinner className="text-white" />
+          ) : (
+            <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" /></svg>
+          )}
         </button>
       </div>
 
