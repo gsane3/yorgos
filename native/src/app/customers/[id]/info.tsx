@@ -80,6 +80,7 @@ export default function CustomerProfileScreen() {
   const [briefs, setBriefs] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [pinned, setPinned] = useState(false);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<Expanded>(null);
 
@@ -113,6 +114,7 @@ export default function CustomerProfileScreen() {
       if (cRes?.customer) {
         const c = cRes.customer;
         setCustomer(c);
+        setPinned((c as { pinned?: boolean }).pinned ?? false);
         setForm({
           name: c.name ?? '',
           companyName: c.companyName ?? '',
@@ -239,6 +241,17 @@ export default function CustomerProfileScreen() {
 
   const set = (k: string) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
   const callPhone = customer?.mobilePhone || customer?.phone || customer?.landlinePhone || '';
+
+  async function togglePin() {
+    const next = !pinned;
+    setPinned(next);
+    try {
+      const res = await apiPost<{ ok?: boolean }>(`/api/customers/${customerId}/pin`, { pinned: next });
+      if (!res?.ok) setPinned(!next);
+    } catch {
+      setPinned(!next);
+    }
+  }
 
   async function saveContact() {
     setBusy(true);
@@ -398,6 +411,11 @@ export default function CustomerProfileScreen() {
                 }
               />
               <Quick icon="create" label="Επεξ/σία" onPress={() => setEditOpen(true)} />
+              <Quick
+                icon={pinned ? 'bookmark' : 'bookmark-outline'}
+                label={pinned ? 'Καρφιτσωμένο' : 'Καρφίτσωμα'}
+                onPress={() => void togglePin()}
+              />
             </View>
           </View>
 

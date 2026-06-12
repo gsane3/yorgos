@@ -201,6 +201,7 @@ export default function CustomersListScreen() {
                       {[item.companyName, phone].filter(Boolean).join(' · ') || '—'}
                     </ThemedText>
                   </View>
+                  {item.pinned ? <Ionicons name="bookmark" size={15} color={Brand.primary} /> : null}
                   <Ionicons name="chevron-forward" size={18} color="#9AA4B2" />
                 </Pressable>
               );

@@ -97,6 +97,7 @@ interface CustomerRow {
   personal_notes: string | null;
   next_best_action: string | null;
   memory_updated_at: string | null;
+  pinned?: boolean;
 }
 
 function dbToCustomer(row: CustomerRow) {
@@ -126,6 +127,7 @@ function dbToCustomer(row: CustomerRow) {
     personalNotes: row.personal_notes,
     nextBestAction: row.next_best_action,
     memoryUpdatedAt: row.memory_updated_at,
+    pinned: row.pinned ?? false,
   };
 }
 
@@ -225,6 +227,27 @@ export async function GET(request: NextRequest) {
     }
 
     const customers = ((data ?? []) as unknown[]).map((row) => dbToCustomer(asCustomerRow(row)));
+
+    // Mark + float pinned customers to the top (F6). Tolerant of pre-044: a
+    // missing `pinned` column just yields no pins and the original order.
+    try {
+      const { data: pins, error: pinErr } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('business_id', businessId)
+        .eq('pinned', true);
+      if (!pinErr && Array.isArray(pins)) {
+        const pinnedIds = new Set((pins as Array<{ id: string }>).map((p) => p.id));
+        if (pinnedIds.size > 0) {
+          for (const c of customers) c.pinned = pinnedIds.has(c.id);
+          // Stable sort (V8): pinned first, original created_at order within groups.
+          customers.sort((a, b) => Number(b.pinned) - Number(a.pinned));
+        }
+      }
+    } catch {
+      // pre-044 → leave as-is
+    }
+
     return NextResponse.json({ ok: true, customers, count: customers.length });
   } catch {
     return NextResponse.json({ ok: false, error: 'customers_query_failed' }, { status: 500 });
