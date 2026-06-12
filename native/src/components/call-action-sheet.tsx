@@ -76,14 +76,19 @@ export function CallActionSheet({
     setTType('call_back');
     setTNote('');
     // Find an existing customer with the same phone (for «Σύνδεση με υπάρχουσα»).
+    // Server-side search — the old fetch-100-and-scan approach silently missed
+    // matches (→ duplicate contacts) once the CRM passed 100 customers.
     if (!call.customerId && call.phone) {
       const target = normalize(call.phone);
-      void apiGet<{ customers?: Customer[] }>('/api/customers?limit=100').then((res) => {
-        const found = (res?.customers ?? []).find((c) =>
-          [c.phone, c.mobilePhone, c.landlinePhone].some((p) => p && normalize(p) === target),
-        );
-        if (found) setMatch(found);
-      });
+      const q = target.replace(/^\+30/, '');
+      apiGet<{ customers?: Customer[] }>(`/api/customers?q=${encodeURIComponent(q)}&limit=10`)
+        .then((res) => {
+          const found = (res?.customers ?? []).find((c) =>
+            [c.phone, c.mobilePhone, c.landlinePhone].some((p) => p && normalize(p) === target),
+          );
+          if (found) setMatch(found);
+        })
+        .catch(() => {});
     }
   }, [call]);
 

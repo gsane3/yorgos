@@ -23,7 +23,18 @@ export function LoginScreen() {
     setBusy(true);
     setError(null);
     const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (err) setError('Λάθος email ή κωδικός. Δοκίμασε ξανά.');
+    if (err) {
+      // Don't tell an offline user their password is wrong — that path ends in
+      // a pointless password reset.
+      const code = (err as { code?: string }).code;
+      const status = (err as { status?: number }).status;
+      const isBadCredentials = code === 'invalid_credentials' || status === 400;
+      setError(
+        isBadCredentials
+          ? 'Λάθος email ή κωδικός. Δοκίμασε ξανά.'
+          : 'Πρόβλημα σύνδεσης — έλεγξε το internet και δοκίμασε ξανά.',
+      );
+    }
     setBusy(false);
   }
 

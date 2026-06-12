@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -16,8 +17,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Input, PrimaryButton, SheetModal } from '@/components/ui';
 import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPost } from '@/lib/api';
 import type { Customer } from '@/lib/types';
 
 const STATUS_FILTERS: Array<{ key: string; label: string }> = [
@@ -43,10 +45,14 @@ export default function CustomersListScreen() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Sequence guard: a slow response for «γ» must not overwrite «γιάννης».
+  const loadSeq = useRef(0);
 
   const load = useCallback(async (query: string, st: string) => {
     setError(null);
+    const seq = ++loadSeq.current;
     try {
       const params = new URLSearchParams();
       params.set('limit', '100');
@@ -55,13 +61,17 @@ export default function CustomersListScreen() {
       const json = await apiGet<{ ok?: boolean; customers?: Customer[] }>(
         `/api/customers?${params.toString()}`,
       );
+      if (seq !== loadSeq.current) return;
       if (json && Array.isArray(json.customers)) setItems(json.customers);
       else setError('Δεν φόρτωσαν οι πελάτες.');
     } catch {
+      if (seq !== loadSeq.current) return;
       setError('Σφάλμα σύνδεσης με τον server.');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (seq === loadSeq.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
@@ -84,9 +94,19 @@ export default function CustomersListScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ThemedText type="subtitle" style={styles.title}>
-          Πελάτες
-        </ThemedText>
+        <View style={styles.titleRow}>
+          <ThemedText type="subtitle" style={styles.title}>
+            Πελάτες
+          </ThemedText>
+          {/* Walk-up / referral customers get saved on the spot — no laptop detour. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Νέος πελάτης"
+            onPress={() => setAddOpen(true)}
+            style={({ pressed }) => [styles.addBtn, pressed && styles.rowPressed]}>
+            <Ionicons name="add" size={24} color={Brand.onPrimary} />
+          </Pressable>
+        </View>
 
         {/* Search */}
         <View style={styles.searchBox}>
@@ -188,14 +208,99 @@ export default function CustomersListScreen() {
           />
         )}
       </SafeAreaView>
+
+      <AddCustomerSheet
+        visible={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCreated={(id) => {
+          setAddOpen(false);
+          void load(q, status);
+          router.push({ pathname: '/customers/[id]', params: { id } });
+        }}
+      />
     </ThemedView>
+  );
+}
+
+// «Νέος πελάτης» — minimal on-site form (name/company + phone are enough while
+// standing in the customer's kitchen; everything else can be edited later).
+function AddCustomerSheet({
+  visible,
+  onClose,
+  onCreated,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onCreated: (id: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const [company, setCompany] = useState('');
+  const [mobile, setMobile] = useState('');
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setName('');
+      setCompany('');
+      setMobile('');
+      setEmail('');
+    }
+  }, [visible]);
+
+  async function create() {
+    if (!name.trim() && !company.trim()) {
+      Alert.alert('Νέος πελάτης', 'Συμπλήρωσε όνομα ή εταιρεία.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiPost<{ ok?: boolean; customer?: { id: string } }>('/api/customers', {
+        name: name.trim() || null,
+        companyName: company.trim() || null,
+        mobilePhone: mobile.trim() || null,
+        email: email.trim() || null,
+        source: 'manual_entry',
+      });
+      if (res?.customer?.id) onCreated(res.customer.id);
+      else Alert.alert('Σφάλμα', 'Ο πελάτης δεν δημιουργήθηκε.');
+    } catch {
+      Alert.alert('Σφάλμα', 'Ο πελάτης δεν δημιουργήθηκε.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <SheetModal visible={visible} title="Νέος πελάτης" onClose={onClose}>
+      <Input label="Ονοματεπώνυμο" value={name} onChangeText={setName} />
+      <Input label="Εταιρεία (προαιρετικό)" value={company} onChangeText={setCompany} />
+      <Input label="Κινητό" value={mobile} onChangeText={setMobile} keyboardType="phone-pad" />
+      <Input label="Email (προαιρετικό)" value={email} onChangeText={setEmail} keyboardType="email-address" />
+      <PrimaryButton label="Δημιουργία" onPress={() => void create()} busy={busy} />
+    </SheetModal>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingRight: Spacing.four,
+  },
   title: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, paddingBottom: Spacing.two },
+  addBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.three,
+  },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',

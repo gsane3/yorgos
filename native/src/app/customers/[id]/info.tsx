@@ -79,6 +79,7 @@ export default function CustomerProfileScreen() {
   const [sessions, setSessions] = useState<UploadSession[]>([]);
   const [briefs, setBriefs] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<Expanded>(null);
 
@@ -129,8 +130,9 @@ export default function CustomerProfileScreen() {
       setAppts((tRes?.tasks ?? []).filter((t) => APPT_TYPES.has(t.type)));
       setBriefs((feed?.items ?? []).filter((it) => it.type === 'call' && it.body).reverse());
       if (!sRes.error && Array.isArray(sRes.data)) setSessions(sRes.data as unknown as UploadSession[]);
+      setLoadError(false);
     } catch {
-      // back-swipe and retry by reopening
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -169,25 +171,34 @@ export default function CustomerProfileScreen() {
     [customerId],
   );
 
-  // Thumbnails when the files group expands.
+  // Thumbnails when the files group expands — ONE batch request for all
+  // sessions (the per-file endpoint cost 1 round-trip per thumbnail).
   useEffect(() => {
-    if (expanded !== 'files' || galleryFiles.length === 0) return;
+    if (expanded !== 'files' || sessions.length === 0) return;
     let cancelled = false;
     (async () => {
-      for (const f of galleryFiles.slice(0, 24)) {
-        if (f.kind !== 'image') continue;
-        const key = `${f.sessionId}:${f.fileIndex}`;
-        if (thumbs[key]) continue;
-        const url = await resolveUrl(f);
-        if (cancelled) return;
-        if (url) setThumbs((t) => ({ ...t, [key]: url }));
+      try {
+        const res = await apiPost<{
+          ok?: boolean;
+          files?: Array<{ sessionId: string; fileIndex: number; signedUrl: string | null }>;
+        }>(`/api/customers/${customerId}/files/signed-urls`, {
+          sessionIds: sessions.map((s) => s.id),
+        });
+        if (cancelled || !res?.ok || !Array.isArray(res.files)) return;
+        const next: Record<string, string> = {};
+        for (const f of res.files) {
+          if (f.signedUrl) next[`${f.sessionId}:${f.fileIndex}`] = f.signedUrl;
+        }
+        setThumbs((t) => ({ ...t, ...next }));
+      } catch {
+        // thumbnails are progressive enhancement — tiles fall back to icons
       }
     })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, galleryFiles, resolveUrl]);
+  }, [expanded, sessions, customerId]);
 
   useEffect(() => {
     if (galleryIndex === null) {
@@ -196,9 +207,35 @@ export default function CustomerProfileScreen() {
     }
     const f = galleryFiles[galleryIndex];
     if (!f) return;
+    // Reuse the batch-signed URL when we already have it (valid for 10 min).
+    const cached = thumbs[`${f.sessionId}:${f.fileIndex}`];
+    if (cached) {
+      setGalleryUrl(cached);
+      return;
+    }
     setGalleryUrl(null);
     void resolveUrl(f).then((u) => setGalleryUrl(u));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [galleryIndex, galleryFiles, resolveUrl]);
+
+  /** Videos and documents open externally (the lightbox renders images only). */
+  function openFileTile(i: number) {
+    const f = galleryFiles[i];
+    if (!f) return;
+    if (f.kind === 'image') {
+      setGalleryIndex(i);
+      return;
+    }
+    const cached = thumbs[`${f.sessionId}:${f.fileIndex}`];
+    if (cached) {
+      void Linking.openURL(cached).catch(() => Alert.alert('Σφάλμα', 'Δεν άνοιξε το αρχείο.'));
+      return;
+    }
+    void resolveUrl(f).then((u) => {
+      if (u) void Linking.openURL(u).catch(() => Alert.alert('Σφάλμα', 'Δεν άνοιξε το αρχείο.'));
+      else Alert.alert('Σφάλμα', 'Δεν άνοιξε το αρχείο.');
+    });
+  }
 
   const set = (k: string) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
   const callPhone = customer?.mobilePhone || customer?.phone || customer?.landlinePhone || '';
@@ -302,9 +339,16 @@ export default function CustomerProfileScreen() {
         </Pressable>
       </SafeAreaView>
 
-      {loading || !customer ? (
+      {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={Brand.primary} />
+        </View>
+      ) : !customer ? (
+        <View style={styles.center}>
+          <ThemedText themeColor="textSecondary">
+            {loadError ? 'Σφάλμα σύνδεσης.' : 'Δεν βρέθηκε ο πελάτης.'}
+          </ThemedText>
+          <PrimaryButton label="Δοκίμασε ξανά" onPress={() => void load()} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
@@ -434,7 +478,12 @@ export default function CustomerProfileScreen() {
                     const key = `${f.sessionId}:${f.fileIndex}`;
                     const url = thumbs[key];
                     return (
-                      <Pressable key={key} onPress={() => setGalleryIndex(i)} style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
+                      <Pressable
+                        key={key}
+                        accessibilityRole="button"
+                        accessibilityLabel={f.kind === 'image' ? 'Φωτογραφία' : f.kind === 'video' ? 'Βίντεο' : 'Αρχείο'}
+                        onPress={() => openFileTile(i)}
+                        style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
                         {f.kind === 'image' && url ? (
                           <Image source={{ uri: url }} style={styles.tileImg} resizeMode="cover" />
                         ) : (

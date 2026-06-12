@@ -42,7 +42,11 @@ export function dmyToYmd(input: string): string | null {
   const [, dd, mm, yyyy] = m;
   const d = Number(dd);
   const mo = Number(mm);
-  if (d < 1 || d > 31 || mo < 1 || mo > 12) return null;
+  const y = Number(yyyy);
+  // Round-trip through Date so impossible dates («31-02-2026») are rejected
+  // instead of silently shifting / erroring at the API.
+  const probe = new Date(y, mo - 1, d);
+  if (probe.getFullYear() !== y || probe.getMonth() !== mo - 1 || probe.getDate() !== d) return null;
   return `${yyyy}-${pad(mo)}-${pad(d)}`;
 }
 

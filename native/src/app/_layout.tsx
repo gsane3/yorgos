@@ -1,11 +1,12 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useEffect } from 'react';
-import { ActivityIndicator, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, AppState, useColorScheme, View } from 'react-native';
 
 import AppTabs from '@/components/app-tabs';
 import { LoginScreen } from '@/components/login-screen';
 import { Brand } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { getIncomingState } from '@/lib/twilio-state';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -35,16 +36,30 @@ function Gate() {
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
-    (async () => {
+
+    const doRegister = async () => {
       try {
         const { registerForIncoming } = await import('@/lib/twilio');
         if (!cancelled) await registerForIncoming();
       } catch {
-        // non-fatal: the user can retry from Ρυθμίσεις → «Επανασύνδεση τηλεφώνου»
+        // non-fatal: registerForIncoming retries internally; the Home banner +
+        // Ρυθμίσεις → «Επανασύνδεση τηλεφώνου» cover the rest
       }
-    })();
+    };
+
+    void doRegister();
+
+    // Re-register when the app returns to the foreground after a failed
+    // registration (cold launch offline, token hiccup) — the phone must ring.
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && getIncomingState().state === 'error') {
+        void doRegister();
+      }
+    });
+
     return () => {
       cancelled = true;
+      sub.remove();
     };
   }, [userId]);
 

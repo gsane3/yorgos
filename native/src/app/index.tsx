@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -20,6 +21,7 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
 import { apiGet, apiPatch } from '@/lib/api';
 import { briefExcerpt, formatWhen, todayYMD } from '@/lib/format';
+import { getIncomingState, subscribeIncomingState } from '@/lib/twilio-state';
 import type { Communication, Customer, Offer, Task } from '@/lib/types';
 
 export default function HomeScreen() {
@@ -56,8 +58,25 @@ export default function HomeScreen() {
     void load();
   }, [load]);
 
+  // «Το τηλέφωνο δεν χτυπάει» must be visible on the Home screen — not buried
+  // in Ρυθμίσεις. Tapping the banner retries registration.
+  const [phoneState, setPhoneState] = useState(getIncomingState().state);
+  useEffect(() => subscribeIncomingState(() => setPhoneState(getIncomingState().state)), []);
+  const reconnectPhone = useCallback(async () => {
+    try {
+      const { registerForIncoming } = await import('@/lib/twilio');
+      await registerForIncoming();
+    } catch {
+      // state stays 'error'; the banner remains tappable
+    }
+  }, []);
+
   const customerName = useCallback(
     (id: string | null | undefined) => customers.find((c) => c.id === id)?.name ?? null,
+    [customers],
+  );
+  const customerById = useCallback(
+    (id: string | null | undefined) => customers.find((c) => c.id === id) ?? null,
     [customers],
   );
 
@@ -134,6 +153,19 @@ export default function HomeScreen() {
             </View>
           </View>
 
+          {phoneState === 'error' ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Επανασύνδεση τηλεφώνου"
+              onPress={() => void reconnectPhone()}
+              style={({ pressed }) => [styles.phoneBanner, pressed && styles.pressed]}>
+              <Ionicons name="warning" size={16} color="#FFFFFF" />
+              <ThemedText type="small" style={styles.phoneBannerText}>
+                Το τηλέφωνο δεν είναι συνδεδεμένο — πάτα για επανασύνδεση
+              </ThemedText>
+            </Pressable>
+          ) : null}
+
           {loading ? (
             <View style={styles.loadingBox}>
               <ActivityIndicator color={Brand.primary} />
@@ -142,12 +174,12 @@ export default function HomeScreen() {
             <>
               {/* Stats */}
               <View style={styles.statsRow}>
-                <StatCard icon="person-add" label="Νέοι (μήνας)" value={stats.newThisMonth} onPress={() => router.push('/customers/index' as never)} />
+                <StatCard icon="person-add" label="Νέοι (μήνας)" value={stats.newThisMonth} onPress={() => router.push('/customers/index')} />
                 <StatCard icon="calendar" label="Ραντεβού σήμερα" value={stats.apptsToday} />
               </View>
               <View style={styles.statsRow}>
                 <StatCard icon="checkbox" label="Εκκρεμότητες" value={stats.openTasks} />
-                <StatCard icon="document-text" label="Ανοιχτές προσφορές" value={stats.openOffers} onPress={() => router.push('/customers/index' as never)} />
+                <StatCard icon="document-text" label="Ανοιχτές προσφορές" value={stats.openOffers} onPress={() => router.push('/customers/index')} />
               </View>
 
               {/* Today's appointments */}
@@ -155,28 +187,56 @@ export default function HomeScreen() {
               {appointmentsToday.length === 0 ? (
                 <EmptyHint text="Κανένα ραντεβού σήμερα." />
               ) : (
-                appointmentsToday.map((t) => (
-                  <Pressable
-                    key={t.id}
-                    onPress={() =>
-                      t.customerId &&
-                      router.push({ pathname: '/customers/[id]', params: { id: t.customerId } })
-                    }
-                    style={({ pressed }) => [styles.itemCard, pressed && styles.pressed]}>
-                    <View style={styles.timePill}>
-                      <ThemedText style={styles.timePillText}>{t.dueTime ?? '—'}</ThemedText>
-                    </View>
-                    <View style={styles.itemBody}>
-                      <ThemedText type="smallBold">{t.title}</ThemedText>
-                      {customerName(t.customerId) ? (
-                        <ThemedText type="small" themeColor="textSecondary">
-                          {customerName(t.customerId)}
-                        </ThemedText>
+                appointmentsToday.map((t) => {
+                  const cust = customerById(t.customerId);
+                  const phone = cust?.mobilePhone || cust?.phone || cust?.landlinePhone || null;
+                  return (
+                    <Pressable
+                      key={t.id}
+                      onPress={() =>
+                        t.customerId &&
+                        router.push({ pathname: '/customers/[id]', params: { id: t.customerId } })
+                      }
+                      style={({ pressed }) => [styles.itemCard, pressed && styles.pressed]}>
+                      <View style={styles.timePill}>
+                        <ThemedText style={styles.timePillText}>{t.dueTime ?? '—'}</ThemedText>
+                      </View>
+                      <View style={styles.itemBody}>
+                        <ThemedText type="smallBold">{t.title}</ThemedText>
+                        {cust?.name ? (
+                          <ThemedText type="small" themeColor="textSecondary">
+                            {cust.name}
+                          </ThemedText>
+                        ) : null}
+                      </View>
+                      {/* Driving between jobs: call + navigate in ONE tap from the card. */}
+                      {phone ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Κλήση"
+                          onPress={() => router.push({ pathname: '/calls', params: { num: phone } })}
+                          hitSlop={8}
+                          style={({ pressed }) => [styles.cardAction, pressed && styles.pressed]}>
+                          <Ionicons name="call" size={17} color={Brand.primary} />
+                        </Pressable>
                       ) : null}
-                    </View>
-                    <Ionicons name="chevron-forward" size={18} color="#9AA4B2" />
-                  </Pressable>
-                ))
+                      {cust?.address ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Πλοήγηση"
+                          onPress={() =>
+                            void Linking.openURL(
+                              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cust.address ?? '')}`,
+                            )
+                          }
+                          hitSlop={8}
+                          style={({ pressed }) => [styles.cardAction, pressed && styles.pressed]}>
+                          <Ionicons name="navigate" size={17} color={Brand.primary} />
+                        </Pressable>
+                      ) : null}
+                    </Pressable>
+                  );
+                })
               )}
 
               {/* Follow-ups */}
@@ -208,6 +268,8 @@ export default function HomeScreen() {
                         </ThemedText>
                       </View>
                       <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Ολοκλήρωση εργασίας"
                         onPress={() => void completeTask(t.id)}
                         hitSlop={8}
                         style={({ pressed }) => [styles.doneBtn, pressed && styles.pressed]}>
@@ -350,6 +412,20 @@ const styles = StyleSheet.create({
   timePill: { backgroundColor: Brand.primarySoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, minWidth: 52, alignItems: 'center' },
   timePillText: { color: Brand.primary, fontWeight: '800', fontSize: 14 },
   overdue: { color: '#D14343', fontWeight: '700' },
-  doneBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  doneBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  cardAction: { width: 38, height: 38, borderRadius: 19, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
+
+  phoneBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    backgroundColor: '#D14343',
+    borderRadius: 12,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 10,
+    marginBottom: Spacing.two,
+  },
+  phoneBannerText: { color: '#FFFFFF', fontWeight: '700', flex: 1 },
+
   pressed: { opacity: 0.7 },
 });

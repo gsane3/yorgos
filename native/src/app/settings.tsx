@@ -4,7 +4,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -83,6 +83,12 @@ export default function SettingsScreen() {
   const setB = (k: string) => (v: string) => setBizForm((f) => ({ ...f, [k]: v }));
 
   async function saveBusiness() {
+    // GUARD: if the initial load failed, the form is empty — saving it would
+    // null out the real business profile on the server.
+    if (!biz) {
+      Alert.alert('Σφάλμα', 'Τα στοιχεία δεν έχουν φορτωθεί ακόμα — κάνε ανανέωση και δοκίμασε ξανά.');
+      return;
+    }
     setBizBusy(true);
     try {
       const vat = parseFloat((bizForm.default_vat_rate ?? '24').replace(',', '.'));
@@ -161,6 +167,7 @@ export default function SettingsScreen() {
           Ρυθμίσεις
         </ThemedText>
 
+        <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content}>
           {/* Λογαριασμός header */}
           <ThemedView type="backgroundElement" style={styles.card}>
@@ -204,7 +211,7 @@ export default function SettingsScreen() {
             <Input label="Δ.Ο.Υ." value={bizForm.tax_office ?? ''} onChangeText={setB('tax_office')} />
             <Input label="ΦΠΑ % (προεπιλογή)" value={bizForm.default_vat_rate ?? ''} onChangeText={setB('default_vat_rate')} keyboardType="decimal-pad" />
             <Input label="Όροι προσφοράς (προεπιλογή)" value={bizForm.default_offer_terms ?? ''} onChangeText={setB('default_offer_terms')} multiline />
-            <PrimaryButton label="Αποθήκευση" onPress={() => void saveBusiness()} busy={bizBusy} />
+            <PrimaryButton label="Αποθήκευση" onPress={() => void saveBusiness()} busy={bizBusy} disabled={!biz} />
           </Section>
 
           {/* Κατάλογος υπηρεσιών */}
@@ -260,6 +267,7 @@ export default function SettingsScreen() {
             <ThemedText style={styles.signoutText}>Αποσύνδεση</ThemedText>
           </Pressable>
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -279,6 +287,7 @@ function Row({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1 },
+  kav: { flex: 1 },
   title: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, paddingBottom: Spacing.three },
   content: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four, gap: Spacing.three },
   card: { padding: Spacing.three, borderRadius: 16 },

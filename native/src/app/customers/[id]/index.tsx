@@ -5,13 +5,14 @@
 // (two separate direct-send actions, like the web ChatComposerSheet).
 
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   View,
@@ -68,8 +69,19 @@ export default function CustomerWorkspaceScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
-    void load();
+  // Refetch on focus too (not just mount): edits made on the profile page and
+  // briefs/responses that landed while the screen was open appear on pop-back.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
   }, [load]);
 
   const callPhone = customer?.mobilePhone || customer?.phone || customer?.landlinePhone || '';
@@ -154,6 +166,13 @@ export default function CustomerWorkspaceScreen() {
         <SafeAreaView edges={['top']} />
         <View style={styles.center}>
           <ThemedText themeColor="textSecondary">{error ?? 'Σφάλμα.'}</ThemedText>
+          <PrimaryButton
+            label="Δοκίμασε ξανά"
+            onPress={() => {
+              setLoading(true);
+              void load();
+            }}
+          />
         </View>
       </ThemedView>
     );
@@ -205,6 +224,9 @@ export default function CustomerWorkspaceScreen() {
           data={items}
           keyExtractor={(it) => `${it.type}-${it.id}`}
           contentContainerStyle={styles.feed}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} tintColor={Brand.primary} />
+          }
           renderItem={({ item }) => <Bubble item={item} onPress={() => onBubbleTap(item)} />}
         />
       )}
@@ -414,6 +436,9 @@ function AppointmentModal({
       return;
     }
     setBusy(true);
+
+    // Step 1: create the appointment. A failure HERE means nothing was saved.
+    let createdTaskId: string;
     try {
       const res = await apiPost<{ ok?: boolean; task?: { id: string }; error?: string }>('/api/tasks', {
         customerId,
@@ -428,15 +453,31 @@ function AppointmentModal({
         Alert.alert('Σφάλμα', res?.error ?? 'Δεν δημιουργήθηκε το ραντεβού.');
         return;
       }
-      setTaskId(res.task.id);
+      createdTaskId = res.task.id;
+      setTaskId(createdTaskId);
+    } catch {
+      Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε το ραντεβού.');
+      return;
+    } finally {
+      setBusy(false);
+    }
+
+    // Step 2: prepare the notify message. The appointment EXISTS now — a
+    // failure here must not claim otherwise (retrying would double-book).
+    setBusy(true);
+    try {
       const d = await apiPost<LinkDraft>(`/api/customers/${customerId}/appointment-link`, {
-        taskId: res.task.id,
+        taskId: createdTaskId,
         mode: 'draft',
       });
       if (d?.message) setDraft(d);
       else onDone();
     } catch {
-      Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε το ραντεβού.');
+      Alert.alert(
+        'Το ραντεβού αποθηκεύτηκε',
+        'Το μήνυμα προς τον πελάτη δεν ετοιμάστηκε — μπορείς να το στείλεις από το προφίλ του.',
+      );
+      onDone();
     } finally {
       setBusy(false);
     }
@@ -466,6 +507,29 @@ function AppointmentModal({
       {!draft ? (
         <>
           <Input label="Τίτλος" value={title} onChangeText={setTitle} />
+          <View style={styles.dateChips}>
+            {([
+              ['Σήμερα', 0],
+              ['Αύριο', 1],
+              ['Μεθαύριο', 2],
+            ] as const).map(([label, offset]) => (
+              <Pressable
+                key={label}
+                accessibilityRole="button"
+                accessibilityLabel={label}
+                onPress={() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + offset);
+                  const p = (n: number) => String(n).padStart(2, '0');
+                  setDate(`${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`);
+                }}
+                style={({ pressed }) => [styles.dateChip, pressed && styles.pressed]}>
+                <ThemedText type="small" style={styles.dateChipText}>
+                  {label}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
           <Input label="Ημερομηνία (ΗΗ-ΜΜ-ΕΕΕΕ)" value={date} onChangeText={setDate} placeholder="15-06-2026" />
           <Input label="Ώρα (προαιρετικό)" value={time} onChangeText={setTime} placeholder="10:30" />
           <Input label="Σημείωση (προαιρετικό)" value={note} onChangeText={setNote} multiline />
@@ -512,9 +576,13 @@ function OfferModal({
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<LinkDraft | null>(null);
   const [offerId, setOfferId] = useState<string | null>(null);
-  // catalog autosuggest for the active row
+  // catalog autosuggest for the active row — debounced (one request per pause,
+  // not per keystroke) and sequence-guarded (a slow old response can't
+  // overwrite a newer one).
   const [activeRow, setActiveRow] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<CatalogItem[]>([]);
+  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestSeq = useRef(0);
 
   useEffect(() => {
     if (visible) {
@@ -531,11 +599,17 @@ function OfferModal({
     setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)));
     if (k === 'description') {
       setActiveRow(i);
+      if (suggestTimer.current) clearTimeout(suggestTimer.current);
       const q = v.trim();
       if (q.length >= 2) {
-        void apiGet<{ ok?: boolean; items?: CatalogItem[] }>(`/api/catalog?q=${encodeURIComponent(q)}`).then((res) =>
-          setSuggestions((res?.items ?? []).slice(0, 5)),
-        );
+        const seq = ++suggestSeq.current;
+        suggestTimer.current = setTimeout(() => {
+          apiGet<{ ok?: boolean; items?: CatalogItem[] }>(`/api/catalog?q=${encodeURIComponent(q)}`)
+            .then((res) => {
+              if (seq === suggestSeq.current) setSuggestions((res?.items ?? []).slice(0, 5));
+            })
+            .catch(() => {});
+        }, 300);
       } else {
         setSuggestions([]);
       }
@@ -573,6 +647,9 @@ function OfferModal({
       return;
     }
     setBusy(true);
+
+    // Step 1: create the offer. A failure HERE means nothing was saved.
+    let createdOfferId: string;
     try {
       const res = await apiPost<{ ok?: boolean; offer?: { id: string }; error?: string }>('/api/offers', {
         customerId,
@@ -584,12 +661,28 @@ function OfferModal({
         Alert.alert('Σφάλμα', res?.error ?? 'Δεν δημιουργήθηκε η προσφορά.');
         return;
       }
-      setOfferId(res.offer.id);
-      const d = await apiPost<LinkDraft>(`/api/offers/${res.offer.id}/notify`, { mode: 'draft' });
+      createdOfferId = res.offer.id;
+      setOfferId(createdOfferId);
+    } catch {
+      Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε η προσφορά.');
+      return;
+    } finally {
+      setBusy(false);
+    }
+
+    // Step 2: prepare the notify message. The offer EXISTS now — a failure
+    // here must not claim otherwise (retrying would send a duplicate offer).
+    setBusy(true);
+    try {
+      const d = await apiPost<LinkDraft>(`/api/offers/${createdOfferId}/notify`, { mode: 'draft' });
       if (d?.message) setDraft(d);
       else onDone();
     } catch {
-      Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε η προσφορά.');
+      Alert.alert(
+        'Η προσφορά αποθηκεύτηκε',
+        'Το μήνυμα προς τον πελάτη δεν ετοιμάστηκε — μπορείς να τη στείλεις από το προφίλ του.',
+      );
+      onDone();
     } finally {
       setBusy(false);
     }
@@ -749,6 +842,16 @@ const styles = StyleSheet.create({
   totalLine: { textAlign: 'right' },
   suggestBox: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E3E7ED', borderRadius: 12, marginTop: 4, overflow: 'hidden' },
   suggestItem: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: 10 },
+
+  dateChips: { flexDirection: 'row', gap: Spacing.two },
+  dateChip: {
+    paddingHorizontal: Spacing.three,
+    minHeight: 36,
+    justifyContent: 'center',
+    borderRadius: 999,
+    backgroundColor: Brand.primarySoft,
+  },
+  dateChipText: { color: Brand.primary, fontWeight: '700' },
 
   disabled: { opacity: 0.4 },
   pressed: { opacity: 0.7 },

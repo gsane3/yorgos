@@ -9,11 +9,18 @@ export type CallStatus = 'connecting' | 'ringing' | 'connected' | 'disconnected'
 export interface ActiveCall {
   disconnect: () => void;
   mute: (on: boolean) => void;
+  /** DTMF digits for IVRs («πατήστε 1 για...»). */
+  sendDigits: (digits: string) => void;
+  /** Route audio to the speakerphone (dirty-hands mode on a job site). */
+  setSpeaker: (on: boolean) => void;
 }
 
 export type IncomingState = 'idle' | 'registering' | 'registered' | 'error';
 
 let incomingState: { state: IncomingState; detail?: string } = { state: 'idle' };
+
+type Listener = () => void;
+const listeners = new Set<Listener>();
 
 export function getIncomingState() {
   return incomingState;
@@ -21,4 +28,19 @@ export function getIncomingState() {
 
 export function setIncomingState(next: { state: IncomingState; detail?: string }) {
   incomingState = next;
+  for (const fn of listeners) {
+    try {
+      fn();
+    } catch {
+      // a broken listener must not break state updates
+    }
+  }
+}
+
+/** Subscribe to registration-state changes (Home banner, Settings row). */
+export function subscribeIncomingState(fn: Listener): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
 }
