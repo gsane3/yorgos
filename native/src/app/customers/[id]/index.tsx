@@ -445,13 +445,56 @@ function MessageModal({
   const [drafting, setDrafting] = useState(false);
   const [snippets, setSnippets] = useState<SnippetLite[] | null>(null);
   const [showSnippets, setShowSnippets] = useState(false);
+  const [scheduleMode, setScheduleMode] = useState(false);
+  const [schedDate, setSchedDate] = useState('');
+  const [schedTime, setSchedTime] = useState('');
 
   useEffect(() => {
     if (visible) {
       setText('');
       setShowSnippets(false);
+      setScheduleMode(false);
+      setSchedDate('');
+      setSchedTime('');
     }
   }, [visible]);
+
+  async function schedule() {
+    const t = text.trim();
+    if (!t) return;
+    const ymd = dmyToYmd(schedDate);
+    if (!ymd) {
+      Alert.alert('Ημερομηνία', 'Γράψε ημερομηνία ως ΗΗ-ΜΜ-ΕΕΕΕ.');
+      return;
+    }
+    const time = schedTime.trim() || '10:00';
+    if (!/^\d{1,2}:\d{2}$/.test(time)) {
+      Alert.alert('Ώρα', 'Γράψε ώρα ως ΩΩ:ΛΛ (π.χ. 10:00).');
+      return;
+    }
+    const when = new Date(`${ymd}T${time.padStart(5, '0')}:00`);
+    if (isNaN(when.getTime()) || when.getTime() < Date.now()) {
+      Alert.alert('Ημερομηνία', 'Διάλεξε μελλοντική ημερομηνία/ώρα.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiPost<{ ok?: boolean; error?: string }>(`/api/customers/${customerId}/scheduled-messages`, {
+        text: t,
+        scheduledFor: when.toISOString(),
+      });
+      if (res?.ok) {
+        Alert.alert('✓', 'Το μήνυμα προγραμματίστηκε. Θα σταλεί αυτόματα.');
+        onDone();
+      } else {
+        Alert.alert('Σφάλμα', res?.error === 'no_phone' ? 'Ο πελάτης δεν έχει τηλέφωνο.' : 'Ο προγραμματισμός απέτυχε.');
+      }
+    } catch {
+      Alert.alert('Σφάλμα', 'Ο προγραμματισμός απέτυχε.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function loadSnippets() {
     if (snippets !== null) {
@@ -545,7 +588,42 @@ function MessageModal({
           </View>
         )
       ) : null}
-      <PrimaryButton label="Αποστολή (Viber → SMS)" onPress={() => void send()} busy={busy} disabled={!text.trim()} />
+      <Pressable onPress={() => setScheduleMode((v) => !v)} style={({ pressed }) => [styles.snippetToggle, pressed && styles.pressed]}>
+        <Ionicons name={scheduleMode ? 'time' : 'time-outline'} size={16} color={Brand.primary} />
+        <ThemedText type="small" style={{ color: Brand.primary, fontWeight: '700' }}>
+          {scheduleMode ? 'Άμεση αποστολή' : 'Αποστολή αργότερα'}
+        </ThemedText>
+      </Pressable>
+      {scheduleMode ? (
+        <>
+          <View style={styles.dateChips}>
+            {([
+              ['Αύριο', 1],
+              ['Μεθαύριο', 2],
+            ] as const).map(([label, offset]) => (
+              <Pressable
+                key={label}
+                onPress={() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + offset);
+                  const p = (n: number) => String(n).padStart(2, '0');
+                  setSchedDate(`${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`);
+                  if (!schedTime) setSchedTime('10:00');
+                }}
+                style={({ pressed }) => [styles.dateChip, pressed && styles.pressed]}>
+                <ThemedText type="small" style={styles.dateChipText}>
+                  {label}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+          <Input label="Ημερομηνία (ΗΗ-ΜΜ-ΕΕΕΕ)" value={schedDate} onChangeText={setSchedDate} placeholder="15-06-2026" />
+          <Input label="Ώρα" value={schedTime} onChangeText={setSchedTime} placeholder="10:00" />
+          <PrimaryButton label="Προγραμματισμός" onPress={() => void schedule()} busy={busy} disabled={!text.trim() || !schedDate.trim()} />
+        </>
+      ) : (
+        <PrimaryButton label="Αποστολή (Viber → SMS)" onPress={() => void send()} busy={busy} disabled={!text.trim()} />
+      )}
     </SheetModal>
   );
 }

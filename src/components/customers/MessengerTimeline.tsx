@@ -105,6 +105,8 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   const [snippetsOpen, setSnippetsOpen] = useState(false);
   const [snippets, setSnippets] = useState<{ id: string; title: string; body: string }[] | null>(null);
   const [drafting, setDrafting] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleAt, setScheduleAt] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -226,6 +228,30 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
       setError('Δεν δημιουργήθηκε πρόταση.');
     } finally {
       setDrafting(false);
+    }
+  }
+
+  async function scheduleMessage() {
+    const text = messageText.trim();
+    if (!text || !scheduleAt || sending) return;
+    const when = new Date(scheduleAt);
+    if (isNaN(when.getTime()) || when.getTime() < Date.now()) { setError('Διάλεξε μελλοντική ώρα.'); return; }
+    const headers = await authHeaders();
+    if (!headers) { setError('Συνδέσου ξανά.'); return; }
+    setSending(true);
+    try {
+      const res = await fetch(`/api/customers/${customerId}/scheduled-messages`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, scheduledFor: when.toISOString() }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json?.ok) { setMessageText(''); setScheduleOpen(false); setScheduleAt(''); }
+      else setError(json?.error === 'no_phone' ? 'Ο πελάτης δεν έχει τηλέφωνο.' : 'Ο προγραμματισμός απέτυχε.');
+    } catch {
+      setError('Ο προγραμματισμός απέτυχε.');
+    } finally {
+      setSending(false);
     }
   }
 
@@ -429,6 +455,22 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
         </div>
       )}
 
+      {/* Schedule-later panel */}
+      {scheduleOpen && (
+        <div className="flex shrink-0 items-center gap-2 border-t border-zinc-200/60 bg-white px-3 py-2">
+          <span className="text-xs font-semibold text-zinc-500">Αποστολή στις:</span>
+          <input
+            type="datetime-local"
+            value={scheduleAt}
+            onChange={(e) => setScheduleAt(e.target.value)}
+            className="flex-1 rounded-xl bg-zinc-100 px-3 py-2 text-sm text-zinc-900 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200"
+          />
+          <button type="button" onClick={() => void scheduleMessage()} disabled={!messageText.trim() || !scheduleAt || sending} className="rounded-full bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition active:scale-95 enabled:hover:bg-indigo-700 disabled:opacity-40">
+            Προγραμμάτισε
+          </button>
+        </div>
+      )}
+
       {/* Composer */}
       <div className="flex shrink-0 items-end gap-2 border-t border-zinc-200/60 bg-white px-3 py-2.5">
         <button type="button" onClick={() => openComposer('menu')} aria-label="Ενέργειες" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition active:scale-95 hover:bg-indigo-100">
@@ -436,6 +478,9 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
         </button>
         <button type="button" onClick={() => void toggleSnippets()} aria-label="Πρότυπα μηνυμάτων" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${snippetsOpen ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
           <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+        </button>
+        <button type="button" onClick={() => setScheduleOpen((v) => !v)} aria-label="Αποστολή αργότερα" title="Αποστολή αργότερα" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${scheduleOpen ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
+          <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
         </button>
         <button type="button" onClick={() => void draftReply()} disabled={drafting} aria-label="Πρόταση απάντησης" title="Πρόταση απάντησης" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition active:scale-95 enabled:hover:bg-indigo-100 disabled:opacity-50">
           {drafting ? <Spinner className="text-indigo-500" /> : (
