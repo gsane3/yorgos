@@ -21,6 +21,7 @@ export interface Customer {
   nextBestAction?: string | null;
   lastContactAt?: string | null;
   createdAt?: string;
+  pinned?: boolean;
 }
 
 export interface Task {

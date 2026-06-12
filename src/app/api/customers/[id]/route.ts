@@ -93,6 +93,7 @@ interface CustomerRow {
   personal_notes: string | null;
   next_best_action: string | null;
   memory_updated_at: string | null;
+  pinned?: boolean;
 }
 
 function dbToCustomer(row: CustomerRow) {
@@ -122,6 +123,7 @@ function dbToCustomer(row: CustomerRow) {
     personalNotes: row.personal_notes,
     nextBestAction: row.next_best_action,
     memoryUpdatedAt: row.memory_updated_at,
+    pinned: row.pinned ?? false,
   };
 }
 
@@ -160,7 +162,22 @@ export async function GET(
       return NextResponse.json({ ok: false, error: 'customer_not_found' }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, customer: dbToCustomer(asCustomerRow(data)) });
+    const customer = dbToCustomer(asCustomerRow(data));
+    // Pin status (F6) — separate tolerant fetch so a pending migration 044 can't
+    // break the customer detail.
+    try {
+      const { data: pinRow, error: pinErr } = await supabase
+        .from('customers')
+        .select('pinned')
+        .eq('id', id)
+        .eq('business_id', businessId)
+        .maybeSingle();
+      if (!pinErr && pinRow) customer.pinned = (pinRow as { pinned?: boolean }).pinned ?? false;
+    } catch {
+      // pre-044 → pinned stays false
+    }
+
+    return NextResponse.json({ ok: true, customer });
   } catch {
     return NextResponse.json({ ok: false, error: 'customer_query_failed' }, { status: 500 });
   }

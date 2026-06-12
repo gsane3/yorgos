@@ -40,6 +40,7 @@ interface CustomerLite {
   mobilePhone: string | null;
   landlinePhone: string | null;
   address: string | null;
+  pinned?: boolean;
 }
 
 async function authHeaders(): Promise<Record<string, string> | null> {
@@ -256,6 +257,25 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
     setInfoOpen(true);
   }
 
+  async function togglePin() {
+    if (!customer) return;
+    const next = !customer.pinned;
+    setCustomer({ ...customer, pinned: next });
+    const headers = await authHeaders();
+    if (!headers) return;
+    try {
+      const res = await fetch(`/api/customers/${customerId}/pin`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinned: next }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!json?.ok) setCustomer((c) => (c ? { ...c, pinned: !next } : c));
+    } catch {
+      setCustomer((c) => (c ? { ...c, pinned: !next } : c));
+    }
+  }
+
   // Clickable bubbles: customer actions + calls jump to the relevant view.
   function onBubbleTap(it: TimelineItem) {
     switch (it.type) {
@@ -287,6 +307,9 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
             <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" /></svg>
           </a>
         )}
+        <button type="button" onClick={() => void togglePin()} aria-label={customer?.pinned ? 'Ξεκαρφίτσωμα' : 'Καρφίτσωμα'} className={`flex h-10 w-10 items-center justify-center rounded-full transition active:bg-zinc-50 ${customer?.pinned ? 'text-indigo-600 hover:bg-indigo-50' : 'text-zinc-400 hover:bg-zinc-100'}`}>
+          <svg className="h-5 w-5" fill={customer?.pinned ? 'currentColor' : 'none'} strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
+        </button>
         <button type="button" onClick={() => openInfo(null)} aria-label="Στοιχεία" className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition active:bg-zinc-50 hover:bg-zinc-100">
           <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
         </button>
