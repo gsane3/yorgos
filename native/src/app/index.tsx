@@ -191,6 +191,9 @@ export default function HomeScreen() {
             <Pressable accessibilityRole="button" accessibilityLabel="Στατιστικά" onPress={() => router.push('/stats' as never)} hitSlop={8} style={({ pressed }) => [styles.headerIcon, pressed && styles.pressed]}>
               <Ionicons name="stats-chart" size={22} color={Brand.primary} />
             </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="AI εντολές" onPress={() => router.push('/cmd' as never)} hitSlop={8} style={({ pressed }) => [styles.headerIcon, pressed && styles.pressed]}>
+              <Ionicons name="sparkles" size={22} color={Brand.primary} />
+            </Pressable>
           </View>
 
           {/* Quick links to the secondary screens (hidden from the tab bar). */}
