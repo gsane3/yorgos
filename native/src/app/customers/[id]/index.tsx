@@ -381,7 +381,7 @@ function Bubble({ item, onPress }: { item: TimelineItem; onPress: () => void }) 
         disabled={!tappable}
         style={({ pressed }) => [styles.bubble, us ? styles.bubbleUs : styles.bubbleCust, pressed && styles.pressed]}>
         <View style={styles.bubbleHead}>
-          <Ionicons name={meta.icon} size={14} color={us ? '#FFFFFF' : '#5B6472'} />
+          <Ionicons name={meta.icon} size={14} color={us ? '#FFFFFF' : '#6B7585'} />
           <ThemedText type="smallBold" style={[fg, tone && !us ? { color: tone.color } : null]}>
             {tone ? tone.text : item.title}
           </ThemedText>
@@ -425,8 +425,8 @@ function ComposerButton({
 }) {
   return (
     <Pressable onPress={onPress} disabled={busy} style={({ pressed }) => [styles.composerBtn, pressed && styles.pressed]}>
-      {busy ? <ActivityIndicator color={Brand.onPrimary} size="small" /> : <Ionicons name={icon} size={20} color={Brand.onPrimary} />}
-      <ThemedText style={styles.composerBtnText}>{label}</ThemedText>
+      {busy ? <ActivityIndicator color={Brand.onPrimary} size="small" /> : <Ionicons name={icon} size={18} color={Brand.onPrimary} />}
+      <ThemedText style={styles.composerBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</ThemedText>
     </Pressable>
   );
 }
@@ -1078,7 +1078,7 @@ function OfferModal({
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
-  dark: { color: '#0A1120' },
+  dark: { color: '#11273B' },
 
   headerSafe: { borderBottomWidth: 1, borderBottomColor: '#EEF1F5', backgroundColor: '#FFFFFF' },
   header: {
@@ -1093,7 +1093,7 @@ const styles = StyleSheet.create({
   headerAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
   headerAvatarText: { color: Brand.primary, fontSize: 16, fontWeight: '700' },
   headerNameWrap: { flex: 1 },
-  headerName: { fontSize: 16, color: '#0A1120' },
+  headerName: { fontSize: 16, color: '#11273B' },
   headerSub: { fontSize: 12 },
   headerCall: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   onBlue: { color: '#FFFFFF' },
@@ -1125,7 +1125,7 @@ const styles = StyleSheet.create({
   suggestText: { color: Brand.primary, fontWeight: '700' },
 
   composerSafe: { borderTopWidth: 1, borderTopColor: '#EEF1F5', backgroundColor: '#FFFFFF' },
-  composer: { flexDirection: 'row', gap: Spacing.two, paddingHorizontal: Spacing.four, paddingVertical: Spacing.two },
+  composer: { flexDirection: 'row', gap: Spacing.one, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
   composerBtn: {
     flex: 1,
     flexDirection: 'row',
@@ -1136,7 +1136,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: Brand.primary,
   },
-  composerBtnText: { color: Brand.onPrimary, fontWeight: '700', fontSize: 14 },
+  composerBtnText: { color: Brand.onPrimary, fontWeight: '700', fontSize: 13 },
 
   msgBox: { backgroundColor: '#F7F9FB', borderRadius: 14, padding: Spacing.three },
 

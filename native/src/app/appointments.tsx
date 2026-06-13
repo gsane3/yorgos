@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
   list: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: BottomTabInset + Spacing.four },
-  groupHeader: { color: '#5B6472', letterSpacing: 0.6, marginTop: Spacing.three, marginBottom: Spacing.one },
+  groupHeader: { color: '#6B7585', letterSpacing: 0.6, marginTop: Spacing.three, marginBottom: Spacing.one },
   groupHeaderOverdue: { color: '#D14343' },
   row: { backgroundColor: '#F7F9FB', borderRadius: 14, marginBottom: Spacing.two, overflow: 'hidden' },
   rowMain: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.three },
@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
   linkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.one, borderTopWidth: 1, borderTopColor: '#EEF1F5', paddingVertical: 10 },
   linkBtnText: { color: Brand.primary, fontWeight: '700' },
   msgBox: { backgroundColor: '#F7F9FB', borderRadius: 14, padding: Spacing.three },
-  dark: { color: '#0A1120' },
+  dark: { color: '#11273B' },
   error: { color: '#D14343' },
   pressed: { opacity: 0.6 },
 });

@@ -39,7 +39,7 @@ export function SheetModal({
                 {title}
               </ThemedText>
               <Pressable onPress={onClose} hitSlop={10}>
-                <Ionicons name="close" size={24} color="#5B6472" />
+                <Ionicons name="close" size={24} color="#6B7585" />
               </Pressable>
             </View>
             <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.four,
     paddingBottom: Spacing.two,
   },
-  title: { fontSize: 17, color: '#0A1120' },
+  title: { fontSize: 17, color: '#11273B' },
   body: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.six, gap: Spacing.three },
 
   inputBlock: { gap: 4 },
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: 10,
     fontSize: 16,
-    color: '#0A1120',
+    color: '#11273B',
     backgroundColor: '#FFFFFF',
   },
   inputMultiline: { minHeight: 84, textAlignVertical: 'top' },
@@ -260,13 +260,13 @@ const styles = StyleSheet.create({
 
   section: { backgroundColor: '#F7F9FB', borderRadius: 16, overflow: 'hidden' },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.three },
-  sectionTitle: { fontSize: 15, color: '#0A1120' },
+  sectionTitle: { fontSize: 15, color: '#11273B' },
   sectionRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   sectionBody: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.three, gap: Spacing.two },
 
   listRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, backgroundColor: '#FFFFFF', borderRadius: 12, padding: Spacing.three },
   listRowBody: { flex: 1, gap: 2 },
-  listRowTitle: { color: '#0A1120', fontWeight: '600' },
+  listRowTitle: { color: '#11273B', fontWeight: '600' },
 
   disabled: { opacity: 0.4 },
   pressed: { opacity: 0.7 },

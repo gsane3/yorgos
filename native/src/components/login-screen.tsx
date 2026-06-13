@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from './themed-text';
@@ -12,8 +12,26 @@ export function LoginScreen() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !busy;
+
+  async function forgotPassword() {
+    const e = email.trim();
+    if (!e) {
+      setError('Γράψε πρώτα το email σου για να σου στείλουμε σύνδεσμο επαναφοράς.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    const { error: err } = await supabase.auth.resetPasswordForEmail(e, {
+      redirectTo: 'https://www.opiflow.ai/auth/reset',
+    });
+    setBusy(false);
+    if (err) setError('Δεν στάλθηκε email. Δοκίμασε ξανά.');
+    else setInfo('Σου στείλαμε email για επαναφορά κωδικού.');
+  }
 
   async function signIn() {
     if (!isSupabaseConfigured) {
@@ -83,11 +101,25 @@ export function LoginScreen() {
                 {error}
               </ThemedText>
             ) : null}
+            {info ? (
+              <ThemedText type="small" style={styles.info}>
+                {info}
+              </ThemedText>
+            ) : null}
             <Pressable
               onPress={signIn}
               disabled={!canSubmit}
               style={({ pressed }) => [styles.button, !canSubmit && styles.buttonDisabled, pressed && styles.buttonPressed]}>
               {busy ? <ActivityIndicator color="#FFFFFF" /> : <ThemedText style={styles.buttonText}>Σύνδεση</ThemedText>}
+            </Pressable>
+
+            <Pressable onPress={() => void forgotPassword()} disabled={busy} hitSlop={8} style={styles.linkRow}>
+              <ThemedText type="small" style={styles.link}>Ξέχασες τον κωδικό;</ThemedText>
+            </Pressable>
+
+            <Pressable onPress={() => void Linking.openURL('https://www.opiflow.ai/register')} hitSlop={8} style={styles.registerRow}>
+              <ThemedText type="small" themeColor="textSecondary">Δεν έχεις λογαριασμό; </ThemedText>
+              <ThemedText type="small" style={styles.link}>Εγγραφή</ThemedText>
             </Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -114,10 +146,14 @@ const styles = StyleSheet.create({
     borderColor: '#D8DEE6',
     paddingHorizontal: Spacing.three,
     fontSize: 16,
-    color: '#0A1120',
+    color: '#11273B',
     backgroundColor: '#FFFFFF',
   },
   error: { color: '#D14343' },
+  info: { color: '#1B8A4C' },
+  link: { color: Brand.primary, fontWeight: '600' },
+  linkRow: { alignItems: 'center', paddingVertical: Spacing.one },
+  registerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: Spacing.one },
   button: { height: 52, borderRadius: 14, backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center' },
   buttonPressed: { backgroundColor: Brand.primaryPressed },
   buttonDisabled: { opacity: 0.5 },

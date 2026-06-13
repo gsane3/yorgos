@@ -32,6 +32,15 @@ import type { Customer, GalleryFile, LinkDraft, Offer, Task, TimelineItem, Uploa
 
 const APPT_TYPES = new Set(['book_appointment', 'visit_customer']);
 
+// First meaningful letter for the avatar, skipping common title prefixes
+// (e.g. «κα Ιωάννα» → «Ι» instead of «Κ»).
+const NAME_TITLE_RE = /^(κα|κ|κος|κο|κυρ|κυρία|κύριος|mr|mrs|ms)\.?$/i;
+function avatarInitial(name?: string | null): string {
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
+  const meaningful = parts.find((p) => !NAME_TITLE_RE.test(p)) ?? parts[0];
+  return (meaningful ?? 'Π').slice(0, 1).toUpperCase();
+}
+
 // Polite default rejection message (identical to the web reject flow).
 const REJECT_MESSAGE = 'Καλησπέρα σας. Ευχαριστούμε πολύ για την επικοινωνία. Δυστυχώς δεν θα μπορέσουμε να αναλάβουμε τη συγκεκριμένη εργασία αυτή την περίοδο. Σας ευχόμαστε καλή συνέχεια και ελπίζουμε να βρείτε άμεσα την κατάλληλη λύση.';
 
@@ -376,7 +385,7 @@ export default function CustomerProfileScreen() {
           <View style={styles.hero}>
             <View style={styles.avatar}>
               <ThemedText style={styles.avatarText}>
-                {(customer.name ?? 'Π').trim().slice(0, 1).toUpperCase()}
+                {avatarInitial(customer.name)}
               </ThemedText>
             </View>
             <ThemedText type="subtitle" style={styles.name}>
@@ -417,7 +426,7 @@ export default function CustomerProfileScreen() {
                   )
                 }
               />
-              <Quick icon="create" label="Επεξ/σία" onPress={() => setEditOpen(true)} />
+              <Quick icon="create" label="Επεξεργασία" onPress={() => setEditOpen(true)} />
               <Quick
                 icon={pinned ? 'bookmark' : 'bookmark-outline'}
                 label={pinned ? 'Καρφιτσωμένο' : 'Καρφίτσωμα'}
@@ -680,7 +689,7 @@ function Quick({
       <View style={styles.quickCircle}>
         <Ionicons name={icon} size={20} color={Brand.primary} />
       </View>
-      <ThemedText type="small" themeColor="textSecondary">
+      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={styles.quickLabel}>
         {label}
       </ThemedText>
     </Pressable>
@@ -780,6 +789,7 @@ const styles = StyleSheet.create({
   badgeText: { color: Brand.primary, fontSize: 13, fontWeight: '700' },
   quickRow: { flexDirection: 'row', gap: Spacing.four, marginTop: Spacing.three },
   quick: { alignItems: 'center', gap: 4, width: 64 },
+  quickLabel: { fontSize: 12, textAlign: 'center' },
   quickCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#F2F5FA', alignItems: 'center', justifyContent: 'center' },
 
   group: { gap: 6 },

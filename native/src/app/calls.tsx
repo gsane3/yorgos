@@ -180,7 +180,7 @@ export default function CallsScreen() {
         {tab === 'keypad' ? (
           <View style={styles.keypadWrap}>
             <View style={styles.display}>
-              <ThemedText style={styles.number} numberOfLines={1}>
+              <ThemedText style={styles.number} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                 {num || ' '}
               </ThemedText>
             </View>
@@ -223,7 +223,7 @@ export default function CallsScreen() {
                     accessibilityLabel="Διαγραφή ψηφίου"
                     onPress={back}
                     style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
-                    <Ionicons name="backspace-outline" size={26} color="#5B6472" />
+                    <Ionicons name="backspace-outline" size={26} color="#6B7585" />
                   </Pressable>
                 ) : null}
               </View>
@@ -389,19 +389,19 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tabBtn: { flex: 1, height: 38, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  tabBtnActive: { backgroundColor: '#FFFFFF', shadowColor: '#0A1120', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
-  tabText: { color: '#5B6472' },
+  tabBtnActive: { backgroundColor: '#FFFFFF', shadowColor: '#11273B', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  tabText: { color: '#6B7585' },
   tabTextActive: { color: Brand.primary },
 
   keypadWrap: { flex: 1, alignItems: 'center' },
-  display: { minHeight: 60, justifyContent: 'center', alignItems: 'center', paddingVertical: Spacing.two },
-  number: { fontSize: 34, fontWeight: '600', letterSpacing: 1 },
+  display: { minHeight: 76, justifyContent: 'center', alignItems: 'center', paddingVertical: Spacing.three, paddingHorizontal: Spacing.four },
+  number: { fontSize: 34, fontWeight: '700', letterSpacing: 0.5, color: '#11273B', fontVariant: ['tabular-nums'] },
   debug: { textAlign: 'center', paddingHorizontal: Spacing.four },
   pad: { gap: Spacing.three, marginTop: Spacing.one },
   row: { flexDirection: 'row', gap: Spacing.four, justifyContent: 'center' },
   key: { width: KEY, height: KEY, borderRadius: KEY / 2, backgroundColor: '#F2F4F7', alignItems: 'center', justifyContent: 'center' },
   keyPressed: { backgroundColor: '#E2E7EE' },
-  keyText: { fontSize: 30, fontWeight: '500' },
+  keyText: { fontSize: 30, fontWeight: '600', color: '#11273B', fontVariant: ['tabular-nums'] },
   actionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.four, marginTop: Spacing.three },
   sideSlot: { width: KEY, alignItems: 'center' },
   callBtn: { width: KEY, height: KEY, borderRadius: KEY / 2, backgroundColor: '#21A05A', alignItems: 'center', justifyContent: 'center' },

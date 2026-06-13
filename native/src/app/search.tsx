@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     height: 44,
   },
-  input: { flex: 1, fontSize: 16, color: '#0A1120', paddingVertical: 0 },
+  input: { flex: 1, fontSize: 16, color: '#11273B', paddingVertical: 0 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
   centerText: { textAlign: 'center' },
   list: { paddingHorizontal: Spacing.four, paddingTop: Spacing.three, paddingBottom: BottomTabInset + Spacing.four },

@@ -7,25 +7,26 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
-// Opiflow brand — palette from the CAM brand memo (Opiflow_CAM_Brand_Memo.pdf):
-// heading blue #2563EB, ink #111827, soft panels #EAF2FF, slate #94A3B8.
+// Opiflow brand — final palette: Navy·Deep #11273B, Water·Primary #2A86C5,
+// Navy·Brand #1A3550, Muted #6B7585.
 export const Brand = {
-  primary: '#2563EB',
-  primaryPressed: '#1D4ED8',
-  primarySoft: '#EAF2FF',
+  primary: '#2A86C5',
+  primaryPressed: '#226C9E',
+  primarySoft: '#E7F0F8',
   onPrimary: '#FFFFFF',
-  ink: '#111827',
-  slate: '#94A3B8',
+  ink: '#11273B',
+  navy: '#1A3550',
+  slate: '#6B7585',
   tagline: 'Customer Action Management',
 } as const;
 
 export const Colors = {
   light: {
-    text: '#0A1120',
+    text: '#11273B',
     background: '#FFFFFF',
     backgroundElement: '#F4F6F9',
     backgroundSelected: '#E6EDF4',
-    textSecondary: '#5B6472',
+    textSecondary: '#6B7585',
     tint: Brand.primary,
     border: '#E3E7ED',
   },

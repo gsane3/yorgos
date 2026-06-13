@@ -157,6 +157,6 @@ const styles = StyleSheet.create({
   summary: { paddingBottom: Spacing.two },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: '#F7F9FB', borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.two },
   body: { flex: 1, gap: 2 },
-  amount: { color: '#0A1120' },
+  amount: { color: '#11273B' },
   pressed: { opacity: 0.6 },
 });

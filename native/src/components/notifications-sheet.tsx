@@ -145,7 +145,7 @@ export function NotificationsSheet({
 const styles = StyleSheet.create({
   empty: { paddingVertical: Spacing.four, textAlign: 'center' },
   list: { maxHeight: 460 },
-  dark: { color: '#0A1120' },
+  dark: { color: '#11273B' },
   item: { borderBottomWidth: 1, borderBottomColor: '#F0F2F5', paddingVertical: Spacing.two },
   itemMain: { flexDirection: 'row', gap: Spacing.three, alignItems: 'flex-start' },
   iconWrap: { width: 34, height: 34, borderRadius: 17, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   accept: { backgroundColor: Brand.primary, borderRadius: 999, paddingHorizontal: Spacing.three, paddingVertical: 7 },
   acceptText: { color: '#FFFFFF', fontWeight: '700' },
   reject: { backgroundColor: '#F2F4F7', borderRadius: 999, paddingHorizontal: Spacing.three, paddingVertical: 7 },
-  rejectText: { color: '#5B6472', fontWeight: '700' },
+  rejectText: { color: '#6B7585', fontWeight: '700' },
   okText: { color: '#1B8A4C', fontWeight: '700', marginTop: Spacing.one, paddingLeft: 46 },
   noText: { color: '#D14343', fontWeight: '700', marginTop: Spacing.one, paddingLeft: 46 },
   pressed: { opacity: 0.6 },

@@ -297,6 +297,6 @@ export function CallActionSheet({
 
 const styles = StyleSheet.create({
   briefBox: { backgroundColor: '#F7F9FB', borderRadius: 14, padding: Spacing.three, gap: 6 },
-  briefTitle: { color: '#0A1120' },
+  briefTitle: { color: '#11273B' },
   briefText: { color: '#33404F' },
 });

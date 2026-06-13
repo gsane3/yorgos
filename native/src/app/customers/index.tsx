@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#F2F4F7',
   },
-  searchInput: { flex: 1, fontSize: 16, color: '#0A1120', paddingVertical: 0 },
+  searchInput: { flex: 1, fontSize: 16, color: '#11273B', paddingVertical: 0 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, paddingHorizontal: Spacing.four, paddingVertical: Spacing.two },
   chip: { paddingHorizontal: Spacing.three, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: '#D8DEE6' },
   chipActive: { backgroundColor: Brand.primary, borderColor: Brand.primary },

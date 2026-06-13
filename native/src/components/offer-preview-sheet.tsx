@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: '#F7F9FB', borderRadius: 12, padding: Spacing.three },
   itemDesc: { flex: 1, gap: 2 },
   totals: { alignItems: 'flex-end', gap: 2 },
-  total: { fontSize: 17, color: '#0A1120' },
+  total: { fontSize: 17, color: '#11273B' },
   msgBox: { backgroundColor: '#F7F9FB', borderRadius: 14, padding: Spacing.three },
-  dark: { color: '#0A1120' },
+  dark: { color: '#11273B' },
 });
