@@ -71,7 +71,7 @@
           "cameraPermission": "Η Opiflow χρειάζεται πρόσβαση στην κάμερα για να τραβάς φωτογραφίες της εργασίας."
         }
       ],
-      "@react-native-firebase/app"
+      "./plugins/withFirebaseAndroidOnly"
     ],
     "experiments": {
       "typedRoutes": true
