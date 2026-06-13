@@ -143,6 +143,10 @@ export default function SettingsScreen() {
       const vat = parseFloat((bizForm.default_vat_rate ?? '24').replace(',', '.'));
       const res = await apiPatch<{ ok?: boolean }>('/api/businesses/me', {
         name: bizForm.name || null,
+        // The PATCH route requires type + preferred_contact_method; preserve the
+        // loaded values (this form doesn't edit them) so the save isn't rejected.
+        type: biz.type || 'other',
+        preferred_contact_method: biz.preferred_contact_method || 'phone',
         phone: bizForm.phone || null,
         email: bizForm.email || null,
         address: bizForm.address || null,
