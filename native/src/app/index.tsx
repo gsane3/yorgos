@@ -1,6 +1,7 @@
 // Αρχική — today's appointments, follow-up calls, quick stats, recent activity.
 // Mirrors the web dashboard's data (customers/tasks/offers/communications APIs).
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -16,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CallActionSheet } from '@/components/call-action-sheet';
+import { NotificationsSheet, type NotificationItem } from '@/components/notifications-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
@@ -23,6 +25,8 @@ import { apiGet, apiPatch } from '@/lib/api';
 import { briefExcerpt, formatWhen, todayYMD } from '@/lib/format';
 import { getIncomingState, subscribeIncomingState } from '@/lib/twilio-state';
 import type { Communication, Customer, Offer, Task } from '@/lib/types';
+
+const NOTIF_SEEN_KEY = 'opiflow:notif_last_seen';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -70,6 +74,28 @@ export default function HomeScreen() {
       // state stays 'error'; the banner remains tappable
     }
   }, []);
+
+  // Notifications bell + unread badge.
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const refreshUnread = useCallback(async () => {
+    try {
+      const [res, seen] = await Promise.all([
+        apiGet<{ notifications?: NotificationItem[] }>('/api/notifications'),
+        AsyncStorage.getItem(NOTIF_SEEN_KEY),
+      ]);
+      const lastSeen = seen ?? '';
+      setUnread((res?.notifications ?? []).filter((n) => n.eventAt > lastSeen).length);
+    } catch {
+      // ignore — badge just stays as-is
+    }
+  }, []);
+  useEffect(() => { void refreshUnread(); }, [refreshUnread]);
+  async function openNotifications() {
+    setNotifOpen(true);
+    setUnread(0);
+    try { await AsyncStorage.setItem(NOTIF_SEEN_KEY, new Date().toISOString()); } catch { /* non-fatal */ }
+  }
 
   const customerName = useCallback(
     (id: string | null | undefined) => customers.find((c) => c.id === id)?.name ?? null,
@@ -151,6 +177,14 @@ export default function HomeScreen() {
                 {new Date().toLocaleDateString('el-GR', { weekday: 'long', day: 'numeric', month: 'long' })}
               </ThemedText>
             </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Ειδοποιήσεις" onPress={() => void openNotifications()} hitSlop={8} style={({ pressed }) => [styles.headerIcon, pressed && styles.pressed]}>
+              <Ionicons name="notifications" size={22} color={Brand.primary} />
+              {unread > 0 ? (
+                <View style={styles.badge}>
+                  <ThemedText style={styles.badgeText}>{unread > 9 ? '9+' : unread}</ThemedText>
+                </View>
+              ) : null}
+            </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Αναζήτηση" onPress={() => router.push('/search' as never)} hitSlop={8} style={({ pressed }) => [styles.headerIcon, pressed && styles.pressed]}>
               <Ionicons name="search" size={22} color={Brand.primary} />
             </Pressable>
@@ -346,6 +380,12 @@ export default function HomeScreen() {
         onOpenCustomer={(cid) => router.push({ pathname: '/customers/[id]', params: { id: cid } })}
         onDial={(phone) => router.push({ pathname: '/calls', params: { num: phone } })}
       />
+
+      <NotificationsSheet
+        visible={notifOpen}
+        onClose={() => { setNotifOpen(false); void refreshUnread(); }}
+        onOpenCustomer={(cid) => { setNotifOpen(false); router.push({ pathname: '/customers/[id]', params: { id: cid } }); }}
+      />
     </ThemedView>
   );
 }
@@ -408,6 +448,8 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingTop: Spacing.four, paddingBottom: Spacing.three },
   headerIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', top: 2, right: 2, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#D14343', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  badgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
   quickLinks: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
   quickLink: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, height: 40, borderRadius: 12, backgroundColor: Brand.primarySoft },
   quickLinkText: { color: Brand.primary, fontWeight: '700' },

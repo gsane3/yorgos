@@ -32,6 +32,9 @@ import type { Customer, GalleryFile, LinkDraft, Offer, Task, TimelineItem, Uploa
 
 const APPT_TYPES = new Set(['book_appointment', 'visit_customer']);
 
+// Polite default rejection message (identical to the web reject flow).
+const REJECT_MESSAGE = 'Καλησπέρα σας. Ευχαριστούμε πολύ για την επικοινωνία. Δυστυχώς δεν θα μπορέσουμε να αναλάβουμε τη συγκεκριμένη εργασία αυτή την περίοδο. Σας ευχόμαστε καλή συνέχεια και ελπίζουμε να βρείτε άμεσα την κατάλληλη λύση.';
+
 const STATUS_LABELS: Record<string, string> = {
   new: 'Νέος',
   in_progress: 'Σε εξέλιξη',
@@ -290,22 +293,26 @@ export default function CustomerProfileScreen() {
     }
   }
 
+  async function markLost(notify: boolean) {
+    try {
+      await apiPatch(`/api/customers/${customerId}`, { status: 'lost' });
+      if (notify) {
+        const r = await apiPost<{ ok?: boolean }>(`/api/customers/${customerId}/message`, { text: REJECT_MESSAGE });
+        if (r?.ok) Alert.alert('✓', 'Ο πελάτης σημάνθηκε ως «Χαμένος» και στάλθηκε ενημέρωση.');
+        else Alert.alert('Σημειώθηκε', 'Σημάνθηκε ως «Χαμένος», αλλά το μήνυμα δεν στάλθηκε (λείπει τηλέφωνο;).');
+      }
+      void load();
+    } catch {
+      Alert.alert('Σφάλμα', 'Απέτυχε.');
+    }
+  }
+
   function rejectCustomer() {
     if (customer?.status === 'lost') return;
-    Alert.alert('Απόρριψη πελάτη', 'Ο πελάτης θα σημανθεί ως «Χαμένος». Συνέχεια;', [
+    Alert.alert('Απόρριψη πελάτη', 'Ο πελάτης θα σημανθεί ως «Χαμένος».', [
+      { text: 'Απόρριψη + ενημέρωση πελάτη', onPress: () => void markLost(true) },
+      { text: 'Απόρριψη χωρίς μήνυμα', style: 'destructive', onPress: () => void markLost(false) },
       { text: 'Ακύρωση', style: 'cancel' },
-      {
-        text: 'Απόρριψη',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await apiPatch(`/api/customers/${customerId}`, { status: 'lost' });
-            void load();
-          } catch {
-            Alert.alert('Σφάλμα', 'Απέτυχε.');
-          }
-        },
-      },
     ]);
   }
 
