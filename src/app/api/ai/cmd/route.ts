@@ -13,17 +13,11 @@ const CMD_RATE_LIMIT_MAX = 10;
 const CMD_RATE_LIMIT_WINDOW_MS = 60_000;
 const cmdRateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
-function getClientIp(req: NextRequest): string {
-  const forwarded = req.headers.get('x-forwarded-for');
-  if (forwarded) return forwarded.split(',')[0].trim();
-  return 'unknown';
-}
-
-function isRateLimited(ip: string): boolean {
+function isRateLimited(key: string): boolean {
   const now = Date.now();
-  const entry = cmdRateLimitStore.get(ip);
+  const entry = cmdRateLimitStore.get(key);
   if (!entry || now >= entry.resetAt) {
-    cmdRateLimitStore.set(ip, { count: 1, resetAt: now + CMD_RATE_LIMIT_WINDOW_MS });
+    cmdRateLimitStore.set(key, { count: 1, resetAt: now + CMD_RATE_LIMIT_WINDOW_MS });
     return false;
   }
   if (entry.count >= CMD_RATE_LIMIT_MAX) return true;
@@ -38,30 +32,28 @@ function getBearerToken(req: NextRequest): string | null {
 }
 
 // Require a valid signed-in user so the server-side ANTHROPIC_API_KEY cannot be
-// burned (cost/DoS) by anonymous callers.
-async function requireUser(req: NextRequest): Promise<NextResponse | null> {
+// burned (cost/DoS) by anonymous callers. Returns the user id on success so the
+// rate limiter can key on the authenticated identity (a spoofable client IP
+// would let one user rotate headers to exceed the cap).
+async function requireUser(req: NextRequest): Promise<{ userId: string } | { error: NextResponse }> {
   const token = getBearerToken(req);
-  if (!token) return NextResponse.json({ ok: false, error: 'missing_auth' }, { status: 401 });
+  if (!token) return { error: NextResponse.json({ ok: false, error: 'missing_auth' }, { status: 401 }) };
   let supabase: ReturnType<typeof createServerSupabaseClient>;
   try {
     supabase = createServerSupabaseClient();
   } catch {
-    return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
+    return { error: NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 }) };
   }
   try {
     const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
+    if (error || !user) return { error: NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 }) };
+    return { userId: user.id };
   } catch {
-    return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
+    return { error: NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 }) };
   }
-  return null;
 }
 
 export async function POST(req: NextRequest) {
-  if (isRateLimited(getClientIp(req))) {
-    return NextResponse.json({ ok: false, error: 'rate_limited' }, { status: 429 });
-  }
-
   const contentType = req.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) {
     return NextResponse.json({ ok: false, error: 'unsupported_content_type' }, { status: 415 });
@@ -75,8 +67,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const authError = await requireUser(req);
-  if (authError) return authError;
+  const auth = await requireUser(req);
+  if ('error' in auth) return auth.error;
+
+  // Rate-limit per authenticated user (not per spoofable client IP).
+  if (isRateLimited(auth.userId)) {
+    return NextResponse.json({ ok: false, error: 'rate_limited' }, { status: 429 });
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {

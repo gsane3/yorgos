@@ -83,7 +83,8 @@ export function OfferPreviewSheet({
     setBusy(true);
     try {
       const r = await apiPost<LinkDraft>(`/api/offers/${offer.id}/notify`, { mode: 'send' });
-      if (r?.sent === false && r.fallbackReason) Alert.alert('Αποστολή', `Εναλλακτικό κανάλι: ${r.fallbackReason}`);
+      // The offer notify route reports its fallback cause as `reason`.
+      if (r?.sent === false && (r.reason || r.fallbackReason)) Alert.alert('Αποστολή', `Δεν στάλθηκε αυτόματα (${r.reason ?? r.fallbackReason}).`);
       setDraft(null);
       onChanged?.();
       onClose();

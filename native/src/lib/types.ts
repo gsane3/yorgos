@@ -155,5 +155,7 @@ export interface LinkDraft {
   warning?: string;
   sent?: boolean;
   fallbackReason?: string;
+  /** The offer notify route reports its fallback cause as `reason` (link routes use `fallbackReason`). */
+  reason?: string;
   error?: string;
 }
