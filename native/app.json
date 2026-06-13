@@ -15,13 +15,17 @@
         "aps-environment": "production"
       },
       "infoPlist": {
-        "UIBackgroundModes": ["audio", "voip"],
+        "UIBackgroundModes": [
+          "audio",
+          "voip"
+        ],
         "NSMicrophoneUsageDescription": "Η Opiflow χρειάζεται το μικρόφωνο για τις τηλεφωνικές σας κλήσεις.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "ai.opiflow.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#2563EB",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -58,7 +62,8 @@
             "imageWidth": 76
           }
         }
-      ]
+      ],
+      "@react-native-firebase/app"
     ],
     "experiments": {
       "typedRoutes": true
