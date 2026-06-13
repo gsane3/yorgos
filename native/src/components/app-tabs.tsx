@@ -48,6 +48,7 @@ export default function AppTabs() {
       <Tabs.Screen name="offers" options={{ href: null }} />
       <Tabs.Screen name="stats" options={{ href: null }} />
       <Tabs.Screen name="search" options={{ href: null }} />
+      <Tabs.Screen name="cmd" options={{ href: null }} />
     </Tabs>
   );
 }
