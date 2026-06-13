@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
   dayRow: { flexDirection: 'row', gap: Spacing.one, flexWrap: 'wrap' },
   dayChip: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F4F7' },
   dayChipOn: { backgroundColor: Brand.primary },
-  dayChipText: { color: '#5B6472', fontWeight: '700' },
+  dayChipText: { color: '#6B7585', fontWeight: '700' },
   dayChipOnText: { color: '#FFFFFF', fontWeight: '700' },
   signout: {
     height: 50,

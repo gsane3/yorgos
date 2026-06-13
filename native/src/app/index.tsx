@@ -170,10 +170,10 @@ export default function HomeScreen() {
               <ThemedText style={styles.logoMark}>O</ThemedText>
             </View>
             <View style={{ flex: 1 }}>
-              <ThemedText type="subtitle" style={styles.headerTitle}>
+              <ThemedText type="subtitle" style={styles.headerTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                 {greeting}
               </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
                 {new Date().toLocaleDateString('el-GR', { weekday: 'long', day: 'numeric', month: 'long' })}
               </ThemedText>
             </View>
