@@ -1,9 +1,10 @@
 // Shared UI primitives — bottom-sheet modal, inputs, buttons, chips, rows.
-// Light theme only (the product is light-only, like the web app).
+// Theme-aware: each component resolves the active palette via useTheme() and
+// builds its styles with makeStyles(c), so light/dark both work.
 
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -17,7 +18,8 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Brand, BrandGradient, Shadow, Spacing } from '@/constants/theme';
+import { Brand, BrandGradient, Shadow, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 export function SheetModal({
   visible,
@@ -30,6 +32,8 @@ export function SheetModal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
@@ -40,7 +44,7 @@ export function SheetModal({
                 {title}
               </ThemedText>
               <Pressable onPress={onClose} hitSlop={10}>
-                <Ionicons name="close" size={24} color="#6B7585" />
+                <Ionicons name="close" size={24} color={c.textSecondary} />
               </Pressable>
             </View>
             <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
@@ -70,6 +74,8 @@ export function Input({
   multiline?: boolean;
   onFocus?: () => void;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.inputBlock}>
       {label ? (
@@ -81,7 +87,7 @@ export function Input({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor="#9AA4B2"
+        placeholderTextColor={c.textFaint}
         keyboardType={keyboardType}
         multiline={multiline}
         onFocus={onFocus}
@@ -104,6 +110,8 @@ export function PrimaryButton({
   disabled?: boolean;
   tone?: 'primary' | 'danger' | 'outline';
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable
       onPress={onPress}
@@ -138,6 +146,8 @@ export function ChipSelect({
   value: string;
   onChange: (key: string) => void;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.chips}>
       {options.map((o) => (
@@ -168,6 +178,8 @@ export function Section({
   initiallyOpen?: boolean;
   right?: ReactNode;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [open, setOpen] = useState(initiallyOpen);
   return (
     <View style={styles.section}>
@@ -178,7 +190,7 @@ export function Section({
         </ThemedText>
         <View style={styles.sectionRight}>
           {right}
-          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color="#9AA4B2" />
+          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={c.textFaint} />
         </View>
       </Pressable>
       {open ? <View style={styles.sectionBody}>{children}</View> : null}
@@ -198,6 +210,8 @@ export function ListRow({
   right?: string;
   onPress?: () => void;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable onPress={onPress} disabled={!onPress} style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}>
       <View style={styles.listRowBody}>
@@ -211,69 +225,70 @@ export function ListRow({
         ) : null}
       </View>
       {right ? <ThemedText type="smallBold">{right}</ThemedText> : null}
-      {onPress ? <Ionicons name="chevron-forward" size={16} color="#9AA4B2" /> : null}
+      {onPress ? <Ionicons name="chevron-forward" size={16} color={c.textFaint} /> : null}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(10,17,32,0.45)', justifyContent: 'flex-end' },
-  kav: { width: '100%' },
-  sheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '90%' },
-  head: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.two,
-  },
-  title: { fontSize: 17, color: '#11273B' },
-  body: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.six, gap: Spacing.three },
+const makeStyles = (c: ThemePalette) =>
+  StyleSheet.create({
+    backdrop: { flex: 1, backgroundColor: 'rgba(10,17,32,0.45)', justifyContent: 'flex-end' },
+    kav: { width: '100%' },
+    sheet: { backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '90%' },
+    head: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: Spacing.four,
+      paddingTop: Spacing.four,
+      paddingBottom: Spacing.two,
+    },
+    title: { fontSize: 17, color: c.text },
+    body: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.six, gap: Spacing.three },
 
-  inputBlock: { gap: 4 },
-  input: {
-    minHeight: 46,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D8DEE6',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#11273B',
-    backgroundColor: '#FFFFFF',
-  },
-  inputMultiline: { minHeight: 84, textAlignVertical: 'top' },
+    inputBlock: { gap: 4 },
+    input: {
+      minHeight: 46,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: Spacing.three,
+      paddingVertical: 10,
+      fontSize: 16,
+      color: c.text,
+      backgroundColor: c.inputBg,
+    },
+    inputMultiline: { minHeight: 84, textAlignVertical: 'top' },
 
-  btn: {
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: Brand.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.one,
-    overflow: 'hidden',
-  },
-  btnDanger: { backgroundColor: '#D14343' },
-  btnOutline: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D8DEE6' },
-  btnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  btnTextOutline: { color: Brand.primary },
+    btn: {
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: Brand.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: Spacing.one,
+      overflow: 'hidden',
+    },
+    btnDanger: { backgroundColor: '#D14343' },
+    btnOutline: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+    btnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+    btnTextOutline: { color: Brand.primary },
 
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  chip: { paddingHorizontal: Spacing.three, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: '#D8DEE6', backgroundColor: '#FFFFFF' },
-  chipActive: { backgroundColor: Brand.primary, borderColor: Brand.primary },
-  chipActiveText: { color: '#FFFFFF', fontWeight: '700' },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+    chip: { paddingHorizontal: Spacing.three, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: c.border, backgroundColor: c.card },
+    chipActive: { backgroundColor: Brand.primary, borderColor: Brand.primary },
+    chipActiveText: { color: '#FFFFFF', fontWeight: '700' },
 
-  section: { backgroundColor: '#F7F9FB', borderRadius: 16, overflow: 'hidden' },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.three },
-  sectionTitle: { fontSize: 15, color: '#11273B' },
-  sectionRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  sectionBody: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.three, gap: Spacing.two },
+    section: { backgroundColor: c.surface, borderRadius: 16, overflow: 'hidden' },
+    sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.three },
+    sectionTitle: { fontSize: 15, color: c.text },
+    sectionRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+    sectionBody: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.three, gap: Spacing.two },
 
-  listRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, backgroundColor: '#FFFFFF', borderRadius: 12, padding: Spacing.three },
-  listRowBody: { flex: 1, gap: 2 },
-  listRowTitle: { color: '#11273B', fontWeight: '600' },
+    listRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, backgroundColor: c.card, borderRadius: 12, padding: Spacing.three },
+    listRowBody: { flex: 1, gap: 2 },
+    listRowTitle: { color: c.text, fontWeight: '600' },
 
-  disabled: { opacity: 0.4 },
-  pressed: { opacity: 0.7 },
-});
+    disabled: { opacity: 0.4 },
+    pressed: { opacity: 0.7 },
+  });

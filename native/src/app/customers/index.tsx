@@ -3,7 +3,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -19,7 +19,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Input, PrimaryButton, SheetModal } from '@/components/ui';
-import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
+import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPost } from '@/lib/api';
 import type { Customer } from '@/lib/types';
 
@@ -39,6 +40,8 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 export default function CustomersListScreen() {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
   const [items, setItems] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,19 +185,19 @@ export default function CustomersListScreen() {
 
         {/* Search */}
         <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color="#9AA4B2" />
+          <Ionicons name="search" size={18} color={c.textFaint} />
           <TextInput
             value={q}
             onChangeText={onSearch}
             placeholder="Αναζήτηση (όνομα, τηλέφωνο, email)"
-            placeholderTextColor="#9AA4B2"
+            placeholderTextColor={c.textFaint}
             autoCapitalize="none"
             autoCorrect={false}
             style={styles.searchInput}
           />
           {q ? (
             <Pressable onPress={() => onSearch('')} hitSlop={8}>
-              <Ionicons name="close-circle" size={18} color="#9AA4B2" />
+              <Ionicons name="close-circle" size={18} color={c.textFaint} />
             </Pressable>
           ) : null}
         </View>
@@ -274,7 +277,7 @@ export default function CustomersListScreen() {
                     </ThemedText>
                   </View>
                   {item.pinned ? <Ionicons name="bookmark" size={15} color={Brand.primary} /> : null}
-                  <Ionicons name="chevron-forward" size={18} color="#9AA4B2" />
+                  <Ionicons name="chevron-forward" size={18} color={c.textFaint} />
                 </Pressable>
               );
             }}
@@ -355,7 +358,7 @@ function AddCustomerSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemePalette) => StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1 },
   titleRow: {
@@ -390,23 +393,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#F2F4F7',
+    backgroundColor: c.surface,
   },
-  searchInput: { flex: 1, fontSize: 16, color: '#11273B', paddingVertical: 0 },
+  searchInput: { flex: 1, fontSize: 16, color: c.text, paddingVertical: 0 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, paddingHorizontal: Spacing.four, paddingVertical: Spacing.two },
-  chip: { paddingHorizontal: Spacing.three, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: '#D8DEE6' },
+  chip: { paddingHorizontal: Spacing.three, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: c.border },
   chipActive: { backgroundColor: Brand.primary, borderColor: Brand.primary },
   chipActiveText: { color: Brand.onPrimary, fontWeight: '700' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three, paddingHorizontal: Spacing.four },
   centerText: { textAlign: 'center' },
   list: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
-  sep: { height: 1, backgroundColor: '#EEF1F5', marginLeft: 52 },
+  sep: { height: 1, backgroundColor: c.border, marginLeft: 52 },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.three },
   rowPressed: { opacity: 0.6 },
   rowText: { flex: 1, gap: 2 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: Brand.primary, fontSize: 16, fontWeight: '700' },
-  statusDot: { position: 'absolute', right: -1, bottom: -1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#FFFFFF' },
+  statusDot: { position: 'absolute', right: -1, bottom: -1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: c.card },
   retry: { paddingHorizontal: Spacing.four, paddingVertical: Spacing.two, borderRadius: 12, backgroundColor: Brand.primary },
   retryText: { color: Brand.onPrimary, fontWeight: '700' },
 });

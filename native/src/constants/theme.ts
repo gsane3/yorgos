@@ -36,28 +36,56 @@ export const Shadow = {
 
 export const Radius = { card: 22, control: 16, pill: 999 } as const;
 
+// Semantic color tokens. LIGHT values intentionally equal the colors currently
+// hard-coded across the screens, so converting `'#FFFFFF'` → `c.card` etc. is a
+// no-op in light mode (zero regression) and gives dark mode for free.
+//   text        — primary ink            textSecondary — muted label
+//   textFaint   — placeholders/hints     background    — screen base
+//   card        — card / sheet surface   surface       — chips, inputs, tracks
+//   border      — visible hairline       borderFaint   — near-invisible card edge
 export const Colors = {
   light: {
     text: '#11273B',
+    textSecondary: '#6B7585',
+    textFaint: '#9AA4B2',
     background: '#FFFFFF',
+    card: '#FFFFFF',
+    surface: '#F4F6F9',
+    inputBg: '#FFFFFF',
     backgroundElement: '#F4F6F9',
     backgroundSelected: '#E6EDF4',
-    textSecondary: '#6B7585',
-    tint: Brand.primary,
     border: '#E3E7ED',
+    borderFaint: 'rgba(17,39,59,0.06)',
+    glass: 'rgba(255,255,255,0.94)',
+    glassBorder: 'rgba(17,39,59,0.08)',
+    tabOn: '#E7F0F8',
+    tint: Brand.primary,
   },
   dark: {
-    text: '#F5F7FA',
-    background: '#0B0F14',
-    backgroundElement: '#161B22',
-    backgroundSelected: '#222A33',
+    text: '#EAF0F6',
     textSecondary: '#9AA4B2',
+    textFaint: '#6B7585',
+    background: '#0E1722',
+    card: '#17232F',
+    surface: '#1E2B38',
+    inputBg: '#0F1923',
+    backgroundElement: '#1E2B38',
+    backgroundSelected: '#26384A',
+    border: '#2A3744',
+    borderFaint: 'rgba(255,255,255,0.07)',
+    glass: 'rgba(20,31,42,0.92)',
+    glassBorder: 'rgba(255,255,255,0.10)',
+    tabOn: 'rgba(79,163,227,0.16)',
     tint: '#4FA3E3',
-    border: '#222A33',
   },
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+
+// The active palette returned by useTheme(); used to type screen style factories
+// (`const makeStyles = (c: ThemePalette) => StyleSheet.create({...})`). Values are
+// widened to `string` so both the light and dark palettes are assignable.
+export type ThemePalette = { [K in keyof typeof Colors.light]: string };
 
 export const Fonts = Platform.select({
   ios: {

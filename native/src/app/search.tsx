@@ -13,7 +13,8 @@ import { OfferPreviewSheet } from '@/components/offer-preview-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ListRow, Section } from '@/components/ui';
-import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
+import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiGet } from '@/lib/api';
 import type { Customer, Offer, Task } from '@/lib/types';
 
@@ -35,6 +36,8 @@ interface Results {
 const EMPTY: Results = { customers: [], offers: [], tasks: [] };
 
 export default function SearchScreen() {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -108,21 +111,21 @@ export default function SearchScreen() {
             <Ionicons name="chevron-back" size={28} color={Brand.primary} />
           </Pressable>
           <View style={styles.searchBox}>
-            <Ionicons name="search" size={18} color="#9AA4B2" />
+            <Ionicons name="search" size={18} color={c.textFaint} />
             <TextInput
               ref={inputRef}
               value={query}
               onChangeText={setQuery}
               autoFocus
               placeholder="Πελάτες, προσφορές, εργασίες…"
-              placeholderTextColor="#9AA4B2"
+              placeholderTextColor={c.textFaint}
               returnKeyType="search"
               autoCorrect={false}
               style={styles.input}
             />
             {query ? (
               <Pressable onPress={() => { setQuery(''); inputRef.current?.focus(); }} hitSlop={8}>
-                <Ionicons name="close-circle" size={18} color="#9AA4B2" />
+                <Ionicons name="close-circle" size={18} color={c.textFaint} />
               </Pressable>
             ) : null}
           </View>
@@ -196,9 +199,9 @@ export default function SearchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemePalette) => StyleSheet.create({
   fill: { flex: 1 },
-  headerSafe: { borderBottomWidth: 1, borderBottomColor: '#EEF1F5', backgroundColor: '#FFFFFF' },
+  headerSafe: { borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.card },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.two, paddingTop: 4, paddingBottom: Spacing.two },
   back: { padding: 4 },
   searchBox: {
@@ -206,12 +209,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    backgroundColor: '#F4F6F9',
+    backgroundColor: c.surface,
     borderRadius: 14,
     paddingHorizontal: Spacing.three,
     height: 44,
   },
-  input: { flex: 1, fontSize: 16, color: '#11273B', paddingVertical: 0 },
+  input: { flex: 1, fontSize: 16, color: c.text, paddingVertical: 0 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
   centerText: { textAlign: 'center' },
   list: { paddingHorizontal: Spacing.four, paddingTop: Spacing.three, paddingBottom: BottomTabInset + Spacing.four },

@@ -11,7 +11,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
+import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiGet } from '@/lib/api';
 import { formatEuro } from '@/lib/format';
 import type { Customer, Offer, Task } from '@/lib/types';
@@ -26,6 +27,8 @@ const STATUS_ROWS: Array<{ key: 'new' | 'in_progress' | 'won' | 'lost'; label: s
 const GREEK_MONTHS = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μάι', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ'];
 
 export default function StatsScreen() {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -161,6 +164,8 @@ export default function StatsScreen() {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <ThemedView type="backgroundElement" style={styles.metric}>
       <ThemedText type="small" themeColor="textSecondary">{label}</ThemedText>
@@ -169,9 +174,9 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemePalette) => StyleSheet.create({
   fill: { flex: 1 },
-  headerSafe: { borderBottomWidth: 1, borderBottomColor: '#EEF1F5', backgroundColor: '#FFFFFF' },
+  headerSafe: { borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.card },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.two, paddingVertical: 4 },
   back: { padding: 4 },
   title: { fontSize: 22 },
@@ -180,14 +185,14 @@ const styles = StyleSheet.create({
   cards: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   metric: { width: '47.8%', flexGrow: 1, padding: Spacing.three, borderRadius: 16, gap: 4 },
   metricValue: { fontSize: 22, lineHeight: 28, fontWeight: '800' },
-  panel: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: Spacing.three, gap: Spacing.one, borderWidth: 1, borderColor: '#EEF1F5' },
+  panel: { backgroundColor: c.card, borderRadius: 16, padding: Spacing.three, gap: Spacing.one, borderWidth: 1, borderColor: c.border },
   panelTitle: { marginBottom: Spacing.one },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: 6 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   statusLabel: { flex: 1 },
   monthRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: 5 },
   monthLabel: { width: 34 },
-  barTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: '#F2F4F7', overflow: 'hidden' },
+  barTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: c.surface, overflow: 'hidden' },
   barFill: { height: 8, borderRadius: 4, backgroundColor: Brand.primary },
   monthVal: { width: 76, textAlign: 'right' },
 });

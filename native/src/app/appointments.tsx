@@ -18,7 +18,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { PrimaryButton, SheetModal } from '@/components/ui';
-import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
+import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPost } from '@/lib/api';
 import { todayYMD } from '@/lib/format';
 import type { Customer, LinkDraft, Task } from '@/lib/types';
@@ -39,6 +40,8 @@ function ymdToDmy(ymd: string): string {
 }
 
 export default function AppointmentsScreen() {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
   const [appts, setAppts] = useState<Task[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
@@ -238,7 +241,7 @@ export default function AppointmentsScreen() {
                       {[customerName, TYPE_LABEL[task.type] ?? null].filter(Boolean).join(' · ')}
                     </ThemedText>
                   </View>
-                  {task.customerId ? <Ionicons name="chevron-forward" size={16} color="#9AA4B2" /> : null}
+                  {task.customerId ? <Ionicons name="chevron-forward" size={16} color={c.textFaint} /> : null}
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
@@ -306,25 +309,25 @@ export default function AppointmentsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemePalette) => StyleSheet.create({
   fill: { flex: 1 },
-  headerSafe: { borderBottomWidth: 1, borderBottomColor: '#EEF1F5', backgroundColor: '#FFFFFF' },
+  headerSafe: { borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.card },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.two, paddingTop: 4, paddingBottom: Spacing.two },
   back: { padding: 4 },
   title: { fontSize: 22 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
   list: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: BottomTabInset + Spacing.four },
-  groupHeader: { color: '#6B7585', letterSpacing: 0.6, marginTop: Spacing.three, marginBottom: Spacing.one },
+  groupHeader: { color: c.textSecondary, letterSpacing: 0.6, marginTop: Spacing.three, marginBottom: Spacing.one },
   groupHeaderOverdue: { color: '#D14343' },
-  row: { backgroundColor: '#F7F9FB', borderRadius: 14, marginBottom: Spacing.two, overflow: 'hidden' },
+  row: { backgroundColor: c.surface, borderRadius: 14, marginBottom: Spacing.two, overflow: 'hidden' },
   rowMain: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.three },
   time: { minWidth: 46, alignItems: 'center' },
   timeText: { color: Brand.primary },
   body: { flex: 1, gap: 2 },
-  linkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.one, borderTopWidth: 1, borderTopColor: '#EEF1F5', paddingVertical: 10 },
+  linkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.one, borderTopWidth: 1, borderTopColor: c.border, paddingVertical: 10 },
   linkBtnText: { color: Brand.primary, fontWeight: '700' },
-  msgBox: { backgroundColor: '#F7F9FB', borderRadius: 14, padding: Spacing.three },
-  dark: { color: '#11273B' },
+  msgBox: { backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three },
+  dark: { color: c.text },
   error: { color: '#D14343' },
   pressed: { opacity: 0.6 },
 });

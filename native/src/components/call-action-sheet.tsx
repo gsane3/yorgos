@@ -1,12 +1,13 @@
 // Per-call action sheet — mirrors the web calls-page bottom sheet:
 // full AI brief + actions (call, view/link/add contact, create task, delete).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ChipSelect, Input, PrimaryButton, SheetModal } from '@/components/ui';
-import { Spacing } from '@/constants/theme';
+import { Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { formatWhen, todayYMD } from '@/lib/format';
 import type { Communication, Customer } from '@/lib/types';
@@ -51,6 +52,8 @@ export function CallActionSheet({
   onOpenCustomer: (customerId: string) => void;
   onDial: (phone: string) => void;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [view, setView] = useState<'actions' | 'add_contact' | 'create_task'>('actions');
   const [busy, setBusy] = useState(false);
   const [match, setMatch] = useState<Customer | null>(null);
@@ -295,8 +298,9 @@ export function CallActionSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  briefBox: { backgroundColor: '#F7F9FB', borderRadius: 14, padding: Spacing.three, gap: 6 },
-  briefTitle: { color: '#11273B' },
-  briefText: { color: '#33404F' },
-});
+const makeStyles = (c: ThemePalette) =>
+  StyleSheet.create({
+    briefBox: { backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three, gap: 6 },
+    briefTitle: { color: c.text },
+    briefText: { color: c.text },
+  });

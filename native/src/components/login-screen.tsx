@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
-import { Brand, Spacing } from '@/constants/theme';
+import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 export function LoginScreen() {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -80,7 +83,7 @@ export function LoginScreen() {
               value={email}
               onChangeText={setEmail}
               placeholder="Email"
-              placeholderTextColor="#9AA4B2"
+              placeholderTextColor={c.textFaint}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -91,7 +94,7 @@ export function LoginScreen() {
               value={password}
               onChangeText={setPassword}
               placeholder="Κωδικός"
-              placeholderTextColor="#9AA4B2"
+              placeholderTextColor={c.textFaint}
               secureTextEntry
               onSubmitEditing={() => canSubmit && signIn()}
               style={styles.input}
@@ -128,7 +131,7 @@ export function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemePalette) => StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1 },
   kav: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.four, gap: Spacing.five },
@@ -143,11 +146,11 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#D8DEE6',
+    borderColor: c.border,
     paddingHorizontal: Spacing.three,
     fontSize: 16,
-    color: '#11273B',
-    backgroundColor: '#FFFFFF',
+    color: c.text,
+    backgroundColor: c.inputBg,
   },
   error: { color: '#D14343' },
   info: { color: '#1B8A4C' },

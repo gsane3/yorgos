@@ -24,7 +24,8 @@ import { OfferPreviewSheet } from '@/components/offer-preview-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ChipSelect, Input, ListRow, PrimaryButton, SheetModal } from '@/components/ui';
-import { Brand, Spacing } from '@/constants/theme';
+import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { formatDate, formatEuro } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -81,6 +82,8 @@ const OFFER_STATUS_GR: Record<string, string> = {
 type Expanded = 'offers' | 'appointments' | 'files' | 'calls' | null;
 
 export default function CustomerProfileScreen() {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const customerId = String(id ?? '');
@@ -521,7 +524,7 @@ export default function CustomerProfileScreen() {
                         {f.kind === 'image' && url ? (
                           <Image source={{ uri: url }} style={styles.tileImg} resizeMode="cover" />
                         ) : (
-                          <Ionicons name={f.kind === 'video' ? 'play-circle' : f.kind === 'image' ? 'image' : 'document'} size={26} color={Brand.slate} />
+                          <Ionicons name={f.kind === 'video' ? 'play-circle' : f.kind === 'image' ? 'image' : 'document'} size={26} color={c.textSecondary} />
                         )}
                       </Pressable>
                     );
@@ -684,6 +687,8 @@ function Quick({
   onPress: () => void;
   disabled?: boolean;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [styles.quick, disabled && styles.disabled, pressed && styles.pressed]}>
       <View style={styles.quickCircle}>
@@ -697,6 +702,8 @@ function Quick({
 }
 
 function GroupCard({ title, children }: { title?: string; children: ReactNode }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.group}>
       {title ? (
@@ -718,6 +725,8 @@ function InfoRow({
   label: string;
   value?: string | null;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   if (!value) return null;
   return (
     <View style={styles.infoRow}>
@@ -749,6 +758,8 @@ function NavRow({
   open: boolean;
   onPress: () => void;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.navRow, pressed && styles.pressed]}>
       <View style={styles.rowIcon}>
@@ -760,12 +771,14 @@ function NavRow({
       <ThemedText type="small" themeColor="textSecondary">
         {count}
       </ThemedText>
-      <Ionicons name={open ? 'chevron-up' : 'chevron-forward'} size={16} color={Brand.slate} />
+      <Ionicons name={open ? 'chevron-up' : 'chevron-forward'} size={16} color={c.textSecondary} />
     </Pressable>
   );
 }
 
 function EmptyLine({ text }: { text: string }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <ThemedText type="small" themeColor="textSecondary" style={styles.emptyRow}>
       {text}
@@ -773,11 +786,11 @@ function EmptyLine({ text }: { text: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemePalette) => StyleSheet.create({
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  ink: { color: Brand.ink },
-  headerSafe: { backgroundColor: '#FFFFFF' },
+  ink: { color: c.text },
+  headerSafe: { backgroundColor: c.background },
   back: { paddingHorizontal: Spacing.two, paddingVertical: 4, alignSelf: 'flex-start' },
   content: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.six, gap: Spacing.three },
 
@@ -790,11 +803,11 @@ const styles = StyleSheet.create({
   quickRow: { flexDirection: 'row', gap: Spacing.four, marginTop: Spacing.three },
   quick: { alignItems: 'center', gap: 4, width: 64 },
   quickLabel: { fontSize: 12, textAlign: 'center' },
-  quickCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#F2F5FA', alignItems: 'center', justifyContent: 'center' },
+  quickCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' },
 
   group: { gap: 6 },
   groupTitle: { paddingHorizontal: 4, fontWeight: '700' },
-  groupCard: { backgroundColor: '#F7F9FB', borderRadius: 16, padding: Spacing.three, gap: Spacing.two },
+  groupCard: { backgroundColor: c.surface, borderRadius: 16, padding: Spacing.three, gap: Spacing.two },
 
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   rowIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
@@ -805,16 +818,16 @@ const styles = StyleSheet.create({
   navLabel: { flex: 1, fontWeight: '600' },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  tile: { width: '23%', aspectRatio: 1, borderRadius: 10, backgroundColor: '#EDF1F5', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  tile: { width: '23%', aspectRatio: 1, borderRadius: 10, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   tileImg: { width: '100%', height: '100%' },
 
-  briefRow: { backgroundColor: '#FFFFFF', borderLeftWidth: 3, borderLeftColor: Brand.primarySoft, borderRadius: 10, padding: Spacing.three, gap: 4 },
+  briefRow: { backgroundColor: c.card, borderLeftWidth: 3, borderLeftColor: Brand.primarySoft, borderRadius: 10, padding: Spacing.three, gap: 4 },
 
   dangerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 8 },
   dangerText: { color: '#D14343' },
 
-  msgBox: { backgroundColor: '#F7F9FB', borderRadius: 14, padding: Spacing.three },
-  apptDate: { fontSize: 22, lineHeight: 28, color: Brand.ink },
+  msgBox: { backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three },
+  apptDate: { fontSize: 22, lineHeight: 28, color: c.text },
 
   lightbox: { flex: 1, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center' },
   lightboxClose: { position: 'absolute', top: 56, right: 20, zIndex: 2 },
