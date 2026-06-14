@@ -1,12 +1,13 @@
 // Offer preview sheet — full offer document + status actions + resend.
 // Mirrors the web OfferPreviewSheet (items table, totals, status, message send).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { PrimaryButton, SheetModal } from '@/components/ui';
-import { Spacing } from '@/constants/theme';
+import { Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { formatDate, formatEuro } from '@/lib/format';
 import type { LinkDraft, Offer } from '@/lib/types';
@@ -31,6 +32,8 @@ export function OfferPreviewSheet({
   onClose: () => void;
   onChanged?: () => void;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [offer, setOffer] = useState<Offer | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<LinkDraft | null>(null);
@@ -178,12 +181,13 @@ export function OfferPreviewSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  items: { gap: Spacing.two },
-  itemRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: '#F7F9FB', borderRadius: 12, padding: Spacing.three },
-  itemDesc: { flex: 1, gap: 2 },
-  totals: { alignItems: 'flex-end', gap: 2 },
-  total: { fontSize: 17, color: '#11273B' },
-  msgBox: { backgroundColor: '#F7F9FB', borderRadius: 14, padding: Spacing.three },
-  dark: { color: '#11273B' },
-});
+const makeStyles = (c: ThemePalette) =>
+  StyleSheet.create({
+    items: { gap: Spacing.two },
+    itemRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three },
+    itemDesc: { flex: 1, gap: 2 },
+    totals: { alignItems: 'flex-end', gap: 2 },
+    total: { fontSize: 17, color: c.text },
+    msgBox: { backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three },
+    dark: { color: c.text },
+  });

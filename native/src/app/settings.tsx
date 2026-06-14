@@ -3,16 +3,18 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Input, ListRow, PrimaryButton, Section } from '@/components/ui';
-import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
+import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useThemeMode } from '@/lib/theme-mode';
 import { formatEuro } from '@/lib/format';
 import { getIncomingState } from '@/lib/twilio-state';
 import type { Business, CatalogItem } from '@/lib/types';
@@ -43,6 +45,10 @@ export default function SettingsScreen() {
   const { session, signOut } = useAuth();
   const email = session?.user?.email ?? '';
   const version = Constants.expoConfig?.version ?? '1.0.0';
+
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
+  const { isDark, setDark } = useThemeMode();
 
   const [phone, setPhone] = useState(getIncomingState());
   useEffect(() => {
@@ -314,6 +320,19 @@ export default function SettingsScreen() {
             />
           </Section>
 
+          {/* Εμφάνιση */}
+          <Section title="Εμφάνιση" initiallyOpen>
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="smallBold">Σκούρο θέμα</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Ακολουθεί το σύστημα αν δεν το αλλάξεις χειροκίνητα.
+                </ThemedText>
+              </View>
+              <Switch value={isDark} onValueChange={setDark} trackColor={{ true: Brand.primary }} />
+            </View>
+          </Section>
+
           {/* Επιχείρηση */}
           <Section title="Επιχείρηση">
             <Input label="Όνομα επιχείρησης" value={bizForm.name ?? ''} onChangeText={setB('name')} />
@@ -478,6 +497,8 @@ export default function SettingsScreen() {
 }
 
 function Row({ label, value }: { label: string; value: string }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.row}>
       <ThemedText type="small">{label}</ThemedText>
@@ -488,38 +509,39 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safe: { flex: 1 },
-  kav: { flex: 1 },
-  title: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, paddingBottom: Spacing.three },
-  content: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four, gap: Spacing.three },
-  card: { padding: Spacing.three, borderRadius: 16 },
-  profile: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: Brand.primary, fontSize: 18, fontWeight: '700' },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.three, paddingVertical: 6 },
-  rowValue: { flexShrink: 1 },
-  subhead: { marginTop: Spacing.two },
-  catRow: { flexDirection: 'row', gap: Spacing.two },
-  catCol: { flex: 1 },
-  inlineBtns: { flexDirection: 'row', gap: Spacing.two },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: 6 },
-  dayRow: { flexDirection: 'row', gap: Spacing.one, flexWrap: 'wrap' },
-  dayChip: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F4F7' },
-  dayChipOn: { backgroundColor: Brand.primary },
-  dayChipText: { color: '#6B7585', fontWeight: '700' },
-  dayChipOnText: { color: '#FFFFFF', fontWeight: '700' },
-  signout: {
-    height: 50,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E3B7B7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  signoutText: { color: '#D14343', fontSize: 15, fontWeight: '700' },
-  pressed: { opacity: 0.6 },
-});
+const makeStyles = (c: ThemePalette) =>
+  StyleSheet.create({
+    container: { flex: 1 },
+    safe: { flex: 1 },
+    kav: { flex: 1 },
+    title: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, paddingBottom: Spacing.three },
+    content: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four, gap: Spacing.three },
+    card: { padding: Spacing.three, borderRadius: 16 },
+    profile: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+    avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
+    avatarText: { color: Brand.primary, fontSize: 18, fontWeight: '700' },
+    row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.three, paddingVertical: 6 },
+    rowValue: { flexShrink: 1 },
+    subhead: { marginTop: Spacing.two },
+    catRow: { flexDirection: 'row', gap: Spacing.two },
+    catCol: { flex: 1 },
+    inlineBtns: { flexDirection: 'row', gap: Spacing.two },
+    toggleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: 6 },
+    dayRow: { flexDirection: 'row', gap: Spacing.one, flexWrap: 'wrap' },
+    dayChip: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface },
+    dayChipOn: { backgroundColor: Brand.primary },
+    dayChipText: { color: c.textSecondary, fontWeight: '700' },
+    dayChipOnText: { color: '#FFFFFF', fontWeight: '700' },
+    signout: {
+      height: 50,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: '#E3B7B7',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+    },
+    signoutText: { color: '#D14343', fontSize: 15, fontWeight: '700' },
+    pressed: { opacity: 0.6 },
+  });

@@ -7,14 +7,15 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { PrimaryButton } from '@/components/ui';
-import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
+import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { formatEuro, todayYMD } from '@/lib/format';
 import type { Business, Customer, Task } from '@/lib/types';
@@ -66,6 +67,8 @@ function addDays(n: number): string {
 }
 
 export default function CmdScreen() {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
   const inputRef = useRef<TextInput>(null);
   const [input, setInput] = useState('');
@@ -312,7 +315,7 @@ export default function CmdScreen() {
               value={input}
               onChangeText={setInput}
               placeholder="Π.χ. Κλείσε ραντεβού με τον Καραγιάννη αύριο στις 10"
-              placeholderTextColor="#9AA4B2"
+              placeholderTextColor={c.textFaint}
               multiline
               style={[styles.input, styles.inputFlex]}
             />
@@ -475,6 +478,8 @@ export default function CmdScreen() {
 }
 
 function Row({ k, v, bold }: { k: string; v: string; bold?: boolean }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.row}>
       <ThemedText type="small" themeColor="textSecondary">{k}</ThemedText>
@@ -483,15 +488,15 @@ function Row({ k, v, bold }: { k: string; v: string; bold?: boolean }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemePalette) => StyleSheet.create({
   fill: { flex: 1 },
-  headerSafe: { borderBottomWidth: 1, borderBottomColor: '#EEF1F5', backgroundColor: '#FFFFFF' },
+  headerSafe: { borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.card },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
   back: { padding: 4 },
   title: { fontSize: 20 },
   body: { padding: Spacing.four, paddingBottom: BottomTabInset + Spacing.six, gap: Spacing.three },
-  inputCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: Spacing.three, gap: Spacing.three, borderWidth: 1, borderColor: '#EEF1F5' },
-  input: { minHeight: 60, fontSize: 16, color: '#11273B', textAlignVertical: 'top' },
+  inputCard: { backgroundColor: c.card, borderRadius: 20, padding: Spacing.three, gap: Spacing.three, borderWidth: 1, borderColor: c.border },
+  input: { minHeight: 60, fontSize: 16, color: c.text, textAlignVertical: 'top' },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.two },
   inputFlex: { flex: 1 },
   micBtn: {
@@ -508,25 +513,25 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   examples: { gap: Spacing.one },
-  exChip: { backgroundColor: '#F4F6F9', borderRadius: 12, paddingHorizontal: Spacing.three, paddingVertical: 8 },
-  exText: { color: '#33404F' },
+  exChip: { backgroundColor: c.surface, borderRadius: 12, paddingHorizontal: Spacing.three, paddingVertical: 8 },
+  exText: { color: c.textSecondary },
   err: { color: '#D14343' },
   resultWrap: { gap: Spacing.three },
-  summaryBox: { backgroundColor: '#F4F6F9', borderRadius: 14, padding: Spacing.three, gap: 2 },
+  summaryBox: { backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three, gap: 2 },
   label: { textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 11 },
-  summaryText: { color: '#33404F' },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: Spacing.three, gap: Spacing.two, borderWidth: 1, borderColor: '#EEF1F5' },
-  dark: { color: '#11273B' },
-  candidate: { backgroundColor: '#F7F9FB', borderRadius: 12, padding: Spacing.three },
+  summaryText: { color: c.textSecondary },
+  card: { backgroundColor: c.card, borderRadius: 18, padding: Spacing.three, gap: Spacing.two, borderWidth: 1, borderColor: c.border },
+  dark: { color: c.text },
+  candidate: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three },
   withoutLink: { paddingTop: Spacing.one },
   okBox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, backgroundColor: '#EAF7EF', borderRadius: 12, padding: Spacing.three },
   okText: { color: '#1B8A4C' },
   warnBox: { backgroundColor: '#FFF7E6', borderRadius: 12, padding: Spacing.three },
   warnText: { color: '#9A6B00' },
-  apptRow: { backgroundColor: '#F7F9FB', borderRadius: 12, padding: Spacing.three, gap: 2 },
+  apptRow: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: 2 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.three },
   offerLine: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.two },
-  totalsBox: { backgroundColor: '#F7F9FB', borderRadius: 12, padding: Spacing.three, gap: 4 },
+  totalsBox: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: 4 },
   cancelLink: { color: '#D14343', fontWeight: '700', paddingTop: 4 },
   pressed: { opacity: 0.6 },
 });

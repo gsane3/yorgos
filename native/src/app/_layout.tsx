@@ -1,21 +1,35 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { ActivityIndicator, AppState, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, AppState, View } from 'react-native';
 
 import AppTabs from '@/components/app-tabs';
 import { LoginScreen } from '@/components/login-screen';
 import { Brand } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { ThemeModeProvider } from '@/lib/theme-mode';
 import { getIncomingState } from '@/lib/twilio-state';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   return (
-    <AuthProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Gate />
-      </ThemeProvider>
-    </AuthProvider>
+    <ThemeModeProvider>
+      <AuthProvider>
+        <ThemedNavigation />
+      </AuthProvider>
+    </ThemeModeProvider>
+  );
+}
+
+// Drives the navigation container theme + status-bar style from the resolved
+// scheme (must live under ThemeModeProvider).
+function ThemedNavigation() {
+  const scheme = useColorScheme();
+  return (
+    <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+      <Gate />
+    </ThemeProvider>
   );
 }
 

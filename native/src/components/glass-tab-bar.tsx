@@ -8,11 +8,14 @@ import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
-import { Brand, BrandGradient, Shadow } from '@/constants/theme';
+import { Brand, BrandGradient, Shadow, type ThemePalette } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/hooks/use-theme';
 
 type TabItem = { name: string; label: string; icon: keyof typeof Ionicons.glyphMap };
 
@@ -28,6 +31,9 @@ const RIGHT: TabItem[] = [
 export function GlassTabBar({ state, navigation }: BottomTabBarProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const c = useTheme();
+  const scheme = useColorScheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const currentName = state.routes[state.index]?.name;
 
   // Hide the floating bar on pushed detail screens (customer chat/profile have
@@ -46,8 +52,8 @@ export function GlassTabBar({ state, navigation }: BottomTabBarProps) {
     const on = currentName === t.name;
     return (
       <Pressable key={t.name} onPress={() => go(t.name)} style={({ pressed }) => [styles.tab, on && styles.tabOn, pressed && styles.pressed]}>
-        <Ionicons name={t.icon} size={22} color={on ? Brand.primary : Brand.slate} />
-        <ThemedText style={[styles.label, { color: on ? Brand.primary : Brand.slate }]}>{t.label}</ThemedText>
+        <Ionicons name={t.icon} size={22} color={on ? Brand.primary : c.textSecondary} />
+        <ThemedText style={[styles.label, { color: on ? Brand.primary : c.textSecondary }]}>{t.label}</ThemedText>
       </Pressable>
     );
   };
@@ -55,7 +61,7 @@ export function GlassTabBar({ state, navigation }: BottomTabBarProps) {
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { paddingBottom: insets.bottom ? insets.bottom - 4 : 16 }]}>
       <View style={[styles.barShadow, Shadow.float]}>
-        <BlurView intensity={45} tint="light" style={styles.bar}>
+        <BlurView intensity={45} tint={scheme === 'dark' ? 'dark' : 'light'} style={styles.bar}>
           <View style={styles.glassOverlay} pointerEvents="none" />
           {LEFT.map(renderTab)}
           <View style={styles.centerSlot} />
@@ -76,7 +82,7 @@ export function GlassTabBar({ state, navigation }: BottomTabBarProps) {
 
 const BAR_H = 64;
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemePalette) => StyleSheet.create({
   wrap: { position: 'absolute', left: 14, right: 14, bottom: 0, alignItems: 'stretch' },
   barShadow: { borderRadius: 26 },
   bar: {
@@ -86,11 +92,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(17,39,59,0.08)',
+    borderColor: c.glassBorder,
   },
-  glassOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.94)' },
+  glassOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: c.glass },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, height: '100%', borderRadius: 18 },
-  tabOn: { backgroundColor: Brand.primarySoft },
+  tabOn: { backgroundColor: c.tabOn },
   label: { fontSize: 11, fontWeight: '600' },
   centerSlot: { width: 64 },
   fabWrap: { position: 'absolute', alignSelf: 'center', bottom: BAR_H - 16, alignItems: 'center', gap: 2 },

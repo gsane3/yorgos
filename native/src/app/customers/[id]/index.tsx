@@ -24,13 +24,16 @@ import { OfferPreviewSheet } from '@/components/offer-preview-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Input, PrimaryButton, SheetModal } from '@/components/ui';
-import { Brand, BrandGradient, Shadow, Spacing } from '@/constants/theme';
+import { Brand, BrandGradient, Shadow, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { dmyToYmd, formatEuro, formatWhen } from '@/lib/format';
 import type { CatalogItem, Customer, LinkDraft, TimelineItem } from '@/lib/types';
 import { pickAndUploadPhotos } from '@/lib/upload';
 
 export default function CustomerWorkspaceScreen() {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
@@ -364,6 +367,8 @@ function responseTone(item: TimelineItem): { text: string; color: string } | nul
 const TAPPABLE = new Set(['call', 'offer', 'offer_response', 'upload', 'intake_submitted']);
 
 function Bubble({ item, onPress }: { item: TimelineItem; onPress: () => void }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   // Messenger look: our side = brand blue with white text, customer = light gray.
   const us = item.side === 'us';
   const meta = TYPE_META[item.type] ?? { icon: 'ellipse' as const };
@@ -383,7 +388,7 @@ function Bubble({ item, onPress }: { item: TimelineItem; onPress: () => void }) 
         style={({ pressed }) => [styles.bubble, us ? styles.bubbleUs : styles.bubbleCust, pressed && styles.pressed]}>
         {us ? <LinearGradient colors={[...BrandGradient]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} /> : null}
         <View style={styles.bubbleHead}>
-          <Ionicons name={meta.icon} size={14} color={us ? '#FFFFFF' : '#6B7585'} />
+          <Ionicons name={meta.icon} size={14} color={us ? '#FFFFFF' : c.textSecondary} />
           <ThemedText type="smallBold" style={[fg, tone && !us ? { color: tone.color } : null]}>
             {tone ? tone.text : item.title}
           </ThemedText>
@@ -425,6 +430,8 @@ function ComposerButton({
   onPress: () => void;
   busy?: boolean;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable onPress={onPress} disabled={busy} style={({ pressed }) => [styles.composerBtn, pressed && styles.pressed]}>
       {busy ? <ActivityIndicator color={Brand.onPrimary} size="small" /> : <Ionicons name={icon} size={18} color={Brand.onPrimary} />}
@@ -467,6 +474,8 @@ function MessageModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [drafting, setDrafting] = useState(false);
@@ -713,6 +722,8 @@ function AppointmentModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [title, setTitle] = useState('Ραντεβού');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -878,6 +889,8 @@ function OfferModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [rows, setRows] = useState<DraftItem[]>([{ description: '', quantity: '1', unitPrice: '' }]);
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1077,12 +1090,12 @@ function OfferModal({
 
 // ---------- styles ----------
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemePalette) => StyleSheet.create({
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
-  dark: { color: '#11273B' },
+  dark: { color: c.text },
 
-  headerSafe: { borderBottomWidth: 1, borderBottomColor: '#EEF1F5', backgroundColor: '#FFFFFF' },
+  headerSafe: { borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.card },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1095,7 +1108,7 @@ const styles = StyleSheet.create({
   headerAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
   headerAvatarText: { color: Brand.primary, fontSize: 16, fontWeight: '700' },
   headerNameWrap: { flex: 1 },
-  headerName: { fontSize: 16, color: '#11273B' },
+  headerName: { fontSize: 16, color: c.text },
   headerSub: { fontSize: 12 },
   headerCall: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   onBlue: { color: '#FFFFFF' },
@@ -1108,12 +1121,12 @@ const styles = StyleSheet.create({
   rowCust: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '85%', borderRadius: 20, padding: Spacing.three, gap: 4, overflow: 'hidden' },
   bubbleUs: { backgroundColor: Brand.primary, borderBottomRightRadius: 5, ...Shadow.card },
-  bubbleCust: { backgroundColor: '#FFFFFF', borderBottomLeftRadius: 5, borderWidth: 1, borderColor: 'rgba(17,39,59,0.05)', ...Shadow.card },
+  bubbleCust: { backgroundColor: c.card, borderBottomLeftRadius: 5, borderWidth: 1, borderColor: c.borderFaint, ...Shadow.card },
   bubbleHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   when: { fontSize: 11, alignSelf: 'flex-end' },
   tapHint: { color: Brand.primary, fontWeight: '700' },
 
-  suggestRow: { maxHeight: 44, borderTopWidth: 1, borderTopColor: '#EEF1F5' },
+  suggestRow: { maxHeight: 44, borderTopWidth: 1, borderTopColor: c.border },
   suggestContent: { paddingHorizontal: Spacing.four, paddingVertical: 6, gap: Spacing.two, alignItems: 'center' },
   suggestChip: {
     flexDirection: 'row',
@@ -1126,7 +1139,7 @@ const styles = StyleSheet.create({
   },
   suggestText: { color: Brand.primary, fontWeight: '700' },
 
-  composerSafe: { borderTopWidth: 1, borderTopColor: '#EEF1F5', backgroundColor: '#FFFFFF' },
+  composerSafe: { borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.card },
   composer: { flexDirection: 'row', gap: Spacing.one, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
   composerBtn: {
     flex: 1,
@@ -1140,7 +1153,7 @@ const styles = StyleSheet.create({
   },
   composerBtnText: { color: Brand.onPrimary, fontWeight: '700', fontSize: 13 },
 
-  msgBox: { backgroundColor: '#F7F9FB', borderRadius: 14, padding: Spacing.three },
+  msgBox: { backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three },
 
   offerRow: { flexDirection: 'row', gap: Spacing.two },
   offerDesc: { flex: 2 },
@@ -1148,15 +1161,15 @@ const styles = StyleSheet.create({
   offerPrice: { width: 86 },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: Spacing.one },
   totalLine: { textAlign: 'right' },
-  suggestBox: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E3E7ED', borderRadius: 12, marginTop: 4, overflow: 'hidden' },
+  suggestBox: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12, marginTop: 4, overflow: 'hidden' },
   suggestItem: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: 10 },
 
-  pendingBox: { backgroundColor: '#F7F9FB', borderRadius: 12, padding: Spacing.three, gap: Spacing.one },
+  pendingBox: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: Spacing.one },
   pendingItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: 4 },
   msgTools: { flexDirection: 'row', alignItems: 'center', gap: Spacing.four },
   snippetToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: Spacing.one },
   snippetList: { gap: Spacing.one },
-  snippetItem: { backgroundColor: '#F7F9FB', borderRadius: 12, paddingHorizontal: Spacing.three, paddingVertical: 10 },
+  snippetItem: { backgroundColor: c.surface, borderRadius: 12, paddingHorizontal: Spacing.three, paddingVertical: 10 },
 
   dateChips: { flexDirection: 'row', gap: Spacing.two },
   dateChip: {

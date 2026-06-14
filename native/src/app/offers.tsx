@@ -12,7 +12,8 @@ import { OfferPreviewSheet } from '@/components/offer-preview-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ChipSelect } from '@/components/ui';
-import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
+import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiGet } from '@/lib/api';
 import { formatEuro } from '@/lib/format';
 import type { Customer, Offer } from '@/lib/types';
@@ -40,6 +41,8 @@ const TABS: Array<{ key: string; label: string; statuses: string[] }> = [
 ];
 
 export default function OffersScreen() {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
   const [tab, setTab] = useState('all');
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -129,7 +132,7 @@ export default function OffersScreen() {
                   </ThemedText>
                 </View>
                 <ThemedText type="smallBold" style={styles.amount}>{formatEuro(item.total)}</ThemedText>
-                <Ionicons name="chevron-forward" size={16} color="#9AA4B2" />
+                <Ionicons name="chevron-forward" size={16} color={c.textFaint} />
               </Pressable>
             );
           }}
@@ -145,9 +148,9 @@ export default function OffersScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemePalette) => StyleSheet.create({
   fill: { flex: 1 },
-  headerSafe: { borderBottomWidth: 1, borderBottomColor: '#EEF1F5', backgroundColor: '#FFFFFF' },
+  headerSafe: { borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.card },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.two, paddingTop: 4 },
   back: { padding: 4 },
   title: { fontSize: 22 },
@@ -155,8 +158,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
   list: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: BottomTabInset + Spacing.four },
   summary: { paddingBottom: Spacing.two },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: '#F7F9FB', borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.two },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.two },
   body: { flex: 1, gap: 2 },
-  amount: { color: '#11273B' },
+  amount: { color: c.text },
   pressed: { opacity: 0.6 },
 });

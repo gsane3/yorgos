@@ -21,7 +21,8 @@ import { CallActionSheet } from '@/components/call-action-sheet';
 import { NotificationsSheet, type NotificationItem } from '@/components/notifications-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Brand, BrandGradient, Shadow, Spacing, SuccessGradient } from '@/constants/theme';
+import { BottomTabInset, Brand, BrandGradient, Shadow, Spacing, SuccessGradient, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch } from '@/lib/api';
 import { briefExcerpt, formatWhen, todayYMD } from '@/lib/format';
 import { getIncomingState, subscribeIncomingState } from '@/lib/twilio-state';
@@ -30,6 +31,8 @@ import type { Communication, Customer, Offer, Task } from '@/lib/types';
 const NOTIF_SEEN_KEY = 'opiflow:notif_last_seen';
 
 export default function HomeScreen() {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -411,6 +414,8 @@ function StatCard({
   onPress?: () => void;
   tone?: 'brand' | 'ink' | 'warn' | 'success';
 }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable onPress={onPress} disabled={!onPress} style={({ pressed }) => [styles.statCardWrap, pressed && styles.pressed]}>
       <View style={styles.statCard}>
@@ -427,6 +432,8 @@ function StatCard({
 }
 
 function QuickLink({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.quickLink, pressed && styles.pressed]}>
       <Ionicons name={icon} size={18} color={Brand.primary} />
@@ -436,6 +443,8 @@ function QuickLink({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyph
 }
 
 function SectionTitle({ icon, title }: { icon: keyof typeof Ionicons.glyphMap; title: string }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.sectionTitle}>
       <Ionicons name={icon} size={16} color={Brand.primary} />
@@ -447,6 +456,8 @@ function SectionTitle({ icon, title }: { icon: keyof typeof Ionicons.glyphMap; t
 }
 
 function EmptyHint({ text }: { text: string }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <ThemedText type="small" themeColor="textSecondary" style={styles.emptyHint}>
       {text}
@@ -454,59 +465,60 @@ function EmptyHint({ text }: { text: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safe: { flex: 1 },
-  content: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
-  header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingTop: Spacing.four, paddingBottom: Spacing.three },
-  headerIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  badge: { position: 'absolute', top: 2, right: 2, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#D14343', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
-  badgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
-  quickLinks: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
-  quickLink: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 46, borderRadius: 15, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(17,39,59,0.08)', ...Shadow.card },
-  quickLinkText: { color: Brand.navy, fontWeight: '700' },
-  headerTitle: { fontSize: 26, lineHeight: 32 },
-  logo: { width: 48, height: 48, borderRadius: 14, backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center' },
-  logoMark: { color: Brand.onPrimary, fontSize: 26, lineHeight: 32, fontWeight: '800' },
-  loadingBox: { paddingVertical: Spacing.six, alignItems: 'center' },
+const makeStyles = (c: ThemePalette) =>
+  StyleSheet.create({
+    container: { flex: 1 },
+    safe: { flex: 1 },
+    content: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
+    header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingTop: Spacing.four, paddingBottom: Spacing.three },
+    headerIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
+    badge: { position: 'absolute', top: 2, right: 2, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#D14343', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+    badgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+    quickLinks: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
+    quickLink: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 46, borderRadius: 15, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, ...Shadow.card },
+    quickLinkText: { color: Brand.navy, fontWeight: '700' },
+    headerTitle: { fontSize: 26, lineHeight: 32 },
+    logo: { width: 48, height: 48, borderRadius: 14, backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center' },
+    logoMark: { color: Brand.onPrimary, fontSize: 26, lineHeight: 32, fontWeight: '800' },
+    loadingBox: { paddingVertical: Spacing.six, alignItems: 'center' },
 
-  statsRow: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
-  statCardWrap: { flex: 1 },
-  statCard: { padding: Spacing.three, borderRadius: 22, gap: 4, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(17,39,59,0.05)', ...Shadow.card },
-  statIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  statValue: { fontSize: 30, lineHeight: 38, fontWeight: '800', letterSpacing: -0.5, color: Brand.ink },
+    statsRow: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
+    statCardWrap: { flex: 1 },
+    statCard: { padding: Spacing.three, borderRadius: 22, gap: 4, backgroundColor: c.card, borderWidth: 1, borderColor: c.borderFaint, ...Shadow.card },
+    statIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+    statValue: { fontSize: 30, lineHeight: 38, fontWeight: '800', letterSpacing: -0.5, color: c.text },
 
-  sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.four, marginBottom: Spacing.two },
-  sectionTitleText: { fontSize: 15 },
-  emptyHint: { paddingVertical: Spacing.two },
+    sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.four, marginBottom: Spacing.two },
+    sectionTitleText: { fontSize: 15 },
+    emptyHint: { paddingVertical: Spacing.two },
 
-  itemCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    backgroundColor: '#F7F9FB',
-    borderRadius: 14,
-    padding: Spacing.three,
-    marginBottom: Spacing.two,
-  },
-  itemBody: { flex: 1, gap: 2 },
-  timePill: { backgroundColor: Brand.primarySoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, minWidth: 52, alignItems: 'center' },
-  timePillText: { color: Brand.primary, fontWeight: '800', fontSize: 14 },
-  overdue: { color: '#D14343', fontWeight: '700' },
-  doneBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  cardAction: { width: 38, height: 38, borderRadius: 19, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
+    itemCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.three,
+      backgroundColor: c.surface,
+      borderRadius: 14,
+      padding: Spacing.three,
+      marginBottom: Spacing.two,
+    },
+    itemBody: { flex: 1, gap: 2 },
+    timePill: { backgroundColor: Brand.primarySoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, minWidth: 52, alignItems: 'center' },
+    timePillText: { color: Brand.primary, fontWeight: '800', fontSize: 14 },
+    overdue: { color: '#D14343', fontWeight: '700' },
+    doneBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
+    cardAction: { width: 38, height: 38, borderRadius: 19, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
 
-  phoneBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    backgroundColor: '#D14343',
-    borderRadius: 12,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: 10,
-    marginBottom: Spacing.two,
-  },
-  phoneBannerText: { color: '#FFFFFF', fontWeight: '700', flex: 1 },
+    phoneBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.two,
+      backgroundColor: '#D14343',
+      borderRadius: 12,
+      paddingHorizontal: Spacing.three,
+      paddingVertical: 10,
+      marginBottom: Spacing.two,
+    },
+    phoneBannerText: { color: '#FFFFFF', fontWeight: '700', flex: 1 },
 
-  pressed: { opacity: 0.7 },
-});
+    pressed: { opacity: 0.7 },
+  });

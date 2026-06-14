@@ -11,7 +11,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ChipSelect } from '@/components/ui';
-import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
+import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch } from '@/lib/api';
 import { todayYMD } from '@/lib/format';
 import type { Customer, Task } from '@/lib/types';
@@ -34,6 +35,8 @@ const TABS = [
 ];
 
 export default function TasksScreen() {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
   const [tab, setTab] = useState('today');
   const [open, setOpen] = useState<Task[]>([]);
@@ -157,7 +160,7 @@ export default function TasksScreen() {
                 </View>
                 {!isDone ? (
                   <Pressable accessibilityRole="button" accessibilityLabel="Ενέργειες" onPress={() => actions(item)} hitSlop={8} style={styles.more}>
-                    <Ionicons name="ellipsis-horizontal" size={18} color="#9AA4B2" />
+                    <Ionicons name="ellipsis-horizontal" size={18} color={c.textFaint} />
                   </Pressable>
                 ) : null}
               </Pressable>
@@ -169,16 +172,16 @@ export default function TasksScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemePalette) => StyleSheet.create({
   fill: { flex: 1 },
-  headerSafe: { borderBottomWidth: 1, borderBottomColor: '#EEF1F5', backgroundColor: '#FFFFFF' },
+  headerSafe: { borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.card },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.two, paddingTop: 4 },
   back: { padding: 4 },
   title: { fontSize: 22 },
   tabsWrap: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.two, paddingTop: Spacing.one },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
   list: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: BottomTabInset + Spacing.four },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: '#F7F9FB', borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.two },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.two },
   check: { },
   body: { flex: 1, gap: 2 },
   more: { padding: 4 },

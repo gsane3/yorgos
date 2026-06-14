@@ -3,7 +3,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,7 +18,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CallActionSheet } from '@/components/call-action-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Brand, Shadow, Spacing } from '@/constants/theme';
+import { BottomTabInset, Brand, Shadow, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { apiGet } from '@/lib/api';
 import { briefExcerpt, formatWhen } from '@/lib/format';
 import { type ActiveCall, type CallStatus } from '@/lib/twilio-state';
@@ -45,6 +46,8 @@ const STATUS_LABEL: Record<CallStatus, string> = {
 };
 
 export default function CallsScreen() {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
   const { num: prefill } = useLocalSearchParams<{ num?: string }>();
 
@@ -233,7 +236,7 @@ export default function CallsScreen() {
                     accessibilityLabel="Διαγραφή ψηφίου"
                     onPress={back}
                     style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
-                    <Ionicons name="backspace-outline" size={26} color="#6B7585" />
+                    <Ionicons name="backspace-outline" size={26} color={c.textSecondary} />
                   </Pressable>
                 ) : null}
               </View>
@@ -372,6 +375,8 @@ export default function CallsScreen() {
 }
 
 function TabButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable onPress={onPress} style={[styles.tabBtn, active && styles.tabBtnActive]}>
       <ThemedText type="smallBold" style={active ? styles.tabTextActive : styles.tabText}>
@@ -383,7 +388,7 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
 
 const KEY = 76;
 
-const styles = StyleSheet.create({
+const makeStyles = (c: ThemePalette) => StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1, paddingBottom: BottomTabInset + Spacing.two },
   title: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four },
@@ -393,27 +398,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: Spacing.four,
     marginTop: Spacing.three,
-    backgroundColor: '#F2F4F7',
+    backgroundColor: c.surface,
     borderRadius: 12,
     padding: 4,
     gap: 4,
   },
   tabBtn: { flex: 1, height: 38, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  tabBtnActive: { backgroundColor: '#FFFFFF', shadowColor: '#11273B', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
-  tabText: { color: '#6B7585' },
+  tabBtnActive: { backgroundColor: c.card, shadowColor: '#11273B', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  tabText: { color: c.textSecondary },
   tabTextActive: { color: Brand.primary },
 
   keypadWrap: { flex: 1, alignItems: 'center' },
   display: { minHeight: 84, justifyContent: 'center', alignItems: 'center', paddingVertical: Spacing.two, paddingHorizontal: Spacing.four },
-  number: { fontSize: 34, lineHeight: 44, fontWeight: '700', letterSpacing: 1, color: '#11273B' },
-  numberPlaceholder: { fontSize: 17, fontWeight: '500', color: '#6B7585' },
+  number: { fontSize: 34, lineHeight: 44, fontWeight: '700', letterSpacing: 1, color: c.text },
+  numberPlaceholder: { fontSize: 17, fontWeight: '500', color: c.textFaint },
   debug: { textAlign: 'center', paddingHorizontal: Spacing.four },
   pad: { gap: Spacing.three, marginTop: Spacing.one },
   row: { flexDirection: 'row', gap: Spacing.four, justifyContent: 'center' },
-  key: { width: KEY, height: KEY, borderRadius: KEY / 2, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(17,39,59,0.05)', ...Shadow.card },
-  keyPressed: { backgroundColor: '#E2E7EE' },
-  keyText: { fontSize: 29, fontWeight: '600', color: '#11273B', lineHeight: 32 },
-  keySub: { fontSize: 9.5, fontWeight: '700', letterSpacing: 1.5, color: '#6B7585', marginTop: -1 },
+  key: { width: KEY, height: KEY, borderRadius: KEY / 2, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.borderFaint, ...Shadow.card },
+  keyPressed: { backgroundColor: c.surface },
+  keyText: { fontSize: 29, fontWeight: '600', color: c.text, lineHeight: 32 },
+  keySub: { fontSize: 9.5, fontWeight: '700', letterSpacing: 1.5, color: c.textSecondary, marginTop: -1 },
   actionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.four, marginTop: Spacing.three },
   sideSlot: { width: KEY, alignItems: 'center' },
   callBtn: { width: KEY, height: KEY, borderRadius: KEY / 2, backgroundColor: '#21A05A', alignItems: 'center', justifyContent: 'center', shadowColor: '#21A05A', shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
@@ -422,7 +427,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
 
   recentList: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: Spacing.four },
-  sep: { height: 1, backgroundColor: '#EEF1F5', marginLeft: 40 },
+  sep: { height: 1, backgroundColor: c.border, marginLeft: 40 },
   recentRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.three },
   recentBody: { flex: 1, gap: 2 },
   missedText: { color: '#D14343' },
@@ -447,3 +452,4 @@ const styles = StyleSheet.create({
   dtmfKey: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
   dtmfKeyText: { color: '#FFFFFF', fontSize: 24, lineHeight: 30, fontWeight: '600' },
 });
+
